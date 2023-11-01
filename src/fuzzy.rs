@@ -1,7 +1,7 @@
-use std::ops::DerefMut;
 use nucleo::pattern::{Atom, AtomKind, CaseMatching};
-use nucleo::{Config};
+use nucleo::Config;
 use parking_lot::Mutex;
+use std::ops::DerefMut;
 
 pub struct LazyMutex<T> {
     inner: Mutex<Option<T>>,
@@ -22,35 +22,32 @@ impl<T> LazyMutex<T> {
 }
 
 pub static MATCHER: LazyMutex<nucleo::Matcher> = LazyMutex::new(nucleo::Matcher::default);
-    fn files<T: AsRef<str>>(
-        input: &str,
-        git_ignore: bool,
-    ) -> Vec<String>
-    {
-        use ignore::WalkBuilder;
-        use std::path::Path;
 
-        let dir = Path::new(input);
-         WalkBuilder::new(&dir)
-            .hidden(false)
-            .follow_links(false) // We're scanning over depth 1
-            .git_ignore(git_ignore)
-            // .max_depth()
-            .build()
-            .filter_map(|file| {
-                file.ok().and_then(|entry| {
-                    let is_file = entry.file_type().map_or(false, |entry| entry.is_file());
+pub fn files<T: AsRef<str>>(input: &str, git_ignore: bool) -> Vec<String> {
+    use ignore::WalkBuilder;
+    use std::path::Path;
 
-                    if is_file {
-                        let val = entry.path().to_str()?.to_string();
-                         Some(val)
-                    } else {
-                        None
-                    }
+    let dir = Path::new(input);
+    WalkBuilder::new(&dir)
+        .hidden(false)
+        .follow_links(false) // We're scanning over depth 1
+        .git_ignore(git_ignore)
+        // .max_depth()
+        .build()
+        .filter_map(|file| {
+            file.ok().and_then(|entry| {
+                let is_file = entry.file_type().map_or(false, |entry| entry.is_file());
 
-                })
-            }).collect()
-    }
+                if is_file {
+                    let val = entry.path().to_str()?.to_string();
+                    Some(val)
+                } else {
+                    None
+                }
+            })
+        })
+        .collect()
+}
 
 /// NOTE: From Helix:
 /// convenience function to easily fuzzy match
@@ -78,7 +75,11 @@ pub fn fuzzy_file_finder<T: AsRef<str>>(
 ) -> Vec<String> {
     let items = files::<String>(dir, true);
 
-    Vec::from_iter(fuzzy_match(pattern, items, true).into_iter().map(|(item, _)| item))
+    Vec::from_iter(
+        fuzzy_match(pattern, items, true)
+            .into_iter()
+            .map(|(item, _)| item),
+    )
 }
 
 #[cfg(test)]
@@ -92,7 +93,6 @@ mod test {
         let items = files::<String>("/Users/jamesbombeelu/Code/cleverific/editorder", true);
         dbg!(&items);
 
-
         let result = fuzzy_match(query, items, false);
 
         dbg!(&result);
@@ -100,4 +100,3 @@ mod test {
         assert_eq!(result.len(), 100)
     }
 }
-

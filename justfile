@@ -20,10 +20,11 @@ clean: clean-lua clean-cargo
 
 build: clean-lua
     cargo build
-    ln -s ./target/debug/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_nvim.{{ bin_ext_output }}
+    cp ./target/debug/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_nvim.{{ bin_ext_output }}
 
-build-release: clean-lua
+release: clean-lua
     cargo build --release
+    cp ./target/release/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_nvim.{{ bin_ext_output }}
 
 clippy:
     cargo clippy --all --all-targets --all-features
