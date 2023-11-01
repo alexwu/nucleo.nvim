@@ -1,0 +1,13 @@
+[package]
+name = "nucleo-nvim"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "nucleo_nvim"
+
+[dependencies]
+anyhow = "1"
+nucleo = "0.2"
+parking_lot = "0.12"
+
