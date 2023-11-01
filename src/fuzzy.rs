@@ -23,7 +23,7 @@ impl<T> LazyMutex<T> {
 
 pub static MATCHER: LazyMutex<nucleo::Matcher> = LazyMutex::new(nucleo::Matcher::default);
 
-pub fn files<T: AsRef<str>>(input: &str, git_ignore: bool) -> Vec<String> {
+pub fn files(input: &str, git_ignore: bool) -> Vec<String> {
     use ignore::WalkBuilder;
     use std::path::Path;
 
@@ -68,20 +68,6 @@ pub fn fuzzy_match<T: AsRef<str>>(
     pattern.match_list(items, &mut matcher)
 }
 
-pub fn fuzzy_file_finder<T: AsRef<str>>(
-    pattern: &str,
-    dir: &str,
-    // items: impl IntoIterator<Item = T>,
-) -> Vec<String> {
-    let items = files::<String>(dir, true);
-
-    Vec::from_iter(
-        fuzzy_match(pattern, items, true)
-            .into_iter()
-            .map(|(item, _)| item),
-    )
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -89,13 +75,9 @@ mod test {
     #[test]
     fn basic_test() {
         let query = "test";
-        // let items = vec![ "testing", "testy","tes", "testy mctestface"];
-        let items = files::<String>("/Users/jamesbombeelu/Code/cleverific/editorder", true);
-        dbg!(&items);
-
+        let items = files("/Users/jamesbombeelu/Code/", true);
         let result = fuzzy_match(query, items, false);
 
-        dbg!(&result);
 
         assert_eq!(result.len(), 100)
     }
