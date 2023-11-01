@@ -1,0 +1,8 @@
+{
+    "workspace.library": [
+        "/Users/jamesbombeelu/.local/share/nvim/lazy/neodev.nvim/types/nightly",
+        "/Users/jamesbombeelu/.bin/nvim/share/nvim/runtime/lua",
+        "/Users/jamesbombeelu/Code/neovim/plugins/nucleo-nvim/lua",
+        "${3rd}/luv/library"
+    ]
+}

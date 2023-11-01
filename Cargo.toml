@@ -5,9 +5,17 @@ edition = "2021"
 
 [lib]
 name = "nucleo_nvim"
+crate-type = ["cdylib"]
 
 [dependencies]
 anyhow = "1"
 nucleo = "0.2"
 parking_lot = "0.12"
 ignore ="0.4"
+mlua = { version = "0.9", features = [
+  "luajit",
+  "module",
+  "async",
+  "serialize",
+] }
+
