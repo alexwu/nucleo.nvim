@@ -1,7 +1,7 @@
 use nucleo::pattern::{Atom, AtomKind, CaseMatching};
 use nucleo::{Config, Nucleo};
 use parking_lot::Mutex;
-use std::ops::{DerefMut, RangeBounds};
+use std::ops::{DerefMut};
 use std::sync::Arc;
 
 pub struct LazyMutex<T> {

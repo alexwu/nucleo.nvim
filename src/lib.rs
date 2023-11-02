@@ -29,12 +29,12 @@ pub fn fuzzy_with_scores(lua: &Lua, params: (String, Vec<String>)) -> LuaResult<
     table.into_lua(lua)
 }
 
-pub fn set_picker_items(lua: &Lua, params: Vec<String>) -> LuaResult<()> {
+pub fn set_picker_items(_lua: &Lua, params: Vec<String>) -> LuaResult<()> {
     fuzzy::set_picker_items(params);
     Ok(())
 }
 
-pub fn update_query(lua: &Lua, params: String) -> LuaResult<()> {
+pub fn update_query(_lua: &Lua, params: String) -> LuaResult<()> {
     fuzzy::update_query(&params);
     Ok(())
 }
@@ -43,7 +43,7 @@ pub fn matches(lua: &Lua, _params: ()) -> LuaResult<LuaValue> {
     fuzzy::matches().into_lua(lua)
 }
 
-pub fn restart_picker(lua: &Lua, _params: ()) -> LuaResult<()> {
+pub fn restart_picker(_lua: &Lua, _params: ()) -> LuaResult<()> {
     fuzzy::restart_picker();
     Ok(())
 }
