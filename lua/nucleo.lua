@@ -4,7 +4,16 @@ local M = {}
 M._rust = {
 	files = true,
 	fuzzy_match = true,
+	fuzzy_match_with_scores = true,
+	matches = true,
+	set_picker_items = true,
+	update_query = true,
+	restart_picker = true,
 }
+
+function M.setup()
+	require("nucleo.pickers").setup()
+end
 
 return setmetatable(M, {
 	__index = function(t, key)

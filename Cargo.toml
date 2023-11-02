@@ -18,4 +18,3 @@ mlua = { version = "0.9", features = [
   "async",
   "serialize",
 ] }
-

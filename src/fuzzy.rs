@@ -1,7 +1,8 @@
 use nucleo::pattern::{Atom, AtomKind, CaseMatching};
-use nucleo::Config;
+use nucleo::{Config, Nucleo};
 use parking_lot::Mutex;
-use std::ops::DerefMut;
+use std::ops::{DerefMut, RangeBounds};
+use std::sync::Arc;
 
 pub struct LazyMutex<T> {
     inner: Mutex<Option<T>>,
@@ -21,16 +22,92 @@ impl<T> LazyMutex<T> {
     }
 }
 
+pub struct Picker {
+    pub matcher: Nucleo<String>,
+    previous_query: String,
+}
+
+impl Picker {
+    pub fn new(
+        items: Vec<String>,
+        starting_query: Option<String>,
+        // callback_fn: impl Fn(),
+    ) -> Self {
+        fn notify() {}
+        let matcher = Nucleo::new(Config::DEFAULT, Arc::new(notify), None, 1);
+        let injector = matcher.injector();
+        for item in items {
+            injector.push(item.clone(), |dst| dst[0] = item.into());
+        }
+        Self {
+            matcher,
+            previous_query: starting_query.unwrap_or_default(),
+        }
+    }
+}
+
+impl Default for Picker {
+    fn default() -> Self {
+        Picker::new(vec![], None)
+    }
+}
+
+pub static PICKER: LazyMutex<Picker> = LazyMutex::new(Picker::default);
 pub static MATCHER: LazyMutex<nucleo::Matcher> = LazyMutex::new(nucleo::Matcher::default);
+
+pub fn picker() -> impl DerefMut<Target = Picker> {
+    PICKER.lock()
+}
+
+pub fn restart_picker() {
+    // let mut picker = PICKER.lock();
+    picker().matcher.restart(true)
+}
+
+pub fn set_picker_items(items: Vec<String>) {
+    // TODO: let's see what happens...picker().matcher.restart(false);
+    let injector = picker().matcher.injector();
+    for item in items {
+        injector.push(item.clone(), |dst| dst[0] = item.into());
+    }
+}
+
+pub fn update_query(query: &str) {
+    let picker = &mut picker();
+    let previous_query = picker.previous_query.clone();
+    if query != previous_query {
+        picker.matcher.pattern.reparse(
+            0,
+            query,
+            CaseMatching::Smart,
+            query.starts_with(&previous_query),
+        );
+        picker.previous_query = query.to_string();
+    }
+}
+
+pub fn matches() -> Vec<String> {
+    let matcher = &mut picker().matcher;
+    matcher.tick(10);
+    let snapshot = matcher.snapshot();
+
+    let total_matches = snapshot.matched_item_count();
+
+    Vec::from_iter(
+        snapshot
+            .matched_items(0..total_matches)
+            .map(|item| item.data.clone()),
+    )
+}
 
 pub fn files(input: &str, git_ignore: bool) -> Vec<String> {
     use ignore::WalkBuilder;
     use std::path::Path;
 
     let dir = Path::new(input);
-    WalkBuilder::new(&dir)
-        .hidden(false)
-        .follow_links(false) // We're scanning over depth 1
+    WalkBuilder::new(dir)
+        .hidden(true)
+        .follow_links(true)
         .git_ignore(git_ignore)
         // .max_depth()
         .build()
@@ -39,7 +116,7 @@ pub fn files(input: &str, git_ignore: bool) -> Vec<String> {
                 let is_file = entry.file_type().map_or(false, |entry| entry.is_file());
 
                 if is_file {
-                    let val = entry.path().to_str()?.to_string();
+                    let val = entry.path().strip_prefix(dir).ok()?.to_str()?.to_string();
                     Some(val)
                 } else {
                     None
@@ -77,7 +154,6 @@ mod test {
         let query = "test";
         let items = files("/Users/jamesbombeelu/Code/", true);
         let result = fuzzy_match(query, items, false);
-
 
         assert_eq!(result.len(), 100)
     }
