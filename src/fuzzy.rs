@@ -1,7 +1,9 @@
+use ignore::WalkBuilder;
 use nucleo::pattern::{Atom, AtomKind, CaseMatching};
 use nucleo::{Config, Nucleo};
 use parking_lot::Mutex;
-use std::ops::{DerefMut};
+use std::ops::DerefMut;
+use std::path::Path;
 use std::sync::Arc;
 
 pub struct LazyMutex<T> {
@@ -60,7 +62,6 @@ pub fn picker() -> impl DerefMut<Target = Picker> {
 }
 
 pub fn restart_picker() {
-    // let mut picker = PICKER.lock();
     picker().matcher.restart(true)
 }
 
@@ -101,15 +102,11 @@ pub fn matches() -> Vec<String> {
 }
 
 pub fn files(input: &str, git_ignore: bool) -> Vec<String> {
-    use ignore::WalkBuilder;
-    use std::path::Path;
-
     let dir = Path::new(input);
     WalkBuilder::new(dir)
         .hidden(true)
         .follow_links(true)
         .git_ignore(git_ignore)
-        // .max_depth()
         .build()
         .filter_map(|file| {
             file.ok().and_then(|entry| {

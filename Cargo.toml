@@ -17,4 +17,8 @@ mlua = { version = "0.9", features = [
   "module",
   "async",
   "serialize",
+  "send",
+  "parking_lot"
 ] }
+tokio = { version = "1.33.0", features = ["full"] }
+

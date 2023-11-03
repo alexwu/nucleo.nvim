@@ -9,6 +9,8 @@ M._rust = {
 	set_picker_items = true,
 	update_query = true,
 	restart_picker = true,
+
+	fuzzy_file = true,
 }
 
 function M.setup()

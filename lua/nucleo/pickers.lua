@@ -2,6 +2,8 @@ local Input = require("nui.input")
 local Layout = require("nui.layout")
 local Popup = require("nui.popup")
 local event = require("nui.utils.autocmd").event
+local Prompt = require("nucleo.prompt")
+local Results = require("nucleo.results")
 
 local M = {}
 
@@ -10,22 +12,24 @@ M.selection_index = 1
 
 function M.setup()
 	vim.api.nvim_create_user_command("Nucleo", function()
-		local files = require("nucleo").files(vim.loop.cwd())
-		require("nucleo").set_picker_items(files)
+		-- local files = require("nucleo").files(vim.loop.cwd())
+		-- require("nucleo").set_picker_items(files)
 
-		local results = Popup({
-			border = "rounded",
-			size = {
-				width = 80,
-				height = 40,
-			},
-			enter = false,
-			focusable = false,
-			buf_options = {
-				modifiable = true,
-				readonly = false,
-			},
-		})
+		-- local results = Popup({
+		-- 	border = "rounded",
+		-- 	size = {
+		-- 		width = 80,
+		-- 		height = 40,
+		-- 	},
+		-- 	enter = false,
+		-- 	focusable = false,
+		-- 	buf_options = {
+		-- 		modifiable = true,
+		-- 		readonly = false,
+		-- 	},
+		-- })
+
+		local results = Results()
 
 		M.results_bufnr = results.bufnr
 		M.selection_index = 1
@@ -54,20 +58,25 @@ function M.setup()
 			default_value = "",
 			on_close = function()
 				require("nucleo").restart_picker()
-				print("Input Closed!")
+				-- print("Input Closed!")
 			end,
 			on_submit = function(value)
 				print("Input Submitted: " .. value)
 			end,
 			on_change = function(value)
-				-- local results = require("nucleo").fuzzy_match(value, files)
-				require("nucleo").update_query(value)
-				local results = require("nucleo").matches()
-				if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+				local co = coroutine.create(function()
+					local results = require("nucleo").fuzzy_file(value, vim.loop.cwd())
+					-- local results = require("nucleo").fuzzy_match(value)
+					-- require("nucleo").update_query(value)
+					-- local results = require("nucleo").matches()
 					vim.defer_fn(function()
-						vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, results)
+						if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+							vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, results)
+						end
 					end, 0)
-				end
+				end)
+
+				coroutine.resume(co)
 			end,
 		})
 
@@ -86,15 +95,33 @@ function M.setup()
 			input:unmount()
 		end, { noremap = true })
 
+		-- local layout = Layout(
+		-- 	{
+		-- 		relative = "editor",
+		-- 		position = "50%",
+		-- 		size = { height = "80%", width = "80%" },
+		-- 	},
+		-- 	Layout.Box({
+		-- 		Layout.Box(results, { grow = 1 }),
+		-- 		Layout.Box(input, { size = "25%" }),
+		-- 	}, { dir = "col" })
+		-- )
+
 		local layout = Layout(
 			{
 				relative = "editor",
 				position = "50%",
-				size = { height = "80%", width = "80%" },
+				size = {
+					width = 80,
+					height = "60%",
+				},
 			},
 			Layout.Box({
-				Layout.Box(results, { grow = 1 }),
-				Layout.Box(input, { size = "25%" }),
+				Layout.Box(results, { size = "100%" }),
+				Layout.Box(input, { size = {
+					width = "100%",
+					height = "3",
+				} }),
 			}, { dir = "col" })
 		)
 
@@ -116,6 +143,9 @@ function M.setup()
 		-- input:mount()
 		layout:mount()
 
+		vim.schedule(function()
+			local _results = require("nucleo").fuzzy_file("", vim.loop.cwd())
+		end)
 		-- vim.api.nvim_buf_attach(input.bufnr, false, {
 		--   -- on_bytes = function(_, handle, changedtick, start_row, start_column, byte_offset, old_end_row, old_end_col other_last)
 		--   --   local lines = vim.api.nvim_buf_get_lines(handle, start, last, true)
