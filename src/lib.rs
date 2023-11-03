@@ -1,7 +1,11 @@
-use mlua::prelude::*;
+use std::fs::File;
 
-mod fuzzy;
+use log::LevelFilter;
+use mlua::prelude::*;
+use simplelog::{Config, WriteLogger};
+
 mod file_finder;
+mod fuzzy;
 mod picker;
 
 pub fn files(lua: &Lua, params: String) -> LuaResult<LuaValue> {
@@ -49,24 +53,44 @@ pub fn restart_picker(_lua: &Lua, _params: ()) -> LuaResult<()> {
     Ok(())
 }
 
-pub fn fuzzy_match(lua: &Lua, params: (String,))  -> LuaResult<LuaValue> {
+pub fn fuzzy_match(lua: &Lua, params: (String,)) -> LuaResult<LuaValue> {
     fuzzy::update_query(&params.0);
 
     fuzzy::matches().into_lua(lua)
 }
 
-pub async fn fuzzy_file(lua: &Lua, params: (String, String))  -> LuaResult<LuaValue> {
+pub async fn init_file_finder(lua: &Lua, params: (String,)) -> LuaResult<()> {
+    log::info!("init_file_finder");
+
+    if params.0 != file_finder::finder().cwd {
+        file_finder::update_cwd(&params.0);
+        file_finder::parallel_files(&params.0, true).await;
+    }
+    log::info!("init_file_finder: after if statement");
+
+    Ok(())
+}
+
+pub async fn fuzzy_file(lua: &Lua, params: (String, String)) -> LuaResult<LuaValue> {
+    log::info!("fuzzy_file: {}, {}", params.0, params.1);
     if params.1 != file_finder::finder().cwd {
         file_finder::update_cwd(&params.1);
         file_finder::parallel_files(&params.1, true).await;
     }
-    // dbg!("Paralelling!");
+    log::info!("fuzzy_file: {}, {}, after if statement", params.0, params.1);
 
-    file_finder::matches(&params.0).await.into_lua(lua)
+    file_finder::matches(&params.0).into_lua(lua)
 }
 
 #[mlua::lua_module]
 fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
+    let _ = WriteLogger::init(
+        LevelFilter::Info,
+        Config::default(),
+        File::create("nucleo.log").unwrap(),
+    );
+    log::info!("Initialized logger");
+
     let exports = lua.create_table()?;
     // exports.set("fuzzy_match", lua.create_function(fuzzy)?)?;
     exports.set("fuzzy_match", lua.create_function(fuzzy_match)?)?;
@@ -80,7 +104,10 @@ fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("update_query", lua.create_function(update_query)?)?;
     exports.set("restart_picker", lua.create_function(restart_picker)?)?;
 
-
+    exports.set(
+        "init_file_finder",
+        lua.create_async_function(init_file_finder)?,
+    )?;
     exports.set("fuzzy_file", lua.create_async_function(fuzzy_file)?)?;
 
     Ok(exports)

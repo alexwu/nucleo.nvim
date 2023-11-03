@@ -10,6 +10,7 @@ M._rust = {
 	update_query = true,
 	restart_picker = true,
 
+	init_file_finder = true,
 	fuzzy_file = true,
 }
 

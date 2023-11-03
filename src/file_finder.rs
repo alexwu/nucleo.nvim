@@ -5,6 +5,7 @@ use mlua::UserData;
 use nucleo::pattern::{Atom, AtomKind, CaseMatching};
 use nucleo::{Config, Nucleo};
 use parking_lot::Mutex;
+use rayon::prelude::*;
 use std::cmp::min;
 use std::env::current_dir;
 use std::ops::DerefMut;
@@ -86,7 +87,7 @@ pub fn update_cwd(cwd: &str) {
     picker.cwd = cwd.to_string();
 }
 
-pub async fn matches(query: &str) -> Vec<String> {
+pub fn matches(query: &str) -> Vec<String> {
     update_query(query);
 
     let matcher = &mut finder().matcher;
@@ -116,7 +117,8 @@ pub fn add_to_picker<'s>(
                 .to_str()
                 .expect("Failed to convert path to string")
                 .to_string();
-            insert_item(val);
+            insert_item(val.clone());
+            log::info!("Adding {}", &val);
             let matcher = &mut finder().matcher;
             matcher.tick(10);
             WalkState::Continue
@@ -128,16 +130,17 @@ pub fn add_to_picker<'s>(
     Box::new(closure)
 }
 pub async fn parallel_files(input: &str, git_ignore: bool) {
-    let runtime = Runtime::new().unwrap();
     let dir_name = input.to_string();
+    let runtime = Runtime::new().expect("Failed to create runtime");
     runtime.spawn(async move {
+        log::info!("Spawning file searcher...");
         let dir = Path::new(&dir_name);
         WalkBuilder::new(dir.clone())
             .hidden(true)
             .follow_links(true)
             .git_ignore(git_ignore)
+            .sort_by_file_name(|name1, name2| name1.cmp(name2))
             .build_parallel()
             .run(Box::new(add_to_picker));
-    })
-    .await;
+    });
 }

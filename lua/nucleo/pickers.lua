@@ -4,6 +4,7 @@ local Popup = require("nui.popup")
 local event = require("nui.utils.autocmd").event
 local Prompt = require("nucleo.prompt")
 local Results = require("nucleo.results")
+local log = require("nucleo.log")
 
 local M = {}
 
@@ -12,23 +13,6 @@ M.selection_index = 1
 
 function M.setup()
 	vim.api.nvim_create_user_command("Nucleo", function()
-		-- local files = require("nucleo").files(vim.loop.cwd())
-		-- require("nucleo").set_picker_items(files)
-
-		-- local results = Popup({
-		-- 	border = "rounded",
-		-- 	size = {
-		-- 		width = 80,
-		-- 		height = 40,
-		-- 	},
-		-- 	enter = false,
-		-- 	focusable = false,
-		-- 	buf_options = {
-		-- 		modifiable = true,
-		-- 		readonly = false,
-		-- 	},
-		-- })
-
 		local results = Results()
 
 		M.results_bufnr = results.bufnr
@@ -58,22 +42,21 @@ function M.setup()
 			default_value = "",
 			on_close = function()
 				require("nucleo").restart_picker()
-				-- print("Input Closed!")
 			end,
 			on_submit = function(value)
 				print("Input Submitted: " .. value)
 			end,
 			on_change = function(value)
 				local co = coroutine.create(function()
+					log.info("Before results")
 					local results = require("nucleo").fuzzy_file(value, vim.loop.cwd())
-					-- local results = require("nucleo").fuzzy_match(value)
-					-- require("nucleo").update_query(value)
-					-- local results = require("nucleo").matches()
-					vim.defer_fn(function()
+					log.info("Got results")
+					-- vim.print(M.results_bufnr)
+					vim.schedule(function()
 						if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
 							vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, results)
 						end
-					end, 0)
+					end)
 				end)
 
 				coroutine.resume(co)
@@ -95,25 +78,13 @@ function M.setup()
 			input:unmount()
 		end, { noremap = true })
 
-		-- local layout = Layout(
-		-- 	{
-		-- 		relative = "editor",
-		-- 		position = "50%",
-		-- 		size = { height = "80%", width = "80%" },
-		-- 	},
-		-- 	Layout.Box({
-		-- 		Layout.Box(results, { grow = 1 }),
-		-- 		Layout.Box(input, { size = "25%" }),
-		-- 	}, { dir = "col" })
-		-- )
-
 		local layout = Layout(
 			{
 				relative = "editor",
 				position = "50%",
 				size = {
-					width = 80,
-					height = "60%",
+					width = "50%",
+					height = "80%",
 				},
 			},
 			Layout.Box({
@@ -125,49 +96,19 @@ function M.setup()
 			}, { dir = "col" })
 		)
 
-		-- for _, popup in pairs(popups) do
-		--   popup:on("BufLeave", function()
-		--     vim.schedule(function()
-		--       local curr_bufnr = vim.api.nvim_get_current_buf()
-		--       for _, p in pairs(popups) do
-		--         if p.bufnr == curr_bufnr then
-		--           return
-		--         end
-		--       end
-		--       layout:unmount()
-		--     end)
-		--   end)
-		-- end
-
-		-- mount/open the component
-		-- input:mount()
-		layout:mount()
-
-		vim.schedule(function()
-			local _results = require("nucleo").fuzzy_file("", vim.loop.cwd())
+		input:on(event.BufWinEnter, function()
+			log.info("Before init")
+			vim.schedule(function()
+				require("nucleo").init_file_finder(vim.loop.cwd())
+				log.info("After init")
+			end)
 		end)
-		-- vim.api.nvim_buf_attach(input.bufnr, false, {
-		--   -- on_bytes = function(_, handle, changedtick, start_row, start_column, byte_offset, old_end_row, old_end_col other_last)
-		--   --   local lines = vim.api.nvim_buf_get_lines(handle, start, last, true)
-		--   --   vim.print(lines)
-		--   -- end,
-		--   on_lines = function(_, handle, changedtick, start, last, other_last)
-		--     local lines = vim.api.nvim_buf_get_lines(handle, start, last, true)
-		--     -- vim.print(lines)
-		--     local prompt = vim.trim(string.gsub(lines[1], ">", "", 1))
-		--     local results = require("nucleo").fuzzy_match(prompt, files)
-		--     vim.print(results)
-		--   end,
-		--
-		--   -- on_detach = function()
-		--   --   self:_detach()
-		--   -- end,
-		-- })
 
-		-- unmount component when cursor leaves buffer
 		input:on(event.BufLeave, function()
 			input:unmount()
 		end)
+
+		layout:mount()
 	end, {})
 end
 
