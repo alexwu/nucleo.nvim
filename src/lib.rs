@@ -1,10 +1,12 @@
-use std::fs::File;
+use std::{fs::File, ops::DerefMut, sync::Arc};
 
 use log::LevelFilter;
 use mlua::prelude::*;
-use picker::Picker;
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
+use picker::{LazyMutex, Picker, PICKER};
 use simplelog::{Config, WriteLogger};
-use tokio::runtime::Runtime;
+use std::env::current_dir;
 
 mod file_finder;
 mod fuzzy;
@@ -61,21 +63,6 @@ pub fn fuzzy_match(lua: &Lua, params: (String,)) -> LuaResult<LuaValue> {
     fuzzy::matches().into_lua(lua)
 }
 
-pub async fn init_file_finder(lua: &Lua, params: (String,)) -> LuaResult<()> {
-    log::info!("init_file_finder");
-
-    if params.0 != file_finder::finder().cwd {
-        let runtime = Runtime::new().expect("Failed to create runtime");
-        file_finder::update_cwd(&params.0);
-        runtime.spawn(async move {
-            file_finder::parallel_files(&params.0, true);
-        });
-    }
-    log::info!("init_file_finder: after if statement");
-
-    Ok(())
-}
-
 pub async fn fuzzy_file(lua: &Lua, params: (String, String)) -> LuaResult<LuaValue> {
     log::info!("fuzzy_file: {}, {}", params.0, params.1);
     // if params.1 != file_finder::finder().cwd {
@@ -109,20 +96,20 @@ pub fn nvim_buf_set_lines(lua: &Lua, params: (i64, i64, i64, bool, Vec<String>))
         .map_err(|err| err.into())
 }
 
-pub fn register_callback(lua: &Lua, params: (LuaFunction,)) -> LuaResult<()> {
-    Ok(())
-}
-
-pub fn init_picker(lua: &Lua, params: (String,)) -> LuaResult<Picker> {
-    let mut picker = Picker::new(params.0.clone());
-    // let runtime = Runtime::new()?;
-    // runtime.spawn(async move {
-    picker.populate_picker(&params.0, true);
-    // });
-
-    Ok(picker)
-    // lua.globals().set("picker", picker)
-}
+// pub fn init_picker(lua: &Lua, params: (String,)) -> LuaResult<Arc<Mutex<Picker>>> {
+//     log::info!("Beginning to initialize picker");
+//     // let mut picker = Picker::new(params.0.clone());
+//     // let runtime = Runtime::new()?;
+//     // runtime.spawn(async move {
+//     // picker.populate_picker(&params.0, true);
+//     // });
+//     log::info!("About to return picker");
+//
+//     Ok(Arc::new(Mutex::new(Picker::default())))
+// }
+// pub fn init_picker(lua: &Lua, params: (String,)) -> LuaResult<LazyMutex<Picker>> {
+//     Ok(PICKER)
+// }
 
 #[mlua::lua_module]
 fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
@@ -133,25 +120,32 @@ fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
     );
     log::info!("Initialized logger");
 
+    let dir = current_dir().unwrap();
+    let picker = Arc::new(Mutex::new(Picker::new(dir.to_string_lossy().to_string())));
+
     let exports = lua.create_table()?;
     // exports.set("fuzzy_match", lua.create_function(fuzzy)?)?;
-    exports.set("fuzzy_match", lua.create_function(fuzzy_match)?)?;
+    // exports.set("fuzzy_match", lua.create_function(fuzzy_match)?)?;
+    // exports.set(
+    //     "fuzzy_match_with_scores",
+    //     lua.create_function(fuzzy_with_scores)?,
+    // )?;
+    // exports.set("files", lua.create_function(files)?)?;
+    // exports.set("set_picker_items", lua.create_function(set_picker_items)?)?;
+    // exports.set("matches", lua.create_function(matches)?)?;
+    // exports.set("update_query", lua.create_function(update_query)?)?;
+    // exports.set("restart_picker", lua.create_function(restart_picker)?)?;
+    //
+    // exports.set(
+    //     "init_file_finder",
+    //     lua.create_async_function(init_file_finder)?,
+    // )?;
+    // exports.set("fuzzy_file", lua.create_async_function(fuzzy_file)?)?;
+    // exports.set("init_picker", lua.create_function(|_, params| {})?)?;
     exports.set(
-        "fuzzy_match_with_scores",
-        lua.create_function(fuzzy_with_scores)?,
+        "Picker",
+        lua.create_function(move |_, ()| Ok(picker.clone()))?,
     )?;
-    exports.set("files", lua.create_function(files)?)?;
-    exports.set("set_picker_items", lua.create_function(set_picker_items)?)?;
-    exports.set("matches", lua.create_function(matches)?)?;
-    exports.set("update_query", lua.create_function(update_query)?)?;
-    exports.set("restart_picker", lua.create_function(restart_picker)?)?;
-
-    exports.set(
-        "init_file_finder",
-        lua.create_async_function(init_file_finder)?,
-    )?;
-    exports.set("fuzzy_file", lua.create_async_function(fuzzy_file)?)?;
-    exports.set("init_picker", lua.create_function(init_picker)?)?;
 
     // exports.set("Picker", picker::Picker);
 
