@@ -11,7 +11,7 @@ use mlua::prelude::*;
 use nucleo::Injector;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
-use picker::{LazyMutex, Picker, PICKER};
+use picker::Picker;
 use simplelog::{Config, WriteLogger};
 use std::env::current_dir;
 use tokio::runtime::Runtime;

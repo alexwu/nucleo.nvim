@@ -11,40 +11,6 @@ use std::path::Path;
 use std::sync::{mpsc, Arc};
 use tokio::runtime::Runtime;
 
-#[derive(Debug)]
-pub struct LazyMutex<T> {
-    inner: Lazy<Arc<Mutex<Option<T>>>>,
-    init: fn() -> T,
-}
-
-impl<T> LazyMutex<T> {
-    pub const fn new(init: fn() -> T) -> Self {
-        Self {
-            inner: Lazy::new(|| Arc::new(Mutex::new(None))),
-            init,
-        }
-    }
-
-    pub fn lock(&self) -> impl DerefMut<Target = T> + '_ {
-        parking_lot::MutexGuard::map(self.inner.lock(), |val| val.get_or_insert_with(self.init))
-    }
-}
-
-pub static PICKER: LazyMutex<Picker> = LazyMutex::new(Picker::default);
-
-#[derive(Debug, Clone)]
-pub enum EntryKind {
-    File,
-    Custom,
-}
-
-#[derive(Debug, Clone)]
-pub struct Entry {
-    pub kind: EntryKind,
-    pub value: String,
-    pub score: f32,
-}
-
 pub struct Matcher(pub Nucleo<String>);
 pub struct Status(pub nucleo::Status);
 
@@ -217,30 +183,6 @@ impl UserData for Picker {
 
         methods.add_method_mut("populate_picker", |_lua, this, params: (String,)| {
             this.populate_picker(true);
-            Ok(())
-        });
-    }
-}
-
-impl UserData for LazyMutex<Picker> {
-    fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {}
-
-    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
-        methods.add_method_mut("update_query", |lua, this, params: (String,)| {
-            this.lock().update_query(params.0);
-            Ok(())
-        });
-
-        methods.add_method("current_matches", |lua, this, ()| {
-            Ok(this.lock().current_matches())
-        });
-
-        methods.add_method_mut("tick", |lua, this, ms: u64| {
-            Ok(this.lock().matcher.tick(ms))
-        });
-
-        methods.add_method_mut("populate_picker", |_lua, this, params: (String,)| {
-            this.lock().populate_picker(true);
             Ok(())
         });
     }
