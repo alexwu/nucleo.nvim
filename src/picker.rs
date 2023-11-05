@@ -31,10 +31,6 @@ impl<T> LazyMutex<T> {
 }
 
 pub static PICKER: LazyMutex<Picker> = LazyMutex::new(Picker::default);
-// pub static PICKER: Arc<Mutex<Picker>> = Mutex::new(Lazy::new(|| Arc::new(Picker::default())))
-// pub fn picker() -> MutexGuard<Picker> {
-//     PICKER.lock()
-// }
 
 #[derive(Debug, Clone)]
 pub enum EntryKind {
