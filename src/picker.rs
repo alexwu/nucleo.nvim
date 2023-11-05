@@ -97,7 +97,7 @@ impl Picker {
             previous_query: String::new(),
         };
 
-        picker.populate_picker(true);
+        // picker.populate_picker(true);
         picker
     }
 

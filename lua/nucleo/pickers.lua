@@ -60,23 +60,14 @@ end
 -- coroutine.resume(M.co)
 -- end
 
-M.picker = nu.Picker()
+M.picker = nil
+-- M.picker = nu.Picker()
 
 function M.setup()
 	vim.api.nvim_create_user_command("Nucleo", function()
 		local results = Results()
 
-		-- M.picker = nu.init_picker(vim.loop.cwd())
-		-- M.picker = nu.Picker()
-
-		-- local co = coroutine.create(function()
-		-- 	vim.schedule(function()
-		-- 		M.picker:populate_picker(vim.loop.cwd())
-		-- 	end)
-		-- end)
-		--
-		-- coroutine.resume(co)
-
+		M.picker = nu.Picker()
 		M.results_bufnr = results.bufnr
 		M.selection_index = 1
 
