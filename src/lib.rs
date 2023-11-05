@@ -1,6 +1,6 @@
+use std::env::current_dir;
 use std::{
     fs::File,
-    ops::DerefMut,
     path::Path,
     sync::{mpsc, Arc},
 };
@@ -9,11 +9,9 @@ use ignore::{types::TypesBuilder, DirEntry, WalkBuilder, WalkState};
 use log::LevelFilter;
 use mlua::prelude::*;
 use nucleo::Injector;
-use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use picker::Picker;
 use simplelog::{Config, WriteLogger};
-use std::env::current_dir;
 use tokio::runtime::Runtime;
 
 mod file_finder;
@@ -101,7 +99,6 @@ pub fn nvim_buf_set_lines(lua: &Lua, params: (i64, i64, i64, bool, Vec<String>))
     nvim_api(lua)?
         .get::<&str, LuaFunction>("nvim_buf_set_lines")?
         .call::<_, ()>(params)
-        .map_err(|err| err.into())
 }
 
 // pub fn init_picker(lua: &Lua, params: (String,)) -> LuaResult<Arc<Mutex<Picker>>> {
@@ -124,7 +121,7 @@ pub fn populate_injector(injector: Injector<String>, cwd: String, git_ignore: bo
     let runtime = Runtime::new().expect("Failed to create runtime");
 
     let (tx, rx) = mpsc::channel::<String>();
-    let add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
+    let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
         for val in rx.iter() {
             injector.push(val.clone(), |dst| dst[0] = val.into());
         }

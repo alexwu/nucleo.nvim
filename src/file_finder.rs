@@ -1,18 +1,16 @@
-use crate::fuzzy::LazyMutex;
-use ignore::WalkBuilder;
-use ignore::{DirEntry, WalkState};
-use mlua::prelude::*;
-use mlua::UserData;
-use nucleo::pattern::{Atom, AtomKind, CaseMatching};
-use nucleo::{Config, Nucleo};
-use parking_lot::Mutex;
-use rayon::prelude::*;
 use std::cmp::min;
-use std::env::current_dir;
 use std::ops::DerefMut;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
+
+use ignore::WalkBuilder;
+use ignore::{DirEntry, WalkState};
+use mlua::UserData;
+use nucleo::pattern::CaseMatching;
+use nucleo::{Config, Nucleo};
+use rayon::prelude::*;
+
+use crate::fuzzy::LazyMutex;
 
 pub struct FileFinder {
     pub matcher: Nucleo<String>,
@@ -48,9 +46,9 @@ impl Default for FileFinder {
 }
 
 impl UserData for FileFinder {
-    fn add_fields<'lua, F: mlua::UserDataFields<'lua, Self>>(fields: &mut F) {}
+    fn add_fields<'lua, F: mlua::UserDataFields<'lua, Self>>(_fields: &mut F) {}
 
-    fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<'lua, M: mlua::UserDataMethods<'lua, Self>>(_methods: &mut M) {
         // methods.add_async_method_mut("matches", |lua, this, size| async move {
         //     this.matcher.snapshot().matched_items(..10)
         // });
@@ -94,7 +92,7 @@ pub fn matches(query: &str) -> Vec<String> {
     update_query(query);
 
     let matcher = &mut finder().matcher;
-    let status = matcher.tick(10);
+    let _status = matcher.tick(10);
     // status.running
     let snapshot = matcher.snapshot();
     // snapshot.clone_into

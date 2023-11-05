@@ -1,14 +1,12 @@
+use std::cmp::min;
+use std::path::Path;
+use std::sync::{mpsc, Arc};
+
 use ignore::types::TypesBuilder;
 use ignore::{DirEntry, WalkBuilder, WalkState};
 use mlua::{MetaMethod, UserData, UserDataFields, UserDataMethods};
 use nucleo::pattern::CaseMatching;
 use nucleo::{Config, Nucleo};
-use once_cell::sync::Lazy;
-use parking_lot::Mutex;
-use std::cmp::min;
-use std::ops::DerefMut;
-use std::path::Path;
-use std::sync::{mpsc, Arc};
 use tokio::runtime::Runtime;
 
 pub struct Matcher(pub Nucleo<String>);
@@ -18,9 +16,11 @@ impl Matcher {
     pub fn pattern(&mut self) -> &mut nucleo::pattern::MultiPattern {
         &mut self.0.pattern
     }
+
     pub fn injector(&mut self) -> nucleo::Injector<String> {
         self.0.injector()
     }
+
     pub fn tick(&mut self, timeout: u64) -> Status {
         Status(self.0.tick(timeout))
     }
@@ -53,14 +53,13 @@ impl Picker {
     pub fn new(cwd: String) -> Self {
         fn notify() {}
         let matcher: Matcher = Nucleo::new(Config::DEFAULT, Arc::new(notify), None, 1).into();
-        let mut picker = Self {
+
+        // picker.populate_picker(true);
+        Self {
             matcher,
             cwd,
             previous_query: String::new(),
-        };
-
-        // picker.populate_picker(true);
-        picker
+        }
     }
 
     pub fn update_query(&mut self, query: String) {
@@ -83,7 +82,7 @@ impl Picker {
         let injector = self.matcher.injector();
 
         let (tx, rx) = mpsc::channel::<String>();
-        let add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
+        let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
             for val in rx.iter() {
                 injector.push(val.clone(), |dst| dst[0] = val.into());
             }
@@ -168,20 +167,19 @@ impl UserData for Picker {
             Ok(picker)
         });
 
-        methods.add_method_mut("update_query", |lua, this, params: (String,)| {
+        methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
             this.update_query(params.0);
             // this.matcher.tick(10);
             Ok(())
         });
 
-        methods.add_method(
-            "current_matches",
-            |lua, this, ()| Ok(this.current_matches()),
-        );
+        methods.add_method("current_matches", |_lua, this, ()| {
+            Ok(this.current_matches())
+        });
 
-        methods.add_method_mut("tick", |lua, this, ms: u64| Ok(this.matcher.tick(ms)));
+        methods.add_method_mut("tick", |_lua, this, ms: u64| Ok(this.matcher.tick(ms)));
 
-        methods.add_method_mut("populate_picker", |_lua, this, params: (String,)| {
+        methods.add_method_mut("populate_picker", |_lua, this, _params: (String,)| {
             this.populate_picker(true);
             Ok(())
         });

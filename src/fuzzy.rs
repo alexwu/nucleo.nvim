@@ -1,10 +1,11 @@
+use std::ops::DerefMut;
+use std::path::Path;
+use std::sync::Arc;
+
 use ignore::WalkBuilder;
 use nucleo::pattern::{Atom, AtomKind, CaseMatching};
 use nucleo::{Config, Nucleo};
 use parking_lot::Mutex;
-use std::ops::DerefMut;
-use std::path::Path;
-use std::sync::Arc;
 
 pub struct LazyMutex<T> {
     inner: Mutex<Option<T>>,
