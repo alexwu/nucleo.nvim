@@ -12,6 +12,8 @@ M._rust = {
 
 	init_file_finder = true,
 	fuzzy_file = true,
+	init_picker = true,
+	current_matches = true,
 }
 
 function M.setup()

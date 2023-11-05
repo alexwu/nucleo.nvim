@@ -1,6 +1,7 @@
 use crate::fuzzy::LazyMutex;
 use ignore::WalkBuilder;
 use ignore::{DirEntry, WalkState};
+use mlua::prelude::*;
 use mlua::UserData;
 use nucleo::pattern::{Atom, AtomKind, CaseMatching};
 use nucleo::{Config, Nucleo};
@@ -60,6 +61,8 @@ pub static FINDER: LazyMutex<FileFinder> = LazyMutex::new(FileFinder::default);
 pub fn finder() -> impl DerefMut<Target = FileFinder> {
     FINDER.lock()
 }
+
+pub fn notify_item_added() {}
 
 pub fn insert_item(item: String) {
     // TODO: let's see what happens...picker().matcher.restart(false);
@@ -129,18 +132,18 @@ pub fn add_to_picker<'s>(
 
     Box::new(closure)
 }
-pub async fn parallel_files(input: &str, git_ignore: bool) {
+pub fn parallel_files(input: &str, git_ignore: bool) {
     let dir_name = input.to_string();
-    let runtime = Runtime::new().expect("Failed to create runtime");
-    runtime.spawn(async move {
-        log::info!("Spawning file searcher...");
-        let dir = Path::new(&dir_name);
-        WalkBuilder::new(dir.clone())
-            .hidden(true)
-            .follow_links(true)
-            .git_ignore(git_ignore)
-            .sort_by_file_name(|name1, name2| name1.cmp(name2))
-            .build_parallel()
-            .run(Box::new(add_to_picker));
-    });
+    // let runtime = Runtime::new().expect("Failed to create runtime");
+    // runtime.spawn(async move {
+    log::info!("Spawning file searcher...");
+    let dir = Path::new(&dir_name);
+    WalkBuilder::new(dir.clone())
+        .hidden(true)
+        .follow_links(true)
+        .git_ignore(git_ignore)
+        .sort_by_file_name(|name1, name2| name1.cmp(name2))
+        .build_parallel()
+        .run(Box::new(add_to_picker));
+    // });
 }

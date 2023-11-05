@@ -2,7 +2,9 @@ use std::fs::File;
 
 use log::LevelFilter;
 use mlua::prelude::*;
+use picker::Picker;
 use simplelog::{Config, WriteLogger};
+use tokio::runtime::Runtime;
 
 mod file_finder;
 mod fuzzy;
@@ -63,8 +65,11 @@ pub async fn init_file_finder(lua: &Lua, params: (String,)) -> LuaResult<()> {
     log::info!("init_file_finder");
 
     if params.0 != file_finder::finder().cwd {
+        let runtime = Runtime::new().expect("Failed to create runtime");
         file_finder::update_cwd(&params.0);
-        file_finder::parallel_files(&params.0, true).await;
+        runtime.spawn(async move {
+            file_finder::parallel_files(&params.0, true);
+        });
     }
     log::info!("init_file_finder: after if statement");
 
@@ -73,13 +78,50 @@ pub async fn init_file_finder(lua: &Lua, params: (String,)) -> LuaResult<()> {
 
 pub async fn fuzzy_file(lua: &Lua, params: (String, String)) -> LuaResult<LuaValue> {
     log::info!("fuzzy_file: {}, {}", params.0, params.1);
+    // if params.1 != file_finder::finder().cwd {
+    //     file_finder::update_cwd(&params.1);
+    //     file_finder::parallel_files(&params.1, true);
+    // }
+    log::info!("fuzzy_file: {}, {}, after if statement", params.0, params.1);
+
+    file_finder::matches(&params.0).into_lua(lua)
+}
+
+pub async fn fuzzy_file_callback(lua: &Lua, params: (String, String)) -> LuaResult<LuaValue> {
+    log::info!("fuzzy_file: {}, {}", params.0, params.1);
     if params.1 != file_finder::finder().cwd {
         file_finder::update_cwd(&params.1);
-        file_finder::parallel_files(&params.1, true).await;
+        file_finder::parallel_files(&params.1, true);
     }
     log::info!("fuzzy_file: {}, {}, after if statement", params.0, params.1);
 
     file_finder::matches(&params.0).into_lua(lua)
+}
+
+fn nvim_api(lua: &Lua) -> LuaResult<LuaTable> {
+    lua.globals().get::<&str, LuaTable>("vim")?.get("api")
+}
+
+pub fn nvim_buf_set_lines(lua: &Lua, params: (i64, i64, i64, bool, Vec<String>)) -> LuaResult<()> {
+    nvim_api(lua)?
+        .get::<&str, LuaFunction>("nvim_buf_set_lines")?
+        .call::<_, ()>(params)
+        .map_err(|err| err.into())
+}
+
+pub fn register_callback(lua: &Lua, params: (LuaFunction,)) -> LuaResult<()> {
+    Ok(())
+}
+
+pub fn init_picker(lua: &Lua, params: (String,)) -> LuaResult<Picker> {
+    let mut picker = Picker::new(params.0.clone());
+    // let runtime = Runtime::new()?;
+    // runtime.spawn(async move {
+    picker.populate_picker(&params.0, true);
+    // });
+
+    Ok(picker)
+    // lua.globals().set("picker", picker)
 }
 
 #[mlua::lua_module]
@@ -109,6 +151,9 @@ fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
         lua.create_async_function(init_file_finder)?,
     )?;
     exports.set("fuzzy_file", lua.create_async_function(fuzzy_file)?)?;
+    exports.set("init_picker", lua.create_function(init_picker)?)?;
+
+    // exports.set("Picker", picker::Picker);
 
     Ok(exports)
 }
