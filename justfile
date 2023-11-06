@@ -1,4 +1,4 @@
-bin_name := if os() == "macos" { "libnucleo_nvim" } else { "nucleo_nvim" }
+bin_name := if os() == "windows" { "nucleo_nvim" } else { "libnucleo_nvim" }
 bin_ext := if os() == "macos" { "dylib" } else { if os() == "windows" { "dll" } else { "so" } }
 bin_ext_output := if os() == "windows" { "dll" } else { "so" }
 
