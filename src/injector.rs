@@ -35,7 +35,7 @@ impl Injector<String> {
             Ok(())
         });
 
-        let _ = runtime.spawn(async move {
+        runtime.spawn(async move {
             let dir = Path::new(&cwd);
             log::info!("Spawning file searcher...");
             let mut walk_builder = WalkBuilder::new(dir.clone());
