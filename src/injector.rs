@@ -4,7 +4,7 @@ use ignore::{types::TypesBuilder, DirEntry, WalkBuilder, WalkState};
 use nucleo::Utf32String;
 use tokio::runtime::Runtime;
 
-use crate::picker::{Entry, FileEntry};
+use crate::picker::Entry;
 
 pub struct Injector<T: Entry>(nucleo::Injector<T>);
 
