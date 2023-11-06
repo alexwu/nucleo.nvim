@@ -85,11 +85,9 @@ impl Picker {
     }
 
     pub fn update_cursor(&mut self) {
-        if self.selection_index > self.upper_bound() - 1 {
-            self.selection_index = self.upper_bound() - 1;
-        } else if self.selection_index < self.lower_bound() {
-            self.selection_index = self.lower_bound();
-        }
+        self.selection_index = self
+            .selection_index
+            .clamp(self.lower_bound(), self.upper_bound() - 1);
     }
 
     pub fn update_query(&mut self, query: String) {
@@ -110,11 +108,9 @@ impl Picker {
         log::info!("Lower bound: {}", self.lower_bound());
         log::info!("Upper bound: {}", self.upper_bound());
         let next_index = match direction {
-            // Movement::Up => min(self.selection_index + change, self.upper_bound()) - 1,
             Movement::Up => self.selection_index + change,
             Movement::Down => {
                 if change > self.selection_index {
-                    // max(self.selection_index - change, self.lower_bound())
                     0
                 } else {
                     self.selection_index - change

@@ -97,7 +97,9 @@ function M.setup()
 				-- require("nucleo").restart_picker()
 			end,
 			on_submit = function(value)
-				print("Input Submitted: " .. M.picker:get_selection())
+				local selection = M.picker:get_selection()
+				log.info("Input Submitted: " .. selection)
+				vim.cmd(string.format("%s %s", "edit", vim.fn.fnameescape(selection)))
 			end,
 			on_change = M.process_input,
 		})

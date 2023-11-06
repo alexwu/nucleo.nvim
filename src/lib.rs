@@ -14,31 +14,8 @@ use picker::Picker;
 use simplelog::{Config, WriteLogger};
 use tokio::runtime::Runtime;
 
-// mod file_finder;
 mod picker;
 
-// pub async fn fuzzy_file(lua: &Lua, params: (String, String)) -> LuaResult<LuaValue> {
-//     log::info!("fuzzy_file: {}, {}", params.0, params.1);
-//     // if params.1 != file_finder::finder().cwd {
-//     //     file_finder::update_cwd(&params.1);
-//     //     file_finder::parallel_files(&params.1, true);
-//     // }
-//     log::info!("fuzzy_file: {}, {}, after if statement", params.0, params.1);
-//
-//     file_finder::matches(&params.0).into_lua(lua)
-// }
-//
-// pub async fn fuzzy_file_callback(lua: &Lua, params: (String, String)) -> LuaResult<LuaValue> {
-//     log::info!("fuzzy_file: {}, {}", params.0, params.1);
-//     if params.1 != file_finder::finder().cwd {
-//         file_finder::update_cwd(&params.1);
-//         file_finder::parallel_files(&params.1, true);
-//     }
-//     log::info!("fuzzy_file: {}, {}, after if statement", params.0, params.1);
-//
-//     file_finder::matches(&params.0).into_lua(lua)
-// }
-//
 fn nvim_api(lua: &Lua) -> LuaResult<LuaTable> {
     lua.globals().get::<&str, LuaTable>("vim")?.get("api")
 }
@@ -111,6 +88,19 @@ pub fn populate_injector(injector: Injector<String>, cwd: String, git_ignore: bo
 
     log::info!("After spawning file searcher...");
 }
+
+pub fn init_picker(lua: &Lua, params: ()) -> LuaResult<Arc<Mutex<Picker>>> {
+    let dir = current_dir().unwrap();
+    let picker = Arc::new(Mutex::new(Picker::new(dir.to_string_lossy().to_string())));
+
+    let injector = picker.lock().matcher.injector();
+    std::thread::spawn(move || {
+        populate_injector(injector, dir.to_string_lossy().to_string(), true);
+    });
+
+    Ok(picker)
+}
+
 #[mlua::lua_module]
 fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
     let _ = WriteLogger::init(
@@ -120,19 +110,20 @@ fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
     );
     log::info!("Initialized logger");
 
-    let dir = current_dir().unwrap();
-    let picker = Arc::new(Mutex::new(Picker::new(dir.to_string_lossy().to_string())));
-
-    let injector = picker.lock().matcher.injector();
-    std::thread::spawn(move || {
-        populate_injector(injector, dir.to_string_lossy().to_string(), true);
-    });
+    // let dir = current_dir().unwrap();
+    // let picker = Arc::new(Mutex::new(Picker::new(dir.to_string_lossy().to_string())));
+    //
+    // let injector = picker.lock().matcher.injector();
+    // std::thread::spawn(move || {
+    //     populate_injector(injector, dir.to_string_lossy().to_string(), true);
+    // });
 
     let exports = lua.create_table()?;
 
     exports.set(
         "Picker",
-        lua.create_function(move |_, ()| Ok(picker.clone()))?,
+        // lua.create_function(move |_, ()| Ok(picker.clone()))?,
+        lua.create_function(init_picker)?,
     )?;
 
     Ok(exports)
