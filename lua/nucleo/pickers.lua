@@ -7,6 +7,7 @@ local Results = require("nucleo.results")
 local a = require("plenary.async")
 local log = require("nucleo.log")
 local nu = require("nucleo")
+local debounce = require("throttle-debounce").debounce_trailing
 
 local M = {}
 
@@ -15,7 +16,7 @@ M.selection_index = 1
 M.co = nil
 M.picker = nil
 
-M.process_input = function(val)
+M.process_input = debounce(function(val)
 	M.picker:update_query(val)
 
 	local status = M.picker:tick(10)
@@ -27,7 +28,7 @@ M.process_input = function(val)
 			end
 		end)
 	end
-end
+end, 50)
 
 M.initialize = function()
 	if not M.picker then
