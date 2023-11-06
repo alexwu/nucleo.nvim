@@ -90,7 +90,10 @@ pub fn populate_injector(injector: Injector<String>, cwd: String, git_ignore: bo
     log::info!("After spawning file searcher...");
 }
 
-pub fn init_picker(_lua: &Lua, _params: ()) -> LuaResult<Arc<Mutex<Picker>>> {
+pub fn init_picker<T: Clone + Send + Sync + 'static>(
+    _lua: &Lua,
+    _params: (),
+) -> LuaResult<Arc<Mutex<Picker<T>>>> {
     let dir = current_dir().unwrap();
     let picker = Arc::new(Mutex::new(Picker::new(dir.to_string_lossy().to_string())));
 
@@ -117,7 +120,7 @@ fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set(
         "Picker",
         // lua.create_function(move |_, ()| Ok(picker.clone()))?,
-        lua.create_function(init_picker)?,
+        lua.create_function(init_picker::<String>)?,
     )?;
 
     Ok(exports)

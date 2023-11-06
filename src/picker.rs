@@ -2,16 +2,17 @@ use std::cmp::{max, min};
 use std::env::current_dir;
 use std::sync::Arc;
 
-use mlua::{MetaMethod, UserData, UserDataFields, UserDataMethods};
+use mlua::{IntoLua, LuaSerdeExt, MetaMethod, UserData, UserDataFields, UserDataMethods};
 use nucleo::pattern::CaseMatching;
 use nucleo::{Config, Nucleo};
+use serde::{Deserialize, Serialize};
 
 use crate::injector::Injector;
 
-pub struct Matcher(pub Nucleo<String>);
+pub struct Matcher<T: Sync + Send + 'static>(pub Nucleo<T>);
 pub struct Status(pub nucleo::Status);
 
-impl Matcher {
+impl<T: Clone + Sync + Send + 'static> Matcher<T> {
     pub fn pattern(&mut self) -> &mut nucleo::pattern::MultiPattern {
         &mut self.0.pattern
     }
@@ -24,7 +25,7 @@ impl Matcher {
         Status(self.0.tick(timeout))
     }
 
-    pub fn snapshot(&self) -> &nucleo::Snapshot<String> {
+    pub fn snapshot(&self) -> &nucleo::Snapshot<T> {
         self.0.snapshot()
     }
 }
@@ -36,8 +37,8 @@ impl UserData for Status {
     }
 }
 
-impl From<Nucleo<String>> for Matcher {
-    fn from(value: Nucleo<String>) -> Self {
+impl<T: Clone + Sync + Send + 'static> From<Nucleo<T>> for Matcher<T> {
+    fn from(value: Nucleo<T>) -> Self {
         Matcher(value)
     }
 }
@@ -48,8 +49,14 @@ pub enum Movement {
     Down,
 }
 
-pub struct Picker {
-    pub matcher: Matcher,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileEntry {
+    file_type: String,
+    path: String,
+}
+
+pub struct Picker<T: Clone + Sync + Send + 'static> {
+    pub matcher: Matcher<T>,
     previous_query: String,
     cwd: String,
     selection_index: u32,
@@ -57,10 +64,10 @@ pub struct Picker {
     upper_bound: u32,
 }
 
-impl Picker {
+impl<T: Clone + Sync + Send + 'static> Picker<T> {
     pub fn new(cwd: String) -> Self {
         fn notify() {}
-        let matcher: Matcher = Nucleo::new(Config::DEFAULT, Arc::new(notify), None, 1).into();
+        let matcher: Matcher<T> = Nucleo::new(Config::DEFAULT, Arc::new(notify), None, 1).into();
 
         Self {
             matcher,
@@ -122,7 +129,7 @@ impl Picker {
         log::info!("Selection index: {}", self.selection_index);
     }
 
-    pub fn current_matches(&self) -> Vec<String> {
+    pub fn current_matches(&self) -> Vec<T> {
         let snapshot = self.matcher.snapshot();
 
         let lower_bound = self.lower_bound();
@@ -148,13 +155,13 @@ impl Picker {
     }
 }
 
-impl Default for Picker {
+impl<T: Clone + Sync + Send + 'static> Default for Picker<T> {
     fn default() -> Self {
         Self::new("".to_string())
     }
 }
 
-impl UserData for Picker {
+impl UserData for Picker<FileEntry> {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_meta_function(MetaMethod::Call, |_, cwd: String| {
             let picker = Picker::new(cwd);
@@ -176,21 +183,21 @@ impl UserData for Picker {
             Ok(())
         });
 
-        methods.add_method("current_matches", |_lua, this, ()| {
-            Ok(this.current_matches())
+        methods.add_method("current_matches", |lua, this, ()| {
+            Ok(lua.to_value(&this.current_matches()))
         });
 
         methods.add_method("get_selection_index", |_lua, this, ()| {
             Ok(this.selection_index)
         });
 
-        methods.add_method("get_selection", |_lua, this, ()| {
+        methods.add_method("get_selection", |lua, this, ()| {
             match this
                 .matcher
                 .snapshot()
                 .get_matched_item(this.selection_index)
             {
-                Some(selection) => Ok(selection.data.to_string()),
+                Some(selection) => Ok(lua.to_value(selection.data)),
                 None => Err(mlua::Error::runtime(std::format!(
                     "Failed getting the selection at selection_index: {}",
                     this.selection_index
