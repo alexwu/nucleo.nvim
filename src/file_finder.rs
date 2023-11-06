@@ -10,8 +10,6 @@ use nucleo::pattern::CaseMatching;
 use nucleo::{Config, Nucleo};
 use rayon::prelude::*;
 
-use crate::fuzzy::LazyMutex;
-
 pub struct FileFinder {
     pub matcher: Nucleo<String>,
     previous_query: String,

@@ -97,7 +97,7 @@ function M.setup()
 				-- require("nucleo").restart_picker()
 			end,
 			on_submit = function(value)
-				print("Input Submitted: " .. value)
+				print("Input Submitted: " .. M.picker:get_selection())
 			end,
 			on_change = M.process_input,
 		})
@@ -106,11 +106,11 @@ function M.setup()
 			input:unmount()
 		end, { noremap = true })
 
-		input:map("n", "<C-n>", function()
-			M.selection_index = M.selection_index - 1
+		input:map("i", "<C-n>", function()
+			M.picker:move_cursor_down()
 		end, { noremap = true })
-		input:map("n", "<C-p>", function()
-			M.selection_index = M.selection_index + 1
+		input:map("i", "<C-p>", function()
+			M.picker:move_cursor_up()
 		end, { noremap = true })
 
 		input:map("i", "<Esc>", function()
@@ -136,6 +136,7 @@ function M.setup()
 		)
 
 		input:on(event.BufWinEnter, function()
+			vim.print(vim.bo.filetype)
 			-- 	log.info("Before init")
 			-- 	vim.schedule(function()
 			-- M.picker:populate_picker(vim.loop.cwd())

@@ -1,4 +1,4 @@
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::path::Path;
 use std::sync::{mpsc, Arc};
 
@@ -43,10 +43,19 @@ impl From<Nucleo<String>> for Matcher {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Movement {
+    Up,
+    Down,
+}
+
 pub struct Picker {
     pub matcher: Matcher,
     previous_query: String,
     cwd: String,
+    selection_index: u32,
+    lower_bound: u32,
+    upper_bound: u32,
 }
 
 impl Picker {
@@ -54,11 +63,32 @@ impl Picker {
         fn notify() {}
         let matcher: Matcher = Nucleo::new(Config::DEFAULT, Arc::new(notify), None, 1).into();
 
-        // picker.populate_picker(true);
         Self {
             matcher,
             cwd,
+            selection_index: 0,
+            lower_bound: 0,
+            upper_bound: 50,
             previous_query: String::new(),
+        }
+    }
+
+    pub fn upper_bound(&self) -> u32 {
+        min(
+            self.upper_bound,
+            self.matcher.snapshot().matched_item_count(),
+        )
+    }
+
+    pub fn lower_bound(&self) -> u32 {
+        max(self.lower_bound, 0)
+    }
+
+    pub fn update_cursor(&mut self) {
+        if self.selection_index > self.upper_bound() - 1 {
+            self.selection_index = self.upper_bound() - 1;
+        } else if self.selection_index < self.lower_bound() {
+            self.selection_index = self.lower_bound();
         }
     }
 
@@ -73,6 +103,28 @@ impl Picker {
             );
             self.previous_query = query.to_string();
         }
+    }
+
+    pub fn move_cursor(&mut self, direction: Movement, change: u32) {
+        log::info!("Moving cursor {:?} by {}", direction, change);
+        log::info!("Lower bound: {}", self.lower_bound());
+        log::info!("Upper bound: {}", self.upper_bound());
+        let next_index = match direction {
+            // Movement::Up => min(self.selection_index + change, self.upper_bound()) - 1,
+            Movement::Up => self.selection_index + change,
+            Movement::Down => {
+                if change > self.selection_index {
+                    // max(self.selection_index - change, self.lower_bound())
+                    0
+                } else {
+                    self.selection_index - change
+                }
+            }
+        };
+
+        self.selection_index = next_index;
+        self.update_cursor();
+        log::info!("Selection index: {}", self.selection_index);
     }
 
     pub fn populate_picker(&mut self, git_ignore: bool) {
@@ -143,12 +195,12 @@ impl Picker {
     pub fn current_matches(&self) -> Vec<String> {
         let snapshot = self.matcher.snapshot();
 
-        let total_matches = snapshot.matched_item_count();
-        let upper_bound = min(50, total_matches);
+        let lower_bound = self.lower_bound();
+        let upper_bound = self.upper_bound();
 
         Vec::from_iter(
             snapshot
-                .matched_items(0..upper_bound)
+                .matched_items(lower_bound..upper_bound)
                 .map(|item| item.data.clone()),
         )
     }
@@ -169,12 +221,39 @@ impl UserData for Picker {
 
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
             this.update_query(params.0);
-            // this.matcher.tick(10);
+            Ok(())
+        });
+
+        methods.add_method_mut("move_cursor_up", |_lua, this, ()| {
+            this.move_cursor(Movement::Down, 1);
+            Ok(())
+        });
+
+        methods.add_method_mut("move_cursor_down", |_lua, this, ()| {
+            this.move_cursor(Movement::Up, 1);
             Ok(())
         });
 
         methods.add_method("current_matches", |_lua, this, ()| {
             Ok(this.current_matches())
+        });
+
+        methods.add_method("get_selection_index", |_lua, this, ()| {
+            Ok(this.selection_index)
+        });
+
+        methods.add_method("get_selection", |_lua, this, ()| {
+            match this
+                .matcher
+                .snapshot()
+                .get_matched_item(this.selection_index)
+            {
+                Some(selection) => Ok(selection.data.to_string()),
+                None => Err(mlua::Error::runtime(std::format!(
+                    "Failed getting the selection at selection_index: {}",
+                    this.selection_index
+                ))),
+            }
         });
 
         methods.add_method_mut("tick", |_lua, this, ms: u64| Ok(this.matcher.tick(ms)));
