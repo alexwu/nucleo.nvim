@@ -112,14 +112,6 @@ fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
     );
     log::info!("Initialized logger");
 
-    // let dir = current_dir().unwrap();
-    // let picker = Arc::new(Mutex::new(Picker::new(dir.to_string_lossy().to_string())));
-    //
-    // let injector = picker.lock().matcher.injector();
-    // std::thread::spawn(move || {
-    //     populate_injector(injector, dir.to_string_lossy().to_string(), true);
-    // });
-
     let exports = lua.create_table()?;
 
     exports.set(
