@@ -8,6 +8,7 @@ local a = require("plenary.async")
 local log = require("nucleo.log")
 local nu = require("nucleo")
 local debounce = require("throttle-debounce").debounce_trailing
+local Entry = require("nucleo.entry")
 
 local M = {}
 
@@ -24,7 +25,12 @@ M.process_input = debounce(function(val)
 		local results = M.picker:current_matches()
 		vim.schedule(function()
 			if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-				vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, results)
+				local lines = vim.iter(results)
+					:map(function(entry)
+						return Entry(entry):render()
+					end)
+					:totable()
+				vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, lines)
 			end
 		end)
 	end

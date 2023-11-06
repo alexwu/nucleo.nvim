@@ -1,23 +1,29 @@
 use std::cmp::{max, min};
 use std::env::current_dir;
+use std::path::Path;
 use std::sync::Arc;
 
-use mlua::{IntoLua, LuaSerdeExt, MetaMethod, UserData, UserDataFields, UserDataMethods};
+use mlua::{LuaSerdeExt, UserData, UserDataFields, UserDataMethods};
 use nucleo::pattern::CaseMatching;
-use nucleo::{Config, Nucleo};
+use nucleo::{Config, Nucleo, Utf32String};
 use serde::{Deserialize, Serialize};
 
 use crate::injector::Injector;
 
-pub struct Matcher<T: Sync + Send + 'static>(pub Nucleo<T>);
+pub trait Entry: Serialize + Clone + Sync + Send + 'static {
+    fn into_utf32(self) -> Utf32String;
+    fn from_path(path: &Path, cwd: Option<String>) -> Self;
+}
+
+pub struct Matcher<T: Entry>(pub Nucleo<T>);
 pub struct Status(pub nucleo::Status);
 
-impl<T: Clone + Sync + Send + 'static> Matcher<T> {
+impl<T: Entry> Matcher<T> {
     pub fn pattern(&mut self) -> &mut nucleo::pattern::MultiPattern {
         &mut self.0.pattern
     }
 
-    pub fn injector(&mut self) -> Injector<String> {
+    pub fn injector(&mut self) -> Injector<T> {
         self.0.injector().into()
     }
 
@@ -37,7 +43,7 @@ impl UserData for Status {
     }
 }
 
-impl<T: Clone + Sync + Send + 'static> From<Nucleo<T>> for Matcher<T> {
+impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
     fn from(value: Nucleo<T>) -> Self {
         Matcher(value)
     }
@@ -51,11 +57,35 @@ pub enum Movement {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileEntry {
-    file_type: String,
-    path: String,
+    pub path: String,
+    pub file_type: String,
 }
 
-pub struct Picker<T: Clone + Sync + Send + 'static> {
+impl Entry for FileEntry {
+    fn into_utf32(self) -> Utf32String {
+        self.path.into()
+    }
+
+    fn from_path(path: &Path, cwd: Option<String>) -> FileEntry {
+        let val = path
+            .strip_prefix(&cwd.unwrap_or_default())
+            .expect("Failed to strip prefix")
+            .to_str()
+            .expect("Failed to convert path to string")
+            .to_string();
+
+        Self {
+            path: val,
+            file_type: path
+                .extension()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string(),
+        }
+    }
+}
+
+pub struct Picker<T: Entry> {
     pub matcher: Matcher<T>,
     previous_query: String,
     cwd: String,
@@ -64,7 +94,7 @@ pub struct Picker<T: Clone + Sync + Send + 'static> {
     upper_bound: u32,
 }
 
-impl<T: Clone + Sync + Send + 'static> Picker<T> {
+impl<T: Entry> Picker<T> {
     pub fn new(cwd: String) -> Self {
         fn notify() {}
         let matcher: Matcher<T> = Nucleo::new(Config::DEFAULT, Arc::new(notify), None, 1).into();
@@ -155,19 +185,14 @@ impl<T: Clone + Sync + Send + 'static> Picker<T> {
     }
 }
 
-impl<T: Clone + Sync + Send + 'static> Default for Picker<T> {
+impl<T: Entry> Default for Picker<T> {
     fn default() -> Self {
         Self::new("".to_string())
     }
 }
 
-impl UserData for Picker<FileEntry> {
+impl<T: Entry> UserData for Picker<T> {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
-        methods.add_meta_function(MetaMethod::Call, |_, cwd: String| {
-            let picker = Picker::new(cwd);
-            Ok(picker)
-        });
-
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
             this.update_query(params.0);
             Ok(())

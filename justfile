@@ -9,7 +9,7 @@ lint:
 
 fmt:
     stylua .
-    cargo clippy --fix
+    cargo clippy --fix --allow-staged
     cargo +nightly fmt --all
 
 clean-lua:

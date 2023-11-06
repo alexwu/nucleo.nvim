@@ -4,22 +4,24 @@ use ignore::{types::TypesBuilder, DirEntry, WalkBuilder, WalkState};
 use nucleo::Utf32String;
 use tokio::runtime::Runtime;
 
-pub struct Injector<T: Clone + Into<Utf32String>>(nucleo::Injector<T>);
+use crate::picker::{Entry, FileEntry};
 
-impl<T: Clone + Into<Utf32String>> From<nucleo::Injector<T>> for Injector<T> {
+pub struct Injector<T: Entry>(nucleo::Injector<T>);
+
+impl<T: Entry> From<nucleo::Injector<T>> for Injector<T> {
     fn from(value: nucleo::Injector<T>) -> Self {
         Self(value)
     }
 }
 
-impl<T: Clone + Into<Utf32String>> Clone for Injector<T> {
+impl<T: Entry> Clone for Injector<T> {
     fn clone(&self) -> Self {
         <nucleo::Injector<T> as Clone>::clone(&self.0).into()
     }
 }
 
-impl Injector<String> {
-    pub fn push(&self, value: String, fill_columns: impl FnOnce(&mut [Utf32String])) -> u32 {
+impl<T: Entry> Injector<T> {
+    pub fn push(&self, value: T, fill_columns: impl FnOnce(&mut [Utf32String])) -> u32 {
         self.0.push(value, fill_columns)
     }
 
@@ -27,15 +29,15 @@ impl Injector<String> {
         log::info!("Populating picker with {}", &cwd);
         let runtime = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, rx) = mpsc::channel::<String>();
+        let (tx, rx) = mpsc::channel::<T>();
         let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
             for val in rx.iter() {
-                self.push(val.clone(), |dst| dst[0] = val.into());
+                self.push(val.clone(), |dst| dst[0] = val.into_utf32());
             }
             Ok(())
         });
 
-        let _ = runtime.spawn(async move {
+        runtime.spawn(async move {
             let dir = Path::new(&cwd);
             log::info!("Spawning file searcher...");
             let mut walk_builder = WalkBuilder::new(dir.clone());
@@ -62,16 +64,8 @@ impl Injector<String> {
                 Box::new(move |path: Result<DirEntry, ignore::Error>| -> WalkState {
                     match path {
                         Ok(file) if file.path().is_file() => {
-                            let val = file
-                                .path()
-                                .strip_prefix(&cwd)
-                                .expect("Failed to strip prefix")
-                                .to_str()
-                                .expect("Failed to convert path to string")
-                                .to_string();
-                            // log::info!("Adding {}", &val);
-
-                            match tx.send(val.clone()) {
+                            // let entry: FileEntry = ;
+                            match tx.send(Entry::from_path(file.path(), Some(cwd.clone()))) {
                                 Ok(_) => WalkState::Continue,
                                 Err(_) => WalkState::Skip,
                             }
