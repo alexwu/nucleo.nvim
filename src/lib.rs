@@ -14,6 +14,7 @@ use picker::Picker;
 use simplelog::{Config, WriteLogger};
 use tokio::runtime::Runtime;
 
+mod injector;
 mod picker;
 
 fn nvim_api(lua: &Lua) -> LuaResult<LuaTable> {
@@ -89,14 +90,15 @@ pub fn populate_injector(injector: Injector<String>, cwd: String, git_ignore: bo
     log::info!("After spawning file searcher...");
 }
 
-pub fn init_picker(lua: &Lua, params: ()) -> LuaResult<Arc<Mutex<Picker>>> {
+pub fn init_picker(_lua: &Lua, _params: ()) -> LuaResult<Arc<Mutex<Picker>>> {
     let dir = current_dir().unwrap();
     let picker = Arc::new(Mutex::new(Picker::new(dir.to_string_lossy().to_string())));
 
-    let injector = picker.lock().matcher.injector();
-    std::thread::spawn(move || {
-        populate_injector(injector, dir.to_string_lossy().to_string(), true);
-    });
+    picker.lock().populate_files();
+    // let injector = picker.lock().matcher.injector();
+    // std::thread::spawn(move || {
+    //     injector::populate_injector(injector.into(), dir.to_string_lossy().to_string(), true);
+    // });
 
     Ok(picker)
 }

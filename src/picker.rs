@@ -1,13 +1,12 @@
 use std::cmp::{max, min};
-use std::path::Path;
-use std::sync::{mpsc, Arc};
+use std::env::current_dir;
+use std::sync::Arc;
 
-use ignore::types::TypesBuilder;
-use ignore::{DirEntry, WalkBuilder, WalkState};
 use mlua::{MetaMethod, UserData, UserDataFields, UserDataMethods};
 use nucleo::pattern::CaseMatching;
 use nucleo::{Config, Nucleo};
-use tokio::runtime::Runtime;
+
+use crate::injector::Injector;
 
 pub struct Matcher(pub Nucleo<String>);
 pub struct Status(pub nucleo::Status);
@@ -17,8 +16,8 @@ impl Matcher {
         &mut self.0.pattern
     }
 
-    pub fn injector(&mut self) -> nucleo::Injector<String> {
-        self.0.injector()
+    pub fn injector(&mut self) -> Injector<String> {
+        self.0.injector().into()
     }
 
     pub fn tick(&mut self, timeout: u64) -> Status {
@@ -123,71 +122,71 @@ impl Picker {
         log::info!("Selection index: {}", self.selection_index);
     }
 
-    pub fn populate_picker(&mut self, git_ignore: bool) {
-        log::info!("Populating picker with {}", &self.cwd);
-        let runtime = Runtime::new().expect("Failed to create runtime");
-        let cwd = self.cwd.clone();
-        let injector = self.matcher.injector();
-
-        let (tx, rx) = mpsc::channel::<String>();
-        let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
-            for val in rx.iter() {
-                injector.push(val.clone(), |dst| dst[0] = val.into());
-            }
-            Ok(())
-        });
-
-        let _ = runtime.spawn(async move {
-            let dir = Path::new(&cwd);
-            log::info!("Spawning file searcher...");
-            let mut walk_builder = WalkBuilder::new(dir.clone());
-            walk_builder
-                .hidden(true)
-                .follow_links(true)
-                .git_ignore(git_ignore)
-                .sort_by_file_name(|name1, name2| name1.cmp(name2));
-            let mut type_builder = TypesBuilder::new();
-            type_builder
-                .add(
-                    "compressed",
-                    "*.{zip,gz,bz2,zst,lzo,sz,tgz,tbz2,lz,lz4,lzma,lzo,z,Z,xz,7z,rar,cab}",
-                )
-                .expect("Invalid type definition");
-            type_builder.negate("all");
-            let excluded_types = type_builder
-                .build()
-                .expect("failed to build excluded_types");
-            walk_builder.types(excluded_types);
-            walk_builder.build_parallel().run(|| {
-                let cwd = cwd.clone();
-                let tx = tx.clone();
-                Box::new(move |path: Result<DirEntry, ignore::Error>| -> WalkState {
-                    match path {
-                        Ok(file) if file.path().is_file() => {
-                            let val = file
-                                .path()
-                                .strip_prefix(&cwd)
-                                .expect("Failed to strip prefix")
-                                .to_str()
-                                .expect("Failed to convert path to string")
-                                .to_string();
-                            log::info!("Adding {}", &val);
-                            // injector.push(val.clone(), |dst| dst[0] = val.into());
-                            match tx.send(val.clone()) {
-                                Ok(_) => WalkState::Continue,
-                                Err(_) => WalkState::Skip,
-                            }
-                        }
-                        Ok(_) => WalkState::Continue,
-                        Err(_) => WalkState::Skip,
-                    }
-                })
-            });
-        });
-
-        log::info!("After spawning file searcher...");
-    }
-
+    // pub fn populate_picker(&mut self, git_ignore: bool) {
+    //     log::info!("Populating picker with {}", &self.cwd);
+    //     let runtime = Runtime::new().expect("Failed to create runtime");
+    //     let cwd = self.cwd.clone();
+    //     let injector = self.matcher.injector();
+    //
+    //     let (tx, rx) = mpsc::channel::<String>();
+    //     let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
+    //         for val in rx.iter() {
+    //             injector.push(val.clone(), |dst| dst[0] = val.into());
+    //         }
+    //         Ok(())
+    //     });
+    //
+    //     let _ = runtime.spawn(async move {
+    //         let dir = Path::new(&cwd);
+    //         log::info!("Spawning file searcher...");
+    //         let mut walk_builder = WalkBuilder::new(dir.clone());
+    //         walk_builder
+    //             .hidden(true)
+    //             .follow_links(true)
+    //             .git_ignore(git_ignore)
+    //             .sort_by_file_name(|name1, name2| name1.cmp(name2));
+    //         let mut type_builder = TypesBuilder::new();
+    //         type_builder
+    //             .add(
+    //                 "compressed",
+    //                 "*.{zip,gz,bz2,zst,lzo,sz,tgz,tbz2,lz,lz4,lzma,lzo,z,Z,xz,7z,rar,cab}",
+    //             )
+    //             .expect("Invalid type definition");
+    //         type_builder.negate("all");
+    //         let excluded_types = type_builder
+    //             .build()
+    //             .expect("failed to build excluded_types");
+    //         walk_builder.types(excluded_types);
+    //         walk_builder.build_parallel().run(|| {
+    //             let cwd = cwd.clone();
+    //             let tx = tx.clone();
+    //             Box::new(move |path: Result<DirEntry, ignore::Error>| -> WalkState {
+    //                 match path {
+    //                     Ok(file) if file.path().is_file() => {
+    //                         let val = file
+    //                             .path()
+    //                             .strip_prefix(&cwd)
+    //                             .expect("Failed to strip prefix")
+    //                             .to_str()
+    //                             .expect("Failed to convert path to string")
+    //                             .to_string();
+    //                         log::info!("Adding {}", &val);
+    //                         // injector.push(val.clone(), |dst| dst[0] = val.into());
+    //                         match tx.send(val.clone()) {
+    //                             Ok(_) => WalkState::Continue,
+    //                             Err(_) => WalkState::Skip,
+    //                         }
+    //                     }
+    //                     Ok(_) => WalkState::Continue,
+    //                     Err(_) => WalkState::Skip,
+    //                 }
+    //             })
+    //         });
+    //     });
+    //
+    //     log::info!("After spawning file searcher...");
+    // }
+    //
     pub fn current_matches(&self) -> Vec<String> {
         let snapshot = self.matcher.snapshot();
 
@@ -199,6 +198,18 @@ impl Picker {
                 .matched_items(lower_bound..upper_bound)
                 .map(|item| item.data.clone()),
         )
+    }
+
+    pub fn restart(&mut self) {
+        self.matcher.0.restart(true)
+    }
+
+    pub fn populate_files(&mut self) {
+        let dir = current_dir().unwrap();
+        let injector = self.matcher.injector();
+        std::thread::spawn(move || {
+            injector.populate_files(dir.to_string_lossy().to_string(), true);
+        });
     }
 }
 
@@ -254,8 +265,13 @@ impl UserData for Picker {
 
         methods.add_method_mut("tick", |_lua, this, ms: u64| Ok(this.matcher.tick(ms)));
 
-        methods.add_method_mut("populate_picker", |_lua, this, _params: (String,)| {
-            this.populate_picker(true);
+        methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
+            this.populate_files();
+            Ok(())
+        });
+
+        methods.add_method_mut("restart", |_lua, this, _params: ()| {
+            this.restart();
             Ok(())
         });
     }

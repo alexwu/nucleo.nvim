@@ -17,7 +17,7 @@ end
 -- User configuration section
 local default_config = {
 	-- Name of the plugin. Prepended to log messages.
-	plugin = "nucleo.log",
+	plugin = "nucleo-nvim.log",
 
 	-- Should print the output to neovim while running.
 	-- values: 'sync','async',false

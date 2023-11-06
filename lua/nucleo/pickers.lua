@@ -13,30 +13,13 @@ local M = {}
 M.results_bufnr = nil
 M.selection_index = 1
 M.co = nil
+M.picker = nil
 
 M.process_input = function(val)
-	-- log.info("Before coroutine")
-	-- if M.co then
-	-- 	log.info(M.co)
-	-- 	log.info(coroutine.status(M.co))
-	-- end
-
-	-- M.co = coroutine.create(function()
-	-- a.void(function()
-	-- log.info("Before fuzzy")
-
-	-- local results = require("nucleo").fuzzy_file(val, vim.loop.cwd())
-
 	M.picker:update_query(val)
 
-	-- log.info("Got results")
-	-- vim.print(M.results_bufnr)
-
 	local status = M.picker:tick(10)
-	log.info(status.changed)
-	-- log.info(status.changed)
 	if status.changed then
-		-- local results = {}
 		local results = M.picker:current_matches()
 		vim.schedule(function()
 			if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
@@ -46,30 +29,23 @@ M.process_input = function(val)
 	end
 end
 
-M.initialize_files = function()
-	if M.picker then
-		M.co = coroutine.create(function()
-			vim.schedule(function()
-				M.picker:populate_picker()
-			end)
+M.initialize = function()
+	if not M.picker then
+		M.picker = nu.Picker()
+	else
+		vim.schedule(function()
+			M.picker:populate_files()
 		end)
-		coroutine.resume(M.co)
 	end
 end
-
--- coroutine.resume(M.co)
--- end
-
-M.picker = nil
--- M.picker = nu.Picker()
 
 function M.setup()
 	vim.api.nvim_create_user_command("Nucleo", function()
 		local results = Results()
 
-		M.picker = nu.Picker()
+		M.initialize()
+
 		M.results_bufnr = results.bufnr
-		M.selection_index = 1
 
 		local input = Input({
 			position = "50%",
@@ -94,12 +70,14 @@ function M.setup()
 			prompt = "> ",
 			default_value = "",
 			on_close = function()
-				-- require("nucleo").restart_picker()
+				if M.picker then
+					M.picker:restart()
+				end
 			end,
 			on_submit = function(value)
 				local selection = M.picker:get_selection()
 				log.info("Input Submitted: " .. selection)
-				vim.cmd(string.format("%s %s", "edit", vim.fn.fnameescape(selection)))
+				vim.cmd.edit(string.format("%s", vim.fn.fnameescape(selection)))
 			end,
 			on_change = M.process_input,
 		})
@@ -138,7 +116,7 @@ function M.setup()
 		)
 
 		input:on(event.BufWinEnter, function()
-			vim.print(vim.bo.filetype)
+			-- vim.print(vim.bo.filetype)
 			-- 	log.info("Before init")
 			-- 	vim.schedule(function()
 			-- M.picker:populate_picker(vim.loop.cwd())
