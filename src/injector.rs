@@ -1,6 +1,7 @@
+use std::{path::Path, sync::mpsc};
+
 use ignore::{types::TypesBuilder, DirEntry, WalkBuilder, WalkState};
 use nucleo::Utf32String;
-use std::{path::Path, sync::mpsc};
 use tokio::runtime::Runtime;
 
 pub struct Injector<T: Clone + Into<Utf32String>>(nucleo::Injector<T>);
