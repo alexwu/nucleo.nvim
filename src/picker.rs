@@ -13,6 +13,7 @@ use crate::injector::Injector;
 pub trait Entry: Serialize + Clone + Sync + Send + 'static {
     fn into_utf32(self) -> Utf32String;
     fn from_path(path: &Path, cwd: Option<String>) -> Self;
+    fn set_selected(&mut self, selected: bool);
 }
 
 pub struct Matcher<T: Entry>(pub Nucleo<T>);
@@ -59,6 +60,7 @@ pub enum Movement {
 pub struct FileEntry {
     pub path: String,
     pub file_type: String,
+    pub selected: bool,
 }
 
 impl Entry for FileEntry {
@@ -75,6 +77,7 @@ impl Entry for FileEntry {
             .to_string();
 
         Self {
+            selected: false,
             path: val,
             file_type: path
                 .extension()
@@ -82,6 +85,10 @@ impl Entry for FileEntry {
                 .to_string_lossy()
                 .to_string(),
         }
+    }
+
+    fn set_selected(&mut self, selected: bool) {
+        self.selected = selected;
     }
 }
 

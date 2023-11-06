@@ -16,7 +16,8 @@ M._rust = {
 	Picker = true,
 }
 
-function M.setup()
+function M.setup(opts)
+	opts = vim.F.if_nil(opts, {})
 	require("nucleo.pickers").setup()
 end
 

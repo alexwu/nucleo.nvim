@@ -9,6 +9,7 @@ local log = require("nucleo.log")
 local nu = require("nucleo")
 local debounce = require("throttle-debounce").debounce_trailing
 local Entry = require("nucleo.entry")
+local Highlighter = require("nucleo.highlighter")
 
 local M = {}
 
@@ -16,6 +17,7 @@ M.results_bufnr = nil
 M.selection_index = 1
 M.co = nil
 M.picker = nil
+M.highlighter = nil
 
 M.process_input = debounce(function(val)
 	M.picker:update_query(val)
@@ -34,7 +36,7 @@ M.process_input = debounce(function(val)
 			end
 		end)
 	end
-end, 50)
+end, 5)
 
 M.initialize = function()
 	if not M.picker then
@@ -53,6 +55,10 @@ function M.setup()
 		M.initialize()
 
 		M.results_bufnr = results.bufnr
+		M.highlighter = Highlighter({
+			picker = M.picker,
+			bufnr = M.results_bufnr,
+		})
 
 		local input = Input({
 			position = "50%",
@@ -82,7 +88,7 @@ function M.setup()
 				end
 			end,
 			on_submit = function(value)
-				local selection = M.picker:get_selection()
+				local selection = M.picker:get_selection().path
 				log.info("Input Submitted: " .. selection)
 				vim.cmd.edit(string.format("%s", vim.fn.fnameescape(selection)))
 			end,
@@ -95,9 +101,15 @@ function M.setup()
 
 		input:map("i", "<C-n>", function()
 			M.picker:move_cursor_down()
+			vim.schedule(function()
+				M.highlighter:highlight_selection()
+			end)
 		end, { noremap = true })
 		input:map("i", "<C-p>", function()
 			M.picker:move_cursor_up()
+			vim.schedule(function()
+				M.highlighter:highlight_selection()
+			end)
 		end, { noremap = true })
 
 		input:map("i", "<Esc>", function()
@@ -138,7 +150,7 @@ function M.setup()
 		layout:mount()
 	end, {})
 end
-
-M.setup()
+--
+-- M.setup()
 
 return M
