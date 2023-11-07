@@ -18,6 +18,7 @@ M.selection_index = 1
 M.co = nil
 M.picker = nil
 M.highlighter = nil
+M.original_cursor = nil
 
 M.process_input = debounce(function(val)
 	M.picker:update_query(val)
@@ -27,16 +28,18 @@ M.process_input = debounce(function(val)
 		local results = M.picker:current_matches()
 		vim.schedule(function()
 			if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-				local lines = vim.iter(results)
-					:map(function(entry)
-						return Entry(entry):render()
-					end)
-					:totable()
-				vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, lines)
+				vim.iter(ipairs(results)):each(function(i, entry)
+					return Entry(i, entry, M.results_bufnr):render()
+				end)
+				-- :totable()
+				-- vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, lines)
+				if not vim.tbl_isempty(results) then
+					M.highlighter:highlight_selection()
+				end
 			end
 		end)
 	end
-end, 5)
+end, 1)
 
 M.initialize = function()
 	if not M.picker then
@@ -48,106 +51,139 @@ M.initialize = function()
 	end
 end
 
-function M.setup()
-	vim.api.nvim_create_user_command("Nucleo", function()
-		local results = Results()
+M.find = function()
+	M.original_winid = vim.api.nvim_get_current_win()
+	M.original_cursor = vim.api.nvim_win_get_cursor(M.original_winid)
 
-		M.initialize()
+	local results = Results()
+	M.initialize()
 
-		M.results_bufnr = results.bufnr
-		M.highlighter = Highlighter({
-			picker = M.picker,
-			bufnr = M.results_bufnr,
-		})
+	M.results_bufnr = results.bufnr
+	M.highlighter = Highlighter({
+		picker = M.picker,
+		bufnr = M.results_bufnr,
+	})
 
-		local input = Input({
+	-- local input = Prompt:init({
+	local input = Input({
+		position = "50%",
+		size = {
+			width = 20,
+			height = 1,
+		},
+		border = {
+			style = "rounded",
+			text = {
+				top = "",
+				top_align = "center",
+			},
+		},
+		buf_options = {
+			filetype = "nucleo",
+		},
+		win_options = {
+			winhighlight = "Normal:Normal,FloatBorder:Normal",
+		},
+	}, {
+		prompt = "> ",
+		default_value = "",
+		on_close = function()
+			if M.picker then
+				M.picker:restart()
+			end
+		end,
+		on_submit = function(value)
+			local selection = M.picker:get_selection().path
+			log.info("Input Submitted: " .. selection)
+
+			if M.original_cursor and M.original_winid then
+				vim.api.nvim_win_set_cursor(M.original_winid, M.original_cursor)
+			end
+			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
+
+			-- TODO: Figure out what to actually do here
+			M.picker:restart()
+		end,
+		on_change = M.process_input,
+	})
+
+	input:map("n", "<Esc>", function()
+		input:unmount()
+	end, { noremap = true })
+
+	input:map("i", { "<C-n>", "<Down>" }, function()
+		M.picker:move_cursor_down()
+		vim.schedule(function()
+			M.highlighter:highlight_selection()
+		end)
+	end, { noremap = true })
+	-- input:map("i", "<Down>", function()
+	-- 	M.picker:move_cursor_down()
+	-- 	vim.schedule(function()
+	-- 		M.highlighter:highlight_selection()
+	-- 	end)
+	-- end, { noremap = true })
+	input:map("i", "<C-p>", function()
+		M.picker:move_cursor_up()
+		vim.schedule(function()
+			M.highlighter:highlight_selection()
+		end)
+	end, { noremap = true })
+	input:map("i", "<Up>", function()
+		M.picker:move_cursor_up()
+		vim.schedule(function()
+			M.highlighter:highlight_selection()
+		end)
+	end, { noremap = true })
+
+	input:map("i", "<Esc>", function()
+		input:unmount()
+	end, { noremap = true })
+
+	local layout = Layout(
+		{
+			relative = "editor",
 			position = "50%",
 			size = {
-				width = 20,
-				height = 1,
+				width = "50%",
+				height = "80%",
 			},
-			border = {
-				style = "rounded",
-				text = {
-					top = "",
-					top_align = "center",
-				},
-			},
-			buf_options = {
-				filetype = "nucleo",
-			},
-			win_options = {
-				winhighlight = "Normal:Normal,FloatBorder:Normal",
-			},
-		}, {
-			prompt = "> ",
-			default_value = "",
-			on_close = function()
-				if M.picker then
-					M.picker:restart()
-				end
-			end,
-			on_submit = function(value)
-				local selection = M.picker:get_selection().path
-				log.info("Input Submitted: " .. selection)
-				vim.cmd.edit(string.format("%s", vim.fn.fnameescape(selection)))
-			end,
-			on_change = M.process_input,
-		})
+		},
+		Layout.Box({
+			Layout.Box(input, { size = {
+				width = "100%",
+				height = "3",
+			} }),
+			Layout.Box(results, { size = "100%" }),
+		}, { dir = "col" })
+	)
 
-		input:map("n", "<Esc>", function()
-			input:unmount()
-		end, { noremap = true })
+	results:on(event.BufWinEnter, function()
+		vim.schedule(function()
+			local height = math.max(vim.api.nvim_win_get_height(results.winid), 10)
 
-		input:map("i", "<C-n>", function()
-			M.picker:move_cursor_down()
-			vim.schedule(function()
-				M.highlighter:highlight_selection()
-			end)
-		end, { noremap = true })
-		input:map("i", "<C-p>", function()
-			M.picker:move_cursor_up()
-			vim.schedule(function()
-				M.highlighter:highlight_selection()
-			end)
-		end, { noremap = true })
-
-		input:map("i", "<Esc>", function()
-			input:unmount()
-		end, { noremap = true })
-
-		local layout = Layout(
-			{
-				relative = "editor",
-				position = "50%",
-				size = {
-					width = "50%",
-					height = "80%",
-				},
-			},
-			Layout.Box({
-				Layout.Box(results, { size = "100%" }),
-				Layout.Box(input, { size = {
-					width = "100%",
-					height = "3",
-				} }),
-			}, { dir = "col" })
-		)
-
-		input:on(event.BufWinEnter, function()
-			-- vim.print(vim.bo.filetype)
-			-- 	log.info("Before init")
-			-- 	vim.schedule(function()
-			-- M.picker:populate_picker(vim.loop.cwd())
-			-- 		log.info("After init")
+			M.picker:update_window(height)
 		end)
-		-- end)
+	end)
+	input:on("WinResized", function(e)
+		-- vim.print(vim.bo.filetype)
+		-- 	log.info("Before init")
+		-- 	vim.schedule(function()
+		-- M.picker:populate_picker(vim.loop.cwd())
+		-- 		log.info("After init")
+	end)
+	-- end)
 
-		input:on(event.BufLeave, function()
-			input:unmount()
-		end)
+	input:on(event.BufLeave, function()
+		input:unmount()
+	end)
 
-		layout:mount()
+	layout:mount()
+end
+
+function M.setup()
+	vim.api.nvim_create_user_command("Nucleo", function()
+		M.find()
 	end, {})
 end
 --
