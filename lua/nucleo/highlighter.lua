@@ -24,7 +24,7 @@ function Highlighter:highlight_selection()
 		ns_selection,
 		line_nr,
 		1,
-		{ end_line = line_nr + 1, hl_group = "TelescopeSelection" }
+		{ end_row = line_nr + 1, hl_eol = true, hl_group = "TelescopeSelection" }
 	)
 end
 

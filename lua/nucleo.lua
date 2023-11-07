@@ -21,6 +21,10 @@ function M.setup(opts)
 	require("nucleo.pickers").setup()
 end
 
+function M.find()
+	require("nucleo.pickers").find()
+end
+
 return setmetatable(M, {
 	__index = function(t, key)
 		if M._rust[key] then

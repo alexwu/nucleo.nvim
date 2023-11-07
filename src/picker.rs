@@ -116,6 +116,14 @@ impl<T: Entry> Picker<T> {
         }
     }
 
+    pub fn tick(&mut self, timeout: u64) -> Status {
+        let status = self.matcher.tick(timeout);
+        if status.0.changed {
+            self.update_cursor();
+        }
+        status
+    }
+
     pub fn upper_bound(&self) -> u32 {
         min(
             self.upper_bound,
@@ -130,7 +138,13 @@ impl<T: Entry> Picker<T> {
     pub fn update_cursor(&mut self) {
         self.selection_index = self
             .selection_index
-            .clamp(self.lower_bound(), self.upper_bound() - 1);
+            // FIXME: Something cleaner than this:
+            .clamp(self.lower_bound(), max(self.upper_bound(), 1) - 1);
+    }
+
+    pub fn update_window(&mut self, height: u32) {
+        log::info!("Setting upper bound to {}", &height);
+        self.upper_bound = height;
     }
 
     pub fn update_query(&mut self, query: String) {
@@ -215,6 +229,11 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
+        methods.add_method_mut("update_window", |_lua, this, params: (usize,)| {
+            this.update_window(params.0 as u32);
+            Ok(())
+        });
+
         methods.add_method("current_matches", |lua, this, ()| {
             Ok(lua.to_value(&this.current_matches()))
         });
@@ -237,7 +256,7 @@ impl<T: Entry> UserData for Picker<T> {
             }
         });
 
-        methods.add_method_mut("tick", |_lua, this, ms: u64| Ok(this.matcher.tick(ms)));
+        methods.add_method_mut("tick", |_lua, this, ms: u64| Ok(this.tick(ms)));
 
         methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
             this.populate_files();

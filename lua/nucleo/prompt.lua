@@ -14,7 +14,7 @@ function Prompt:init(input_options)
 		line = 0,
 		options = {},
 	})
-
+	vim.print(options)
 	self.selection_index = 1
 
 	Prompt.super.init(self, options)
