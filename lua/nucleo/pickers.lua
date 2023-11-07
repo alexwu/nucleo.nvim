@@ -96,8 +96,8 @@ M.find = function()
 			local selection = M.picker:get_selection().path
 			log.info("Input Submitted: " .. selection)
 
-			if M.original_cursor and M.original_winid then
-				vim.api.nvim_win_set_cursor(M.original_winid, M.original_cursor)
+			if M.original_winid then
+				vim.api.nvim_set_current_win(M.original_winid)
 			end
 			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
 
@@ -165,6 +165,7 @@ M.find = function()
 			M.picker:update_window(height)
 		end)
 	end)
+
 	input:on("WinResized", function(e)
 		-- vim.print(vim.bo.filetype)
 		-- 	log.info("Before init")
@@ -172,7 +173,6 @@ M.find = function()
 		-- M.picker:populate_picker(vim.loop.cwd())
 		-- 		log.info("After init")
 	end)
-	-- end)
 
 	input:on(event.BufLeave, function()
 		input:unmount()
@@ -186,7 +186,5 @@ function M.setup()
 		M.find()
 	end, {})
 end
---
--- M.setup()
 
 return M
