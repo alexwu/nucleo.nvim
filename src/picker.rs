@@ -73,12 +73,6 @@ impl From<StringMatcher> for nucleo::Matcher {
     }
 }
 
-impl StringMatcher {
-    fn as_nucleo_matcher_mut(&mut self) -> &mut nucleo::Matcher {
-        &mut self.0
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
     Up,
@@ -124,10 +118,6 @@ impl Entry for FileEntry {
     fn set_selected(&mut self, selected: bool) {
         self.selected = selected;
     }
-}
-
-pub struct Match<T: Entry> {
-    pub data: T,
 }
 
 pub struct Picker<T: Entry> {
@@ -261,22 +251,6 @@ impl<T: Entry> Picker<T> {
     }
 }
 
-// pub fn generate_indices<T: Entry>(matches: Vec<T>, snapshot: &nucleo::Snapshot<T>) -> Vec<T> {
-//     let mut indices = Vec::new();
-//     let string_matcher = &STRING_MATCHER.lock().0;
-//     matches.iter().map(|item| {
-//         snapshot.pattern().column_pattern(0).indices(
-//             item.matcher_columns[0].slice(..),
-//             &mut string_matcher,
-//             &mut indices,
-//         );
-//     });
-//     indices.sort_unstable();
-//     indices.dedup();
-//
-//     todo!()
-// }
-//
 impl<T: Entry> Default for Picker<T> {
     fn default() -> Self {
         Self::new("".to_string())
