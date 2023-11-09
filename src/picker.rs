@@ -1,11 +1,16 @@
 use std::cmp::{max, min};
-use std::env::current_dir;
 use std::path::Path;
 use std::sync::Arc;
 
-use mlua::{LuaSerdeExt, UserData, UserDataFields, UserDataMethods};
+use mlua::{
+    prelude::{Lua, LuaResult, LuaTable, LuaValue},
+    FromLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
+};
 use nucleo::pattern::CaseMatching;
-use nucleo::{Config, Nucleo, Utf32String};
+use nucleo::{Nucleo, Utf32String};
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
+use range_rover::range_rover;
 use serde::{Deserialize, Serialize};
 
 use crate::injector::Injector;
@@ -14,9 +19,17 @@ pub trait Entry: Serialize + Clone + Sync + Send + 'static {
     fn into_utf32(self) -> Utf32String;
     fn from_path(path: &Path, cwd: Option<String>) -> Self;
     fn set_selected(&mut self, selected: bool);
+    fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
 }
 
 pub struct Matcher<T: Entry>(pub Nucleo<T>);
+
+#[derive(Default)]
+pub struct StringMatcher(pub nucleo::Matcher);
+
+pub static STRING_MATCHER: Lazy<Arc<Mutex<StringMatcher>>> =
+    Lazy::new(|| Arc::new(Mutex::new(StringMatcher::default())));
+
 pub struct Status(pub nucleo::Status);
 
 impl<T: Entry> Matcher<T> {
@@ -50,6 +63,18 @@ impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
     }
 }
 
+impl From<nucleo::Matcher> for StringMatcher {
+    fn from(value: nucleo::Matcher) -> Self {
+        StringMatcher(value)
+    }
+}
+
+impl From<StringMatcher> for nucleo::Matcher {
+    fn from(val: StringMatcher) -> Self {
+        val.0
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
     Up,
@@ -61,11 +86,15 @@ pub struct FileEntry {
     pub path: String,
     pub file_type: String,
     pub selected: bool,
+    pub indices: Vec<(u32, u32)>,
 }
 
 impl Entry for FileEntry {
     fn into_utf32(self) -> Utf32String {
         self.path.into()
+    }
+    fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
+        Self { indices, ..self }
     }
 
     fn from_path(path: &Path, cwd: Option<String>) -> FileEntry {
@@ -79,6 +108,7 @@ impl Entry for FileEntry {
         Self {
             selected: false,
             path: val,
+            indices: Vec::new(),
             file_type: path
                 .extension()
                 .unwrap_or_default()
@@ -94,6 +124,7 @@ impl Entry for FileEntry {
 
 pub struct Picker<T: Entry> {
     pub matcher: Matcher<T>,
+    pub string_matcher: StringMatcher,
     previous_query: String,
     cwd: String,
     selection_index: u32,
@@ -104,10 +135,13 @@ pub struct Picker<T: Entry> {
 impl<T: Entry> Picker<T> {
     pub fn new(cwd: String) -> Self {
         fn notify() {}
-        let matcher: Matcher<T> = Nucleo::new(Config::DEFAULT, Arc::new(notify), None, 1).into();
+        let matcher: Matcher<T> =
+            Nucleo::new(nucleo::Config::DEFAULT, Arc::new(notify), None, 1).into();
+        let string_matcher = StringMatcher::default();
 
         Self {
             matcher,
+            string_matcher,
             cwd,
             selection_index: 0,
             lower_bound: 0,
@@ -181,7 +215,9 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn current_matches(&self) -> Vec<T> {
+        let mut indices = Vec::new();
         let snapshot = self.matcher.snapshot();
+        let string_matcher = &mut STRING_MATCHER.lock().0;
 
         let lower_bound = self.lower_bound();
         let upper_bound = self.upper_bound();
@@ -189,19 +225,31 @@ impl<T: Entry> Picker<T> {
         Vec::from_iter(
             snapshot
                 .matched_items(lower_bound..upper_bound)
-                .map(|item| item.data.clone()),
+                .map(|item| {
+                    snapshot.pattern().column_pattern(0).indices(
+                        item.matcher_columns[0].slice(..),
+                        string_matcher,
+                        &mut indices,
+                    );
+                    indices.sort_unstable();
+                    indices.dedup();
+                    let ranges = range_rover(indices.drain(..))
+                        .into_iter()
+                        .map(|range| range.into_inner());
+                    // TODO: Probably a better way to do this
+                    item.data.clone().with_indices(ranges.collect())
+                }),
         )
     }
-
     pub fn restart(&mut self) {
         self.matcher.0.restart(true)
     }
 
     pub fn populate_files(&mut self) {
-        let dir = current_dir().unwrap();
+        let dir = self.cwd.clone();
         let injector = self.matcher.injector();
         std::thread::spawn(move || {
-            injector.populate_files(dir.to_string_lossy().to_string(), true);
+            injector.populate_files(dir, true);
         });
     }
 }
@@ -209,6 +257,20 @@ impl<T: Entry> Picker<T> {
 impl<T: Entry> Default for Picker<T> {
     fn default() -> Self {
         Self::new("".to_string())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+pub struct Config {
+    pub cwd: Option<String>,
+}
+
+impl FromLua<'_> for Config {
+    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+        let table = LuaTable::from_lua(value, lua)?;
+        Ok(Config {
+            cwd: table.get("cwd")?,
+        })
     }
 }
 
@@ -249,10 +311,10 @@ impl<T: Entry> UserData for Picker<T> {
                 .get_matched_item(this.selection_index)
             {
                 Some(selection) => Ok(lua.to_value(selection.data)),
-                None => Err(mlua::Error::runtime(std::format!(
-                    "Failed getting the selection at selection_index: {}",
-                    this.selection_index
-                ))),
+                None => {
+                    log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.selection_index, this.lower_bound(), this.upper_bound());
+                    Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.selection_index )))
+                },
             }
         });
 

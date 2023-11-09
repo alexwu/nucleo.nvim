@@ -20,6 +20,21 @@ M.picker = nil
 M.highlighter = nil
 M.original_cursor = nil
 
+M.get_matches = function()
+	local results = M.picker:current_matches()
+	vim.schedule(function()
+		if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+			vim.iter(ipairs(results)):each(function(i, entry)
+				return Entry(i, entry, M.results_bufnr):render()
+			end)
+
+			if not vim.tbl_isempty(results) then
+				M.highlighter:highlight_selection()
+			end
+		end
+	end)
+end
+
 M.process_input = debounce(function(val)
 	M.picker:update_query(val)
 
@@ -31,15 +46,14 @@ M.process_input = debounce(function(val)
 				vim.iter(ipairs(results)):each(function(i, entry)
 					return Entry(i, entry, M.results_bufnr):render()
 				end)
-				-- :totable()
-				-- vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, lines)
+
 				if not vim.tbl_isempty(results) then
 					M.highlighter:highlight_selection()
 				end
 			end
 		end)
 	end
-end, 1)
+end, 50)
 
 M.initialize = function()
 	if not M.picker then
@@ -117,19 +131,8 @@ M.find = function()
 			M.highlighter:highlight_selection()
 		end)
 	end, { noremap = true })
-	-- input:map("i", "<Down>", function()
-	-- 	M.picker:move_cursor_down()
-	-- 	vim.schedule(function()
-	-- 		M.highlighter:highlight_selection()
-	-- 	end)
-	-- end, { noremap = true })
-	input:map("i", "<C-p>", function()
-		M.picker:move_cursor_up()
-		vim.schedule(function()
-			M.highlighter:highlight_selection()
-		end)
-	end, { noremap = true })
-	input:map("i", "<Up>", function()
+
+	input:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
 		vim.schedule(function()
 			M.highlighter:highlight_selection()
@@ -164,14 +167,28 @@ M.find = function()
 
 			M.picker:update_window(height)
 		end)
+
+		vim.wait(0, function()
+			if not M.results_bufnr or not vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+				return true
+			end
+
+			local status = M.picker:tick(10)
+			if status.changed then
+				M.get_matches()
+				return false
+			end
+
+			return true
+		end, 500)
 	end)
 
 	input:on("WinResized", function(e)
-		-- vim.print(vim.bo.filetype)
-		-- 	log.info("Before init")
-		-- 	vim.schedule(function()
-		-- M.picker:populate_picker(vim.loop.cwd())
-		-- 		log.info("After init")
+		vim.schedule(function()
+			local height = math.max(vim.api.nvim_win_get_height(results.winid), 10)
+
+			M.picker:update_window(height)
+		end)
 	end)
 
 	input:on(event.BufLeave, function()

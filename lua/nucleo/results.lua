@@ -15,8 +15,6 @@ function Results:init(popup_options)
 		options = {},
 	})
 
-	self.selection_index = 1
-
 	Results.super.init(self, options)
 end
 

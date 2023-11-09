@@ -15,9 +15,7 @@ function Prompt:init(input_options)
 		options = {},
 	})
 
-	self.selection_index = 1
-
-	Prompt.super.init(self, options)
+	Prompt.super.init(self, options, {})
 end
 
 return Prompt

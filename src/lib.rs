@@ -9,7 +9,6 @@ use simplelog::{Config, WriteLogger};
 
 mod injector;
 mod picker;
-mod renderer;
 
 fn nvim_api(lua: &Lua) -> LuaResult<LuaTable> {
     lua.globals().get::<&str, LuaTable>("vim")?.get("api")
@@ -21,9 +20,20 @@ pub fn nvim_buf_set_lines(lua: &Lua, params: (i64, i64, i64, bool, Vec<String>))
         .call::<_, ()>(params)
 }
 
-pub fn init_picker(_lua: &Lua, _params: ()) -> LuaResult<Arc<Mutex<Picker<FileEntry>>>> {
-    let dir = current_dir().unwrap();
-    let picker = Arc::new(Mutex::new(Picker::new(dir.to_string_lossy().to_string())));
+pub fn init_picker(
+    _lua: &Lua,
+    params: (Option<picker::Config>,),
+) -> LuaResult<Arc<Mutex<Picker<FileEntry>>>> {
+    let config = match params.0 {
+        Some(config) => config,
+        None => picker::Config::default(),
+    };
+
+    let cwd = match config.cwd {
+        Some(cwd) => cwd,
+        None => current_dir().unwrap().to_string_lossy().to_string(),
+    };
+    let picker = Arc::new(Mutex::new(Picker::new(cwd)));
 
     picker.lock().populate_files();
 
@@ -41,11 +51,7 @@ fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
 
     let exports = lua.create_table()?;
 
-    exports.set(
-        "Picker",
-        // lua.create_function(move |_, ()| Ok(picker.clone()))?,
-        lua.create_function(init_picker)?,
-    )?;
+    exports.set("Picker", lua.create_function(init_picker)?)?;
 
     Ok(exports)
 }
