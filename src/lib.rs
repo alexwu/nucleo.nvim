@@ -9,7 +9,6 @@ use simplelog::{Config, WriteLogger};
 
 mod injector;
 mod picker;
-mod renderer;
 
 fn nvim_api(lua: &Lua) -> LuaResult<LuaTable> {
     lua.globals().get::<&str, LuaTable>("vim")?.get("api")
