@@ -311,10 +311,10 @@ impl<T: Entry> UserData for Picker<T> {
                 .get_matched_item(this.selection_index)
             {
                 Some(selection) => Ok(lua.to_value(selection.data)),
-                None => Err(mlua::Error::runtime(std::format!(
-                    "Failed getting the selection at selection_index: {}",
-                    this.selection_index
-                ))),
+                None => {
+                    log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.selection_index, this.lower_bound(), this.upper_bound());
+                    Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.selection_index )))
+                },
             }
         });
 
