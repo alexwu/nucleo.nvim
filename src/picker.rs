@@ -1,11 +1,13 @@
 use std::cmp::{max, min};
-use std::env::current_dir;
 use std::path::Path;
 use std::sync::Arc;
 
-use mlua::{LuaSerdeExt, UserData, UserDataFields, UserDataMethods};
+use mlua::{
+    prelude::{Lua, LuaResult, LuaTable, LuaValue},
+    FromLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
+};
 use nucleo::pattern::CaseMatching;
-use nucleo::{Config, Nucleo, Utf32String};
+use nucleo::{Nucleo, Utf32String};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use range_rover::range_rover;
@@ -133,7 +135,8 @@ pub struct Picker<T: Entry> {
 impl<T: Entry> Picker<T> {
     pub fn new(cwd: String) -> Self {
         fn notify() {}
-        let matcher: Matcher<T> = Nucleo::new(Config::DEFAULT, Arc::new(notify), None, 1).into();
+        let matcher: Matcher<T> =
+            Nucleo::new(nucleo::Config::DEFAULT, Arc::new(notify), None, 1).into();
         let string_matcher = StringMatcher::default();
 
         Self {
@@ -243,10 +246,10 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn populate_files(&mut self) {
-        let dir = current_dir().unwrap();
+        let dir = self.cwd.clone();
         let injector = self.matcher.injector();
         std::thread::spawn(move || {
-            injector.populate_files(dir.to_string_lossy().to_string(), true);
+            injector.populate_files(dir, true);
         });
     }
 }
@@ -254,6 +257,20 @@ impl<T: Entry> Picker<T> {
 impl<T: Entry> Default for Picker<T> {
     fn default() -> Self {
         Self::new("".to_string())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+pub struct Config {
+    pub cwd: Option<String>,
+}
+
+impl FromLua<'_> for Config {
+    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+        let table = LuaTable::from_lua(value, lua)?;
+        Ok(Config {
+            cwd: table.get("cwd")?,
+        })
     }
 }
 
