@@ -5,6 +5,8 @@ local event = require("nui.utils.autocmd").event
 local Prompt = require("nucleo.prompt")
 local Results = require("nucleo.results")
 local a = require("plenary.async")
+local await_schedule = a.util.scheduler
+local channel = require("plenary.async.control").channel
 local log = require("nucleo.log")
 local nu = require("nucleo")
 local debounce = require("throttle-debounce").debounce_trailing
@@ -14,13 +16,13 @@ local Highlighter = require("nucleo.highlighter")
 local M = {}
 
 M.results_bufnr = nil
-M.selection_index = 1
-M.co = nil
 M.picker = nil
+M.results = nil
 M.highlighter = nil
 M.original_cursor = nil
+M.tx = nil
 
-M.get_matches = function()
+M.render_matches = function()
 	local results = M.picker:current_matches()
 	vim.schedule(function()
 		if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
@@ -35,25 +37,14 @@ M.get_matches = function()
 	end)
 end
 
-M.process_input = debounce(function(val)
+M.process_input = function(val)
 	M.picker:update_query(val)
+	log.info("Updated input: " .. val)
 
-	local status = M.picker:tick(10)
-	if status.changed then
-		local results = M.picker:current_matches()
-		vim.schedule(function()
-			if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-				vim.iter(ipairs(results)):each(function(i, entry)
-					return Entry(i, entry, M.results_bufnr):render()
-				end)
-
-				if not vim.tbl_isempty(results) then
-					M.highlighter:highlight_selection()
-				end
-			end
-		end)
+	if M.tx then
+		M.tx.send()
 	end
-end, 50)
+end
 
 M.initialize = function()
 	if not M.picker then
@@ -61,6 +52,10 @@ M.initialize = function()
 	else
 		vim.schedule(function()
 			M.picker:populate_files()
+			local status = M.picker:tick(10)
+			if status.changed or status.running then
+				M.render_matches()
+			end
 		end)
 	end
 end
@@ -69,10 +64,10 @@ M.find = function()
 	M.original_winid = vim.api.nvim_get_current_win()
 	M.original_cursor = vim.api.nvim_win_get_cursor(M.original_winid)
 
-	local results = Results()
+	M.results = Results()
 	M.initialize()
 
-	M.results_bufnr = results.bufnr
+	M.results_bufnr = M.results.bufnr
 	M.highlighter = Highlighter({
 		picker = M.picker,
 		bufnr = M.results_bufnr,
@@ -157,35 +152,21 @@ M.find = function()
 				width = "100%",
 				height = "3",
 			} }),
-			Layout.Box(results, { size = "100%" }),
+			Layout.Box(M.results, { size = "100%" }),
 		}, { dir = "col" })
 	)
 
-	results:on(event.BufWinEnter, function()
+	M.results:on(event.BufWinEnter, function()
 		vim.schedule(function()
-			local height = math.max(vim.api.nvim_win_get_height(results.winid), 10)
+			local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
 
 			M.picker:update_window(height)
 		end)
-
-		vim.wait(0, function()
-			if not M.results_bufnr or not vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-				return true
-			end
-
-			local status = M.picker:tick(10)
-			if status.changed then
-				M.get_matches()
-				return false
-			end
-
-			return true
-		end, 500)
 	end)
 
-	input:on("WinResized", function(e)
+	input:on("VimResized", function(e)
 		vim.schedule(function()
-			local height = math.max(vim.api.nvim_win_get_height(results.winid), 10)
+			local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
 
 			M.picker:update_window(height)
 		end)
@@ -196,9 +177,64 @@ M.find = function()
 	end)
 
 	layout:mount()
+
+	local tx, rx = channel.mpsc()
+	M.tx = tx
+
+	M.picker:update_query("")
+
+	local main_loop = a.void(function()
+		log.info("Starting main loop")
+		await_schedule()
+
+		while true do
+			log.info("Looping...")
+			rx.last()
+			await_schedule()
+
+			if not M.results_bufnr or not vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+				return
+			end
+
+			local status = M.picker:tick(10)
+			if status.changed or status.running then
+				M.render_matches()
+			elseif M.picker:should_update() then
+				M.render_matches()
+			end
+		end
+	end)
+
+	M.tx.send()
+	main_loop()
 end
 
 function M.setup()
+	-- M.picker_ns = vim.api.nvim_create_namespace("nucleo_picker")
+	-- vim.api.nvim_set_decoration_provider(M.picker_ns, {
+	-- 	on_start = function()
+	-- 		if M.picker then
+	-- 			M.picker:tick(10)
+	-- 		end
+	-- 	end,
+	-- 	on_win = function(_, winid, bufnr, _, _)
+	-- 		if bufnr ~= M.results_bufnr then
+	-- 			return
+	-- 		end
+	--
+	-- 		if not M.picker then
+	-- 			return
+	-- 		end
+	--
+	-- 		local status = M.picker:tick(10)
+	-- 		if status.changed then
+	-- 			vim.schedule(function()
+	-- 				M.get_matches()
+	-- 			end)
+	-- 		end
+	-- 	end,
+	-- })
+
 	vim.api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})

@@ -2,6 +2,8 @@ use std::cmp::{max, min};
 use std::path::Path;
 use std::sync::Arc;
 
+use crossbeam_channel::bounded;
+use mlua::chunk;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
@@ -130,19 +132,29 @@ pub struct Picker<T: Entry> {
     selection_index: u32,
     lower_bound: u32,
     upper_bound: u32,
+    receiver: crossbeam_channel::Receiver<()>,
+    git_ignore: bool,
 }
 
 impl<T: Entry> Picker<T> {
     pub fn new(cwd: String) -> Self {
-        fn notify() {}
-        let matcher: Matcher<T> =
-            Nucleo::new(nucleo::Config::DEFAULT, Arc::new(notify), None, 1).into();
+        let (sender, receiver) = bounded::<()>(1);
+        let notify = Arc::new(move || {
+            log::info!("Notifying...");
+            match sender.try_send(()) {
+                Ok(_) => log::info!("Message sent!"),
+                Err(_) => log::info!("Message not sent!"),
+            };
+        });
+        let matcher: Matcher<T> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1).into();
         let string_matcher = StringMatcher::default();
 
         Self {
             matcher,
             string_matcher,
             cwd,
+            receiver,
+            git_ignore: true,
             selection_index: 0,
             lower_bound: 0,
             upper_bound: 50,
@@ -182,6 +194,7 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_query(&mut self, query: String) {
+        log::info!("Updating query: {}", &query);
         let previous_query = self.previous_query.clone();
         if query != previous_query {
             self.matcher.pattern().reparse(
@@ -233,6 +246,7 @@ impl<T: Entry> Picker<T> {
                     );
                     indices.sort_unstable();
                     indices.dedup();
+
                     let ranges = range_rover(indices.drain(..))
                         .into_iter()
                         .map(|range| range.into_inner());
@@ -247,9 +261,10 @@ impl<T: Entry> Picker<T> {
 
     pub fn populate_files(&mut self) {
         let dir = self.cwd.clone();
+        let git_ignore = self.git_ignore;
         let injector = self.matcher.injector();
         std::thread::spawn(move || {
-            injector.populate_files(dir, true);
+            injector.populate_files(dir, git_ignore);
         });
     }
 }
@@ -329,5 +344,12 @@ impl<T: Entry> UserData for Picker<T> {
             this.restart();
             Ok(())
         });
+
+        methods.add_method("should_update", |lua, this, ()| {
+            match this.receiver.try_recv() {
+                Ok(_) => Ok(true),
+                Err(_) => Ok(false),
+            }
+        })
     }
 }

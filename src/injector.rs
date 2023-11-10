@@ -45,6 +45,7 @@ impl<T: Entry> Injector<T> {
                 .hidden(true)
                 .follow_links(true)
                 .git_ignore(git_ignore)
+                .ignore(true)
                 .sort_by_file_name(|name1, name2| name1.cmp(name2));
             let mut type_builder = TypesBuilder::new();
             type_builder
