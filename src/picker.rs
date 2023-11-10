@@ -3,7 +3,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crossbeam_channel::bounded;
-use mlua::chunk;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
@@ -140,10 +139,8 @@ impl<T: Entry> Picker<T> {
     pub fn new(cwd: String) -> Self {
         let (sender, receiver) = bounded::<()>(1);
         let notify = Arc::new(move || {
-            log::info!("Notifying...");
-            match sender.try_send(()) {
-                Ok(_) => log::info!("Message sent!"),
-                Err(_) => log::info!("Message not sent!"),
+            if sender.try_send(()).is_ok() {
+                log::info!("Message sent!")
             };
         });
         let matcher: Matcher<T> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1).into();
@@ -353,7 +350,7 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
-        methods.add_method("should_update", |lua, this, ()| {
+        methods.add_method("should_update", |_lua, this, ()| {
             match this.receiver.try_recv() {
                 Ok(_) => {
                     log::info!("Message received!");

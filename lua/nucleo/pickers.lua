@@ -56,12 +56,11 @@ M.initialize = function()
 	if not M.picker then
 		M.picker = nu.Picker()
 	else
+		M.picker:populate_files()
+
 		vim.schedule(function()
-			M.picker:populate_files()
-			local status = M.picker:tick(10)
-			if status.changed or status.running then
-				M.render_matches()
-			end
+			M.picker:tick(10)
+			M.render_matches()
 		end)
 	end
 end
@@ -108,16 +107,20 @@ M.find = function()
 			end
 		end,
 		on_submit = function(value)
-			local selection = M.picker:get_selection().path
-			log.info("Input Submitted: " .. selection)
+			if M.picker:total_matches() == 0 then
+				vim.notify("There's nothing to select", vim.log.levels.WARN)
+			else
+				local selection = M.picker:get_selection().path
+				log.info("Input Submitted: " .. selection)
 
-			if M.original_winid then
-				vim.api.nvim_set_current_win(M.original_winid)
+				if M.original_winid then
+					vim.api.nvim_set_current_win(M.original_winid)
+				end
+				vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
+
+				-- TODO: Figure out what to actually do here
+				M.picker:restart()
 			end
-			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
-
-			-- TODO: Figure out what to actually do here
-			M.picker:restart()
 		end,
 		on_change = M.process_input,
 	})
@@ -203,7 +206,7 @@ M.find = function()
 			end
 
 			local status = M.picker:tick(10)
-			M.picker:should_update()
+			-- M.picker:should_update()
 			M.render_matches()
 			-- if status.changed or status.running then
 			-- elseif  then
