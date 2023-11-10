@@ -23,18 +23,24 @@ M.original_cursor = nil
 M.tx = nil
 
 M.render_matches = function()
-	local results = M.picker:current_matches()
-	vim.schedule(function()
-		if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-			vim.iter(ipairs(results)):each(function(i, entry)
-				return Entry(i, entry, M.results_bufnr):render()
-			end)
+	if M.picker:total_matches() == 0 then
+		vim.schedule(function()
+			vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, {})
+		end)
+	else
+		local results = M.picker:current_matches()
+		vim.schedule(function()
+			if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+				vim.iter(ipairs(results)):each(function(i, entry)
+					return Entry(i, entry, M.results_bufnr):render()
+				end)
 
-			if not vim.tbl_isempty(results) then
-				M.highlighter:highlight_selection()
+				if not vim.tbl_isempty(results) then
+					M.highlighter:highlight_selection()
+				end
 			end
-		end
-	end)
+		end)
+	end
 end
 
 M.process_input = function(val)
@@ -197,14 +203,22 @@ M.find = function()
 			end
 
 			local status = M.picker:tick(10)
-			if status.changed or status.running then
-				M.render_matches()
-			elseif M.picker:should_update() then
-				M.render_matches()
-			end
+			M.picker:should_update()
+			M.render_matches()
+			-- if status.changed or status.running then
+			-- elseif  then
+			-- 	M.render_matches()
+			-- end
 		end
 	end)
 
+	vim.wait(0, function()
+		if not vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+			return true
+		end
+		M.picker:tick(10)
+		M.render_matches()
+	end, 100)
 	M.tx.send()
 	main_loop()
 end

@@ -227,9 +227,15 @@ impl<T: Entry> Picker<T> {
         log::info!("Selection index: {}", self.selection_index);
     }
 
+    pub fn total_matches(&self) -> u32 {
+        self.matcher.snapshot().matched_item_count()
+    }
+
     pub fn current_matches(&self) -> Vec<T> {
         let mut indices = Vec::new();
         let snapshot = self.matcher.snapshot();
+        log::info!("Item count: {:?}", snapshot.item_count());
+        log::info!("Match count: {:?}", snapshot.matched_item_count());
         let string_matcher = &mut STRING_MATCHER.lock().0;
 
         let lower_bound = self.lower_bound();
@@ -315,6 +321,8 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(lua.to_value(&this.current_matches()))
         });
 
+        methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));
+
         methods.add_method("get_selection_index", |_lua, this, ()| {
             Ok(this.selection_index)
         });
@@ -347,7 +355,10 @@ impl<T: Entry> UserData for Picker<T> {
 
         methods.add_method("should_update", |lua, this, ()| {
             match this.receiver.try_recv() {
-                Ok(_) => Ok(true),
+                Ok(_) => {
+                    log::info!("Message received!");
+                    Ok(true)
+                }
                 Err(_) => Ok(false),
             }
         })
