@@ -21,7 +21,7 @@ mlua = { version = "0.9", features = [
   "send",
   "parking_lot",
 ] }
-tokio = { version = "1.33.0", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 rayon = "1.8"
 log = "0.4.20"
 simplelog = "0.12.1"
