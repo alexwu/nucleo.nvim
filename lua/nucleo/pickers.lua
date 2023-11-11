@@ -45,14 +45,14 @@ M.render_matches = function()
 	end
 end
 
-M.process_input = function(val)
+M.process_input = debounce(function(val)
 	M.picker:update_query(val)
 	log.info("Updated input: " .. val)
 
 	if M.tx then
 		M.tx.send()
 	end
-end
+end, 50)
 
 M.initialize = function()
 	if not M.picker then
@@ -80,7 +80,6 @@ M.find = function()
 		bufnr = M.results_bufnr,
 	})
 
-	-- local input = Prompt:init({
 	local input = Input({
 		position = "50%",
 		size = {
@@ -208,12 +207,7 @@ M.find = function()
 			end
 
 			local status = M.picker:tick(10)
-			-- M.picker:should_update()
 			M.render_matches()
-			-- if status.changed or status.running then
-			-- elseif  then
-			-- 	M.render_matches()
-			-- end
 		end
 	end)
 
@@ -229,31 +223,6 @@ M.find = function()
 end
 
 function M.setup()
-	-- M.picker_ns = vim.api.nvim_create_namespace("nucleo_picker")
-	-- vim.api.nvim_set_decoration_provider(M.picker_ns, {
-	-- 	on_start = function()
-	-- 		if M.picker then
-	-- 			M.picker:tick(10)
-	-- 		end
-	-- 	end,
-	-- 	on_win = function(_, winid, bufnr, _, _)
-	-- 		if bufnr ~= M.results_bufnr then
-	-- 			return
-	-- 		end
-	--
-	-- 		if not M.picker then
-	-- 			return
-	-- 		end
-	--
-	-- 		local status = M.picker:tick(10)
-	-- 		if status.changed then
-	-- 			vim.schedule(function()
-	-- 				M.get_matches()
-	-- 			end)
-	-- 		end
-	-- 	end,
-	-- })
-
 	vim.api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})
