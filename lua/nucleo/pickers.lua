@@ -25,7 +25,9 @@ M.tx = nil
 M.render_matches = function()
 	if M.picker:total_matches() == 0 then
 		vim.schedule(function()
-			vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, {})
+			if vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+				vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, {})
+			end
 		end)
 	else
 		local results = M.picker:current_matches()
