@@ -34,6 +34,4 @@ function Manager:init(layout_options)
 	)
 end
 
--- Manager():mount()
-
 return Manager

@@ -1,4 +1,5 @@
 use std::cmp::{max, min};
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -16,11 +17,25 @@ use serde::{Deserialize, Serialize};
 
 use crate::injector::Injector;
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct Cursor {
+    /// Location of the cursor in the Window
+    pub line: u32,
+}
+
+impl Cursor {
+    /// Returns the get line of this [`Cursor`].
+    pub fn get_line(&self) -> u32 {
+        self.line
+    }
+}
+
 pub trait Entry: Serialize + Clone + Sync + Send + 'static {
     fn into_utf32(self) -> Utf32String;
     fn from_path(path: &Path, cwd: Option<String>) -> Self;
     fn set_selected(&mut self, selected: bool);
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
+    fn with_selected(self, selected: bool) -> Self;
 }
 
 pub struct Matcher<T: Entry>(pub Nucleo<T>);
@@ -121,6 +136,31 @@ impl Entry for FileEntry {
     fn set_selected(&mut self, selected: bool) {
         self.selected = selected;
     }
+
+    fn with_selected(self, selected: bool) -> Self {
+        Self { selected, ..self }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Window {
+    pub height: u32,
+    pub line: u32,
+    pub cursor: Cursor,
+}
+
+impl Window {
+    pub fn new(height: u32, line: u32, cursor: Cursor) -> Self {
+        Self {
+            height,
+            line,
+            cursor,
+        }
+    }
+
+    pub fn get_cursor_position(&self) -> u32 {
+        self.line + self.cursor.line
+    }
 }
 
 pub struct Picker<T: Entry> {
@@ -128,9 +168,11 @@ pub struct Picker<T: Entry> {
     pub string_matcher: StringMatcher,
     previous_query: String,
     cwd: String,
-    selection_index: u32,
+    cursor: u32,
     lower_bound: u32,
     upper_bound: u32,
+    window_height: u32,
+    selections: BTreeSet<u32>,
     receiver: crossbeam_channel::Receiver<()>,
     git_ignore: bool,
 }
@@ -152,10 +194,12 @@ impl<T: Entry> Picker<T> {
             cwd,
             receiver,
             git_ignore: true,
-            selection_index: 0,
+            cursor: 0,
             lower_bound: 0,
             upper_bound: 50,
+            window_height: 50,
             previous_query: String::new(),
+            selections: BTreeSet::new(),
         }
     }
 
@@ -179,8 +223,8 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_cursor(&mut self) {
-        self.selection_index = self
-            .selection_index
+        self.cursor = self
+            .cursor
             // FIXME: Something cleaner than this:
             .clamp(self.lower_bound(), max(self.upper_bound(), 1) - 1);
     }
@@ -204,24 +248,36 @@ impl<T: Entry> Picker<T> {
         }
     }
 
+    pub fn scrolling_move(&mut self, change: i32) {
+        let next_pos = self.cursor.saturating_add_signed(change);
+        if self.cursor > self.upper_bound {
+            // self.upper_bound = self.cursor.clamp();
+        } else if self.cursor < self.lower_bound {
+            self.lower_bound = self.lower_bound.saturating_add_signed(change);
+        }
+        // self.update_cursor();
+    }
+
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
         log::info!("Moving cursor {:?} by {}", direction, change);
         log::info!("Lower bound: {}", self.lower_bound());
         log::info!("Upper bound: {}", self.upper_bound());
         let next_index = match direction {
-            Movement::Up => self.selection_index + change,
+            Movement::Up => self.cursor + change,
             Movement::Down => {
-                if change > self.selection_index {
+                if change > self.cursor {
                     0
                 } else {
-                    self.selection_index - change
+                    self.cursor - change
                 }
             }
         };
 
-        self.selection_index = next_index;
+        // self.cursor.saturating_add_signed(rhs)
+
+        self.cursor = next_index;
         self.update_cursor();
-        log::info!("Selection index: {}", self.selection_index);
+        log::info!("Selection index: {}", self.cursor);
     }
 
     pub fn total_matches(&self) -> u32 {
@@ -270,6 +326,26 @@ impl<T: Entry> Picker<T> {
             injector.populate_files(dir, git_ignore);
         });
     }
+
+    pub fn select(&mut self, index: u32) {
+        self.selections.insert(index);
+    }
+
+    pub fn deselect(&mut self, index: u32) {
+        self.selections.remove(&index);
+    }
+
+    pub fn selections(&self) -> Vec<T> {
+        self.selections
+            .iter()
+            .filter_map(|selection| {
+                self.matcher
+                    .snapshot()
+                    .get_matched_item(*selection)
+                    .map(|item| item.data.clone())
+            })
+            .collect()
+    }
 }
 
 impl<T: Entry> Default for Picker<T> {
@@ -309,6 +385,11 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
+        methods.add_method_mut("move_cursor", |_lua, this, params: (i32,)| {
+            this.scrolling_move(params.0);
+            Ok(())
+        });
+
         methods.add_method_mut("update_window", |_lua, this, params: (usize,)| {
             this.update_window(params.0 as u32);
             Ok(())
@@ -320,20 +401,18 @@ impl<T: Entry> UserData for Picker<T> {
 
         methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));
 
-        methods.add_method("get_selection_index", |_lua, this, ()| {
-            Ok(this.selection_index)
-        });
+        methods.add_method("get_selection_index", |_lua, this, ()| Ok(this.cursor));
 
         methods.add_method("get_selection", |lua, this, ()| {
             match this
                 .matcher
                 .snapshot()
-                .get_matched_item(this.selection_index)
+                .get_matched_item(this.cursor)
             {
                 Some(selection) => Ok(lua.to_value(selection.data)),
                 None => {
-                    log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.selection_index, this.lower_bound(), this.upper_bound());
-                    Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.selection_index )))
+                    log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.cursor, this.lower_bound(), this.upper_bound());
+                    Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.cursor )))
                 },
             }
         });
