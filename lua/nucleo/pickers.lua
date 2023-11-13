@@ -59,9 +59,7 @@ M.initialize = function()
 	if not M.picker then
 		M.picker = nu.Picker()
 	else
-		vim.schedule(function()
-			M.picker:populate_files()
-		end)
+		M.picker:populate_files()
 	end
 end
 
