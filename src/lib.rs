@@ -10,16 +10,6 @@ use simplelog::{Config, WriteLogger};
 mod injector;
 mod picker;
 
-fn nvim_api(lua: &Lua) -> LuaResult<LuaTable> {
-    lua.globals().get::<&str, LuaTable>("vim")?.get("api")
-}
-
-pub fn nvim_buf_set_lines(lua: &Lua, params: (i64, i64, i64, bool, Vec<String>)) -> LuaResult<()> {
-    nvim_api(lua)?
-        .get::<&str, LuaFunction>("nvim_buf_set_lines")?
-        .call::<_, ()>(params)
-}
-
 pub fn init_picker(
     _lua: &Lua,
     params: (Option<picker::Config>,),
