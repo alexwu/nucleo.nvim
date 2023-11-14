@@ -14,18 +14,21 @@ function Highlighter:new(opts)
 	self.bufnr = opts.bufnr
 end
 
-function Highlighter:highlight_selection()
-	api.nvim_buf_clear_namespace(self.bufnr, ns_selection, 0, -1)
-	-- api.nvim_buf_add_highlight(self.bufnr, ns_selection, "TelescopeSelectionCaret", row, 0, #caret)
+local highlight_selection = vim.schedule_wrap(function(highlighter)
+	api.nvim_buf_clear_namespace(highlighter.bufnr, ns_selection, 0, -1)
 
-	local line_nr = self.picker:get_selection_index()
+	local line_nr = highlighter.picker:get_selection_index()
 	api.nvim_buf_set_extmark(
-		self.bufnr,
+		highlighter.bufnr,
 		ns_selection,
 		line_nr,
 		1,
 		{ end_row = line_nr + 1, hl_eol = true, hl_group = "TelescopeSelection" }
 	)
+end)
+
+function Highlighter:highlight_selection()
+	highlight_selection(self)
 end
 
 return Highlighter

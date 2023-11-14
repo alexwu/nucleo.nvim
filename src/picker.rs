@@ -1,7 +1,9 @@
 use std::cmp::{max, min};
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Arc;
 
+use crossbeam_channel::bounded;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
@@ -20,6 +22,7 @@ pub trait Entry: Serialize + Clone + Sync + Send + 'static {
     fn from_path(path: &Path, cwd: Option<String>) -> Self;
     fn set_selected(&mut self, selected: bool);
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
+    fn with_selected(self, selected: bool) -> Self;
 }
 
 pub struct Matcher<T: Entry>(pub Nucleo<T>);
@@ -120,6 +123,10 @@ impl Entry for FileEntry {
     fn set_selected(&mut self, selected: bool) {
         self.selected = selected;
     }
+
+    fn with_selected(self, selected: bool) -> Self {
+        Self { selected, ..self }
+    }
 }
 
 pub struct Picker<T: Entry> {
@@ -127,26 +134,36 @@ pub struct Picker<T: Entry> {
     pub string_matcher: StringMatcher,
     previous_query: String,
     cwd: String,
-    selection_index: u32,
+    cursor: u32,
     lower_bound: u32,
     upper_bound: u32,
+    selections: BTreeSet<u32>,
+    receiver: crossbeam_channel::Receiver<()>,
+    git_ignore: bool,
 }
 
 impl<T: Entry> Picker<T> {
     pub fn new(cwd: String) -> Self {
-        fn notify() {}
-        let matcher: Matcher<T> =
-            Nucleo::new(nucleo::Config::DEFAULT, Arc::new(notify), None, 1).into();
+        let (sender, receiver) = bounded::<()>(1);
+        let notify = Arc::new(move || {
+            if sender.try_send(()).is_ok() {
+                log::info!("Message sent!")
+            };
+        });
+        let matcher: Matcher<T> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1).into();
         let string_matcher = StringMatcher::default();
 
         Self {
             matcher,
             string_matcher,
             cwd,
-            selection_index: 0,
+            receiver,
+            git_ignore: true,
+            cursor: 0,
             lower_bound: 0,
             upper_bound: 50,
             previous_query: String::new(),
+            selections: BTreeSet::new(),
         }
     }
 
@@ -170,8 +187,8 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_cursor(&mut self) {
-        self.selection_index = self
-            .selection_index
+        self.cursor = self
+            .cursor
             // FIXME: Something cleaner than this:
             .clamp(self.lower_bound(), max(self.upper_bound(), 1) - 1);
     }
@@ -182,6 +199,7 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_query(&mut self, query: String) {
+        log::info!("Updating query: {}", &query);
         let previous_query = self.previous_query.clone();
         if query != previous_query {
             self.matcher.pattern().reparse(
@@ -199,24 +217,32 @@ impl<T: Entry> Picker<T> {
         log::info!("Lower bound: {}", self.lower_bound());
         log::info!("Upper bound: {}", self.upper_bound());
         let next_index = match direction {
-            Movement::Up => self.selection_index + change,
+            Movement::Up => self.cursor + change,
             Movement::Down => {
-                if change > self.selection_index {
+                if change > self.cursor {
                     0
                 } else {
-                    self.selection_index - change
+                    self.cursor - change
                 }
             }
         };
 
-        self.selection_index = next_index;
+        // self.cursor.saturating_add_signed(rhs)
+
+        self.cursor = next_index;
         self.update_cursor();
-        log::info!("Selection index: {}", self.selection_index);
+        log::info!("Selection index: {}", self.cursor);
+    }
+
+    pub fn total_matches(&self) -> u32 {
+        self.matcher.snapshot().matched_item_count()
     }
 
     pub fn current_matches(&self) -> Vec<T> {
         let mut indices = Vec::new();
         let snapshot = self.matcher.snapshot();
+        log::info!("Item count: {:?}", snapshot.item_count());
+        log::info!("Match count: {:?}", snapshot.matched_item_count());
         let string_matcher = &mut STRING_MATCHER.lock().0;
 
         let lower_bound = self.lower_bound();
@@ -233,6 +259,7 @@ impl<T: Entry> Picker<T> {
                     );
                     indices.sort_unstable();
                     indices.dedup();
+
                     let ranges = range_rover(indices.drain(..))
                         .into_iter()
                         .map(|range| range.into_inner());
@@ -247,10 +274,31 @@ impl<T: Entry> Picker<T> {
 
     pub fn populate_files(&mut self) {
         let dir = self.cwd.clone();
+        let git_ignore = self.git_ignore;
         let injector = self.matcher.injector();
         std::thread::spawn(move || {
-            injector.populate_files(dir, true);
+            injector.populate_files(dir, git_ignore);
         });
+    }
+
+    pub fn select(&mut self, index: u32) {
+        self.selections.insert(index);
+    }
+
+    pub fn deselect(&mut self, index: u32) {
+        self.selections.remove(&index);
+    }
+
+    pub fn selections(&self) -> Vec<T> {
+        self.selections
+            .iter()
+            .filter_map(|selection| {
+                self.matcher
+                    .snapshot()
+                    .get_matched_item(*selection)
+                    .map(|item| item.data.clone())
+            })
+            .collect()
     }
 }
 
@@ -300,20 +348,20 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(lua.to_value(&this.current_matches()))
         });
 
-        methods.add_method("get_selection_index", |_lua, this, ()| {
-            Ok(this.selection_index)
-        });
+        methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));
+
+        methods.add_method("get_selection_index", |_lua, this, ()| Ok(this.cursor));
 
         methods.add_method("get_selection", |lua, this, ()| {
             match this
                 .matcher
                 .snapshot()
-                .get_matched_item(this.selection_index)
+                .get_matched_item(this.cursor)
             {
                 Some(selection) => Ok(lua.to_value(selection.data)),
                 None => {
-                    log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.selection_index, this.lower_bound(), this.upper_bound());
-                    Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.selection_index )))
+                    log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.cursor, this.lower_bound(), this.upper_bound());
+                    Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.cursor )))
                 },
             }
         });
@@ -329,5 +377,15 @@ impl<T: Entry> UserData for Picker<T> {
             this.restart();
             Ok(())
         });
+
+        methods.add_method("should_update", |_lua, this, ()| {
+            match this.receiver.try_recv() {
+                Ok(_) => {
+                    log::info!("Message received!");
+                    Ok(true)
+                }
+                Err(_) => Ok(false),
+            }
+        })
     }
 }
