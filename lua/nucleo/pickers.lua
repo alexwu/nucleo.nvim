@@ -45,6 +45,7 @@ M.render_matches = function()
 	end
 end
 
+---@param val string
 M.process_input = debounce(function(val)
 	M.picker:update_query(val)
 	log.info("Updated input: " .. val)
@@ -59,9 +60,9 @@ M.initialize = function()
 		M.picker = nu.Picker()
 	else
 		M.picker:populate_files()
+		M.picker:tick(10)
 
 		vim.schedule(function()
-			M.picker:tick(10)
 			M.render_matches()
 		end)
 	end
@@ -107,6 +108,7 @@ M.find = function()
 				M.picker:restart()
 			end
 		end,
+		---@param value string
 		on_submit = function(value)
 			if M.picker:total_matches() == 0 then
 				vim.notify("There's nothing to select", vim.log.levels.WARN)
@@ -132,16 +134,12 @@ M.find = function()
 
 	input:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
-		vim.schedule(function()
-			M.highlighter:highlight_selection()
-		end)
+		M.highlighter:highlight_selection()
 	end, { noremap = true })
 
 	input:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
-		vim.schedule(function()
-			M.highlighter:highlight_selection()
-		end)
+		M.highlighter:highlight_selection()
 	end, { noremap = true })
 
 	input:map("i", "<Esc>", function()
@@ -167,19 +165,15 @@ M.find = function()
 	)
 
 	M.results:on(event.BufWinEnter, function()
-		vim.schedule(function()
-			local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
+		local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
 
-			M.picker:update_window(height)
-		end)
+		M.picker:update_window(height)
 	end)
 
 	input:on("VimResized", function(e)
-		vim.schedule(function()
-			local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
+		local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
 
-			M.picker:update_window(height)
-		end)
+		M.picker:update_window(height)
 	end)
 
 	input:on(event.BufLeave, function()
@@ -206,18 +200,11 @@ M.find = function()
 				return
 			end
 
-			local status = M.picker:tick(10)
+			local _status = M.picker:tick(10)
 			M.render_matches()
 		end
 	end)
 
-	vim.wait(0, function()
-		if not vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-			return true
-		end
-		M.picker:tick(10)
-		M.render_matches()
-	end, 100)
 	M.tx.send()
 	main_loop()
 end
