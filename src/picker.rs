@@ -17,19 +17,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::injector::Injector;
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-pub struct Cursor {
-    /// Location of the cursor in the Window
-    pub line: u32,
-}
-
-impl Cursor {
-    /// Returns the get line of this [`Cursor`].
-    pub fn get_line(&self) -> u32 {
-        self.line
-    }
-}
-
 pub trait Entry: Serialize + Clone + Sync + Send + 'static {
     fn into_utf32(self) -> Utf32String;
     fn from_path(path: &Path, cwd: Option<String>) -> Self;
@@ -142,27 +129,6 @@ impl Entry for FileEntry {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Window {
-    pub height: u32,
-    pub line: u32,
-    pub cursor: Cursor,
-}
-
-impl Window {
-    pub fn new(height: u32, line: u32, cursor: Cursor) -> Self {
-        Self {
-            height,
-            line,
-            cursor,
-        }
-    }
-
-    pub fn get_cursor_position(&self) -> u32 {
-        self.line + self.cursor.line
-    }
-}
-
 pub struct Picker<T: Entry> {
     pub matcher: Matcher<T>,
     pub string_matcher: StringMatcher,
@@ -171,7 +137,6 @@ pub struct Picker<T: Entry> {
     cursor: u32,
     lower_bound: u32,
     upper_bound: u32,
-    window_height: u32,
     selections: BTreeSet<u32>,
     receiver: crossbeam_channel::Receiver<()>,
     git_ignore: bool,
@@ -197,7 +162,6 @@ impl<T: Entry> Picker<T> {
             cursor: 0,
             lower_bound: 0,
             upper_bound: 50,
-            window_height: 50,
             previous_query: String::new(),
             selections: BTreeSet::new(),
         }
@@ -246,16 +210,6 @@ impl<T: Entry> Picker<T> {
             );
             self.previous_query = query.to_string();
         }
-    }
-
-    pub fn scrolling_move(&mut self, change: i32) {
-        let next_pos = self.cursor.saturating_add_signed(change);
-        if self.cursor > self.upper_bound {
-            // self.upper_bound = self.cursor.clamp();
-        } else if self.cursor < self.lower_bound {
-            self.lower_bound = self.lower_bound.saturating_add_signed(change);
-        }
-        // self.update_cursor();
     }
 
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
@@ -382,11 +336,6 @@ impl<T: Entry> UserData for Picker<T> {
 
         methods.add_method_mut("move_cursor_down", |_lua, this, ()| {
             this.move_cursor(Movement::Up, 1);
-            Ok(())
-        });
-
-        methods.add_method_mut("move_cursor", |_lua, this, params: (i32,)| {
-            this.scrolling_move(params.0);
             Ok(())
         });
 
