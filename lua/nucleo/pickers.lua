@@ -177,7 +177,7 @@ M.find = function(opts)
 	end)
 
 	input:on(event.BufLeave, function()
-		input:unmount()
+		layout:unmount()
 	end)
 
 	layout:mount()
