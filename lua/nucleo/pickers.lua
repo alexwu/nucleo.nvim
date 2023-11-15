@@ -23,25 +23,21 @@ M.original_cursor = nil
 M.tx = nil
 
 M.render_matches = function()
+	M.picker:tick(10)
+
 	if M.picker:total_matches() == 0 then
-		vim.schedule(function()
-			if vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-				vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, {})
-			end
-		end)
+		if vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+			vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, {})
+		end
 	else
 		local results = M.picker:current_matches()
-		vim.schedule(function()
-			if M.results_bufnr and vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-				vim.iter(ipairs(results)):each(function(i, entry)
-					return Entry(i, entry, M.results_bufnr):render()
-				end)
-
-				if not vim.tbl_isempty(results) then
-					M.highlighter:highlight_selection()
-				end
-			end
+		vim.iter(ipairs(results)):each(function(i, entry)
+			return Entry(i, entry, M.results_bufnr):render()
 		end)
+
+		if not vim.tbl_isempty(results) then
+			M.highlighter:highlight_selection()
+		end
 	end
 end
 

@@ -14,7 +14,7 @@ function Highlighter:new(opts)
 	self.bufnr = opts.bufnr
 end
 
-local highlight_selection = vim.schedule_wrap(function(highlighter)
+local highlight_selection = function(highlighter)
 	api.nvim_buf_clear_namespace(highlighter.bufnr, ns_selection, 0, -1)
 
 	local line_nr = highlighter.picker:get_selection_index()
@@ -25,7 +25,7 @@ local highlight_selection = vim.schedule_wrap(function(highlighter)
 		1,
 		{ end_row = line_nr + 1, hl_eol = true, hl_group = "TelescopeSelection" }
 	)
-end)
+end
 
 function Highlighter:highlight_selection()
 	highlight_selection(self)
