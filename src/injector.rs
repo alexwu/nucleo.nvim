@@ -98,7 +98,7 @@ impl<T: Entry> Injector<T> {
             log::info!("Spawning sorted file searcher...");
             let mut walk_builder = WalkBuilder::new(dir);
             walk_builder
-                .hidden(true)
+                .hidden(false)
                 .follow_links(true)
                 .git_ignore(git_ignore)
                 .ignore(true)
