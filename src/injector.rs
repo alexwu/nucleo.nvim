@@ -42,7 +42,7 @@ impl<T: Entry> Injector<T> {
             log::info!("Spawning file searcher...");
             let mut walk_builder = WalkBuilder::new(dir.clone());
             walk_builder
-                .hidden(true)
+                .hidden(false)
                 .follow_links(true)
                 .git_ignore(git_ignore)
                 .ignore(true)
