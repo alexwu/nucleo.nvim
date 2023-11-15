@@ -40,7 +40,7 @@ impl<T: Entry> Injector<T> {
         runtime.spawn(async move {
             let dir = Path::new(&cwd);
             log::info!("Spawning file searcher...");
-            let mut walk_builder = WalkBuilder::new(dir.clone());
+            let mut walk_builder = WalkBuilder::new(dir);
             walk_builder
                 .hidden(true)
                 .follow_links(true)
@@ -76,6 +76,62 @@ impl<T: Entry> Injector<T> {
                     }
                 })
             });
+        });
+
+        log::info!("After spawning file searcher...");
+    }
+
+    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool) {
+        log::info!("Populating picker with {}", &cwd);
+        let runtime = Runtime::new().expect("Failed to create runtime");
+
+        let (tx, rx) = mpsc::channel::<T>();
+        let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
+            for val in rx.iter() {
+                log::info!("Pushing {:?}", val.clone().into_utf32());
+                self.push(val.clone(), |dst| dst[0] = val.into_utf32());
+            }
+            Ok(())
+        });
+
+        runtime.spawn(async move {
+            let dir = Path::new(&cwd);
+            log::info!("Spawning sorted file searcher...");
+            let mut walk_builder = WalkBuilder::new(dir);
+            walk_builder
+                .hidden(true)
+                .follow_links(true)
+                .git_ignore(git_ignore)
+                .ignore(true)
+                .sort_by_file_name(std::cmp::Ord::cmp);
+
+            let mut type_builder = TypesBuilder::new();
+            type_builder
+                .add(
+                    "compressed",
+                    "*.{zip,gz,bz2,zst,lzo,sz,tgz,tbz2,lz,lz4,lzma,lzo,z,Z,xz,7z,rar,cab}",
+                )
+                .expect("Invalid type definition");
+            type_builder.negate("all");
+            let excluded_types = type_builder
+                .build()
+                .expect("failed to build excluded_types");
+            walk_builder.types(excluded_types);
+            let tx = tx.clone();
+            for path in walk_builder.build() {
+                let cwd = cwd.clone();
+                match path {
+                    Ok(file) if file.path().is_file() => {
+                        if tx
+                            .send(Entry::from_path(file.path(), Some(cwd.clone())))
+                            .is_ok()
+                        {
+                            log::info!("Sending {:?}", file.path());
+                        }
+                    }
+                    _ => log::info!("Skipping: {:?}", path),
+                }
+            }
         });
 
         log::info!("After spawning file searcher...");

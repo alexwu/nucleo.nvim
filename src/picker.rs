@@ -248,25 +248,24 @@ impl<T: Entry> Picker<T> {
         let lower_bound = self.lower_bound();
         let upper_bound = self.upper_bound();
 
-        Vec::from_iter(
-            snapshot
-                .matched_items(lower_bound..upper_bound)
-                .map(|item| {
-                    snapshot.pattern().column_pattern(0).indices(
-                        item.matcher_columns[0].slice(..),
-                        string_matcher,
-                        &mut indices,
-                    );
-                    indices.sort_unstable();
-                    indices.dedup();
+        snapshot
+            .matched_items(lower_bound..upper_bound)
+            .map(|item| {
+                snapshot.pattern().column_pattern(0).indices(
+                    item.matcher_columns[0].slice(..),
+                    string_matcher,
+                    &mut indices,
+                );
+                indices.sort_unstable();
+                indices.dedup();
 
-                    let ranges = range_rover(indices.drain(..))
-                        .into_iter()
-                        .map(|range| range.into_inner());
-                    // TODO: Probably a better way to do this
-                    item.data.clone().with_indices(ranges.collect())
-                }),
-        )
+                let ranges = range_rover(indices.drain(..))
+                    .into_iter()
+                    .map(|range| range.into_inner());
+                // TODO: Probably a better way to do this
+                item.data.clone().with_indices(ranges.collect())
+            })
+            .collect::<Vec<_>>()
     }
     pub fn restart(&mut self) {
         self.matcher.0.restart(true)
@@ -277,7 +276,7 @@ impl<T: Entry> Picker<T> {
         let git_ignore = self.git_ignore;
         let injector = self.matcher.injector();
         std::thread::spawn(move || {
-            injector.populate_files(dir, git_ignore);
+            injector.populate_files_sorted(dir, git_ignore);
         });
     }
 
@@ -304,7 +303,7 @@ impl<T: Entry> Picker<T> {
 
 impl<T: Entry> Default for Picker<T> {
     fn default() -> Self {
-        Self::new("".to_string())
+        Self::new(String::new())
     }
 }
 
