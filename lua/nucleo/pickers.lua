@@ -51,9 +51,9 @@ M.process_input = debounce(function(val)
 	end
 end, 50)
 
-M.initialize = function()
+M.initialize = function(opts)
 	if not M.picker then
-		M.picker = nu.Picker()
+		M.picker = nu.Picker(opts)
 	else
 		M.picker:populate_files()
 		M.picker:tick(10)
@@ -64,12 +64,16 @@ M.initialize = function()
 	end
 end
 
-M.find = function()
+---@class PickerConfig
+---@field cwd? string
+
+---@param opts? PickerConfig
+M.find = function(opts)
 	M.original_winid = vim.api.nvim_get_current_win()
 	M.original_cursor = vim.api.nvim_win_get_cursor(M.original_winid)
 
 	M.results = Results()
-	M.initialize()
+	M.initialize(opts)
 
 	M.results_bufnr = M.results.bufnr
 	M.highlighter = Highlighter({
