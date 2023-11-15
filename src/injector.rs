@@ -88,7 +88,6 @@ impl<T: Entry> Injector<T> {
         let (tx, rx) = mpsc::channel::<T>();
         let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
             for val in rx.iter() {
-                log::info!("Pushing {:?}", val.clone().into_utf32());
                 self.push(val.clone(), |dst| dst[0] = val.into_utf32());
             }
             Ok(())
@@ -126,10 +125,10 @@ impl<T: Entry> Injector<T> {
                             .send(Entry::from_path(file.path(), Some(cwd.clone())))
                             .is_ok()
                         {
-                            log::info!("Sending {:?}", file.path());
+                            // log::info!("Sending {:?}", file.path());
                         }
                     }
-                    _ => log::info!("Skipping: {:?}", path),
+                    _ => (),
                 }
             }
         });
