@@ -1,6 +1,5 @@
 local Input = require("nui.input")
 local Layout = require("nui.layout")
-local Popup = require("nui.popup")
 local event = require("nui.utils.autocmd").event
 local Prompt = require("nucleo.prompt")
 local Results = require("nucleo.results")
@@ -142,14 +141,14 @@ M.find = function(opts)
 
 	input:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
-		M.highlighter:highlight_selection()
-		M.previewer:render(M.picker:get_selection().path)
+		-- M.highlighter:highlight_selection()
+		M.tx.send()
 	end, { noremap = true })
 
 	input:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
-		M.highlighter:highlight_selection()
-		M.previewer:render(M.picker:get_selection().path)
+		-- M.highlighter:highlight_selection()
+		M.tx.send()
 	end, { noremap = true })
 
 	input:map("i", "<Esc>", function()
@@ -206,13 +205,17 @@ M.find = function(opts)
 			rx.last()
 			await_schedule()
 
-			if not M.results_bufnr or not vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+			if not M.results.bufnr or not vim.api.nvim_buf_is_loaded(M.results.bufnr) then
 				return
 			end
 
-			local _status = M.picker:tick(10)
-			M.render_matches()
+			local status = M.picker:tick(10)
+			if status.changed then
+				M.render_matches()
+			end
+
 			if M.picker:total_matches() > 0 then
+				M.highlighter:highlight_selection()
 				M.previewer:render(M.picker:get_selection().path)
 			end
 		end
