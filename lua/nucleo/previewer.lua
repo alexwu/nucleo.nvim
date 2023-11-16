@@ -23,6 +23,10 @@ function Previewer:render(file)
 		local height = vim.api.nvim_win_get_height(self.winid)
 		local lines = preview_file(file, height)
 		vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, vim.split(lines, "\n"))
+		vim.schedule(function()
+			local ft = vim.filetype.match({ filename = file })
+			vim.api.nvim_buf_set_option(self.bufnr, "filetype", ft)
+		end)
 	end
 end
 
