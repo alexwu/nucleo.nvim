@@ -4,6 +4,7 @@ local M = {}
 M._rust = {
 	init_picker = true,
 	Picker = true,
+	preview_file = true,
 }
 
 function M.setup(opts)

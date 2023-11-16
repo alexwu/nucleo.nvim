@@ -187,10 +187,9 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_cursor(&mut self) {
-        self.cursor = self
-            .cursor
-            // FIXME: Something cleaner than this:
-            .clamp(self.lower_bound(), max(self.upper_bound(), 1) - 1);
+         self.cursor = self
+                .cursor
+                .min(self.matcher.snapshot().matched_item_count().saturating_sub(1));
     }
 
     pub fn update_window(&mut self, height: u32) {

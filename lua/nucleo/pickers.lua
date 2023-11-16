@@ -12,6 +12,7 @@ local nu = require("nucleo")
 local debounce = require("throttle-debounce").debounce_trailing
 local Entry = require("nucleo.entry")
 local Highlighter = require("nucleo.highlighter")
+local Previewer = require("nucleo.previewer")
 
 local M = {}
 
@@ -73,6 +74,7 @@ M.find = function(opts)
 	M.original_cursor = vim.api.nvim_win_get_cursor(M.original_winid)
 
 	M.results = Results()
+	M.previewer = Previewer()
 	M.initialize(opts)
 
 	M.results_bufnr = M.results.bufnr
@@ -98,7 +100,7 @@ M.find = function(opts)
 			filetype = "nucleo",
 		},
 		win_options = {
-			winhighlight = "Normal:Normal,FloatBorder:Normal",
+			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
 		},
 	}, {
 		prompt = "> ",
@@ -141,11 +143,13 @@ M.find = function(opts)
 	input:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
 		M.highlighter:highlight_selection()
+		M.previewer:render(M.picker:get_selection().path)
 	end, { noremap = true })
 
 	input:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
 		M.highlighter:highlight_selection()
+		M.previewer:render(M.picker:get_selection().path)
 	end, { noremap = true })
 
 	input:map("i", "<Esc>", function()
@@ -157,16 +161,16 @@ M.find = function(opts)
 			relative = "editor",
 			position = "50%",
 			size = {
-				width = "50%",
+				width = "80%",
 				height = "80%",
 			},
 		},
 		Layout.Box({
-			Layout.Box(input, { size = {
-				width = "100%",
-				height = "3",
-			} }),
-			Layout.Box(M.results, { size = "100%" }),
+			Layout.Box(input, { size = { width = "100%", height = "3" } }),
+			Layout.Box({
+				Layout.Box(M.results, { size = "40%" }),
+				Layout.Box(M.previewer, { size = "60%" }),
+			}, { dir = "row", size = "100%" }),
 		}, { dir = "col" })
 	)
 
@@ -208,6 +212,9 @@ M.find = function(opts)
 
 			local _status = M.picker:tick(10)
 			M.render_matches()
+			if M.picker:total_matches() > 0 then
+				M.previewer:render(M.picker:get_selection().path)
+			end
 		end
 	end)
 

@@ -9,7 +9,7 @@ function Results:init(popup_options)
 		position = { row = 0, col = "100%" },
 		size = { width = 10, height = 1 },
 		win_options = {
-			winhighlight = "Normal:Normal,FloatBorder:Normal",
+			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
 		},
 		line = 0,
 		options = {},
