@@ -78,7 +78,7 @@ M.find = function(opts)
 	M.results_bufnr = M.results.bufnr
 	M.highlighter = Highlighter({
 		picker = M.picker,
-		bufnr = M.results_bufnr,
+		bufnr = M.results.bufnr,
 	})
 
 	local input = Input({
@@ -107,11 +107,17 @@ M.find = function(opts)
 			if M.picker then
 				M.picker:restart()
 			end
+			if M.original_winid then
+				vim.api.nvim_set_current_win(M.original_winid)
+			end
 		end,
 		---@param value string
 		on_submit = function(value)
 			if M.picker:total_matches() == 0 then
 				vim.notify("There's nothing to select", vim.log.levels.WARN)
+				if M.original_winid then
+					vim.api.nvim_set_current_win(M.original_winid)
+				end
 			else
 				local selection = M.picker:get_selection().path
 				log.info("Input Submitted: " .. selection)
