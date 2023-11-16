@@ -1,5 +1,7 @@
+---@type NuiLine
 local NuiLine = require("nui.line")
 
+---@class Line: NuiLine
 local Line = NuiLine:extend("Line")
 
 function Line:init(texts, options)

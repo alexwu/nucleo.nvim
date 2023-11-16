@@ -32,7 +32,8 @@ M.render_matches = function()
 	else
 		local results = M.picker:current_matches()
 		vim.iter(ipairs(results)):each(function(i, entry)
-			return Entry(i, entry, M.results_bufnr):render()
+			local cursor = M.picker:get_selection_index()
+			return Entry(i, entry, M.results.bufnr):render(cursor)
 		end)
 
 		if not vim.tbl_isempty(results) then

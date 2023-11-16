@@ -1,6 +1,9 @@
-local Popup = require("nui.popup")
+---@module 'nui.popup;
+---@type NuiPopup
+local NuiPopup = require("nui.popup")
 
-local Results = Popup:extend("Results")
+---@class Results: NuiPopup
+local Results = NuiPopup:extend("Results")
 
 function Results:init(popup_options)
 	local options = vim.tbl_deep_extend("force", popup_options or {}, {

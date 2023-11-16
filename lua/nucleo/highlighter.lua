@@ -1,3 +1,6 @@
+---@class Highlighter
+---@field picker Picker
+---@field bufnr number
 local Highlighter = require("plenary.class"):extend()
 local api = vim.api
 
@@ -14,6 +17,7 @@ function Highlighter:new(opts)
 	self.bufnr = opts.bufnr
 end
 
+---@param highlighter Highlighter
 local highlight_selection = function(highlighter)
 	api.nvim_buf_clear_namespace(highlighter.bufnr, ns_selection, 0, -1)
 
