@@ -27,6 +27,10 @@ function Previewer:render(file)
 		vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, vim.split(lines, "\n"))
 		vim.schedule(function()
 			local ft = vim.filetype.match({ filename = file })
+			if not ft or ft == "" then
+				return
+			end
+
 			local lang = vim.treesitter.language.get_lang(ft)
 			if lang and has_ts_parser(lang) then
 				return vim.treesitter.start(self.bufnr, lang)
