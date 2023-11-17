@@ -1,7 +1,6 @@
 local Input = require("nui.input")
 local Layout = require("nui.layout")
 local event = require("nui.utils.autocmd").event
-local Prompt = require("nucleo.prompt")
 local Results = require("nucleo.results")
 local a = require("plenary.async")
 local await_schedule = a.util.scheduler
@@ -9,13 +8,11 @@ local channel = require("plenary.async.control").channel
 local log = require("nucleo.log")
 local nu = require("nucleo")
 local debounce = require("throttle-debounce").debounce_trailing
-local Entry = require("nucleo.entry")
 local Highlighter = require("nucleo.highlighter")
 local Previewer = require("nucleo.previewer")
 
 local M = {}
 
-M.results_bufnr = nil
 M.picker = nil
 M.results = nil
 M.highlighter = nil
@@ -23,40 +20,7 @@ M.original_cursor = nil
 M.tx = nil
 M.should_rerender = false
 
-local function render_caret()
-	if M.picker:total_matches() == 0 then
-	else
-		if vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-			vim.api.nvim_buf_set_text(
-				M.results_bufnr,
-				M.picker:get_selection_index(),
-				0,
-				M.picker:get_selection_index(),
-				2,
-				{ "> " }
-			)
-		end
-	end
-end
-
 M.render_matches = function()
-	-- M.picker:tick(10)
-	--
-	-- if M.picker:total_matches() == 0 then
-	-- 	if vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-	-- 		vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, {})
-	-- 	end
-	-- else
-	-- 	local results = M.picker:current_matches()
-	-- 	vim.iter(ipairs(results)):each(function(i, entry)
-	-- 		local cursor = M.picker:get_selection_index()
-	-- 		return Entry(i, entry, M.results.bufnr):render(cursor)
-	-- 	end)
-	--
-	-- 	-- if not vim.tbl_isempty(results) then
-	-- 	-- 	M.highlighter:highlight_selection()
-	-- 	-- end
-	-- end
 	M.results:render_entries(M.picker)
 end
 
@@ -97,7 +61,6 @@ M.find = function(opts)
 	M.previewer = Previewer()
 	M.initialize(opts)
 
-	M.results_bufnr = M.results.bufnr
 	M.highlighter = Highlighter({
 		picker = M.picker,
 		bufnr = M.results.bufnr,
@@ -162,14 +125,12 @@ M.find = function(opts)
 	input:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
 		-- M.highlighter:highlight_selection()
-		-- render_caret()
 		M.tx.send()
 	end, { noremap = true })
 
 	input:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
 		-- M.highlighter:highlight_selection()
-		-- render_caret()
 		M.tx.send()
 	end, { noremap = true })
 
@@ -201,7 +162,7 @@ M.find = function(opts)
 		M.picker:update_window(height)
 	end)
 
-	input:on("VimResized", function(e)
+	input:on("VimResized", function()
 		local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
 
 		M.picker:update_window(height)
@@ -245,8 +206,6 @@ M.find = function(opts)
 			M.timer:close()
 		end
 	end)
-
-	-- M.picker:update_query("")
 
 	local main_loop = a.void(function()
 		log.info("Starting main loop")

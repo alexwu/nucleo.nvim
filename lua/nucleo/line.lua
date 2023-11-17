@@ -3,6 +3,7 @@ local NuiLine = require("nui.line")
 ---@class Line: NuiLine
 local Line = NuiLine:extend("Line")
 
+-- TODO: Make the separator a part of the Line API
 function Line:init(texts, options)
 	self.separator = " "
 

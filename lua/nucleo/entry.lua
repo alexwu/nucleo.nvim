@@ -1,4 +1,8 @@
 ---@class Entry
+---@field index number
+---@field bufnr number
+---@field selection_caret string
+---@field icon { value: string, color: string }
 local Entry = require("plenary.class"):extend()
 local Line = require("nucleo.line")
 local Text = require("nui.text")
@@ -19,7 +23,6 @@ function Entry:new(index, entry, bufnr)
 end
 
 function Entry:render()
-	-- TODO: Make the separator a part of the Line API
 	local picker_icon = Text(self.selection_caret, "Normal")
 	local icon = Text(self.icon.value, self.icon.color)
 	local path = Text(self.entry.path)
