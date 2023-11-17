@@ -30,7 +30,8 @@ function Entry:render()
 
 	local leading_length = picker_icon:length() + icon:length()
 
-	line:render(self.bufnr, -1, self.index, -1)
+	-- line:render(self.bufnr, -1, self.index, -1)
+	line:render(self.bufnr, -1, self.index)
 	vim.iter(self.entry.indices):each(function(range)
 		vim.highlight.range(
 			self.bufnr,

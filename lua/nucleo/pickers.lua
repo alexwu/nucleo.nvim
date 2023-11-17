@@ -64,6 +64,7 @@ M.find = function(opts)
 
 	M.highlighter = Highlighter({
 		picker = M.picker,
+		results = M.results,
 		bufnr = M.results.bufnr,
 	})
 
@@ -222,7 +223,7 @@ M.find = function(opts)
 			rx.last()
 			await_schedule()
 
-			if not M.results.bufnr or not vim.api.nvim_buf_is_loaded(M.results.bufnr) then
+			if not M.results.bufnr or not vim.api.nvim_buf_is_loaded(M.results.bufnr) or not M.results.winid then
 				return
 			end
 
