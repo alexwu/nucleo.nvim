@@ -10,6 +10,7 @@ local nu = require("nucleo")
 local debounce = require("throttle-debounce").debounce_trailing
 local Highlighter = require("nucleo.highlighter")
 local Previewer = require("nucleo.previewer")
+local Text = require("nui.text")
 
 local M = {}
 
@@ -86,7 +87,7 @@ M.find = function(opts)
 			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
 		},
 	}, {
-		prompt = "❯ ",
+		prompt = Text("❯ ", "TelescopePromptPrefix"),
 		default_value = "",
 		on_close = function()
 			if M.picker then
