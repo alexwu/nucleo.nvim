@@ -15,6 +15,7 @@ use parking_lot::Mutex;
 use range_rover::range_rover;
 use serde::{Deserialize, Serialize};
 
+use crate::buffer::Buffer;
 use crate::injector::Injector;
 
 pub trait Entry: Serialize + Clone + Sync + Send + 'static {
@@ -129,6 +130,13 @@ impl Entry for FileEntry {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+enum SortDirection {
+    Ascending,
+    #[default]
+    Descending,
+}
+
 pub struct Picker<T: Entry> {
     pub matcher: Matcher<T>,
     pub string_matcher: StringMatcher,
@@ -137,6 +145,7 @@ pub struct Picker<T: Entry> {
     cursor: u32,
     lower_bound: u32,
     upper_bound: u32,
+    results: Buffer<T>,
     selections: BTreeSet<u32>,
     receiver: crossbeam_channel::Receiver<()>,
     git_ignore: bool,
@@ -164,6 +173,7 @@ impl<T: Entry> Picker<T> {
             upper_bound: 50,
             previous_query: String::new(),
             selections: BTreeSet::new(),
+            results: Buffer::new(Vec::new(), 10),
         }
     }
 
@@ -187,14 +197,19 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_cursor(&mut self) {
-         self.cursor = self
-                .cursor
-                .min(self.matcher.snapshot().matched_item_count().saturating_sub(1));
+        self.cursor = self.cursor.min(
+            self.matcher
+                .snapshot()
+                .matched_item_count()
+                .saturating_sub(1),
+        );
     }
 
     pub fn update_window(&mut self, height: u32) {
         log::info!("Setting upper bound to {}", &height);
         self.upper_bound = height;
+        self.results
+            .set_window_height(height.try_into().unwrap_or(usize::MAX));
     }
 
     pub fn update_query(&mut self, query: String) {
