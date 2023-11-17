@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::env::current_dir;
 use std::io::BufReader;
 use std::{fs::File, sync::Arc};
@@ -10,6 +9,7 @@ use picker::{FileEntry, Picker};
 use ropey::Rope;
 use simplelog::{Config, WriteLogger};
 
+mod buffer;
 mod injector;
 mod picker;
 
