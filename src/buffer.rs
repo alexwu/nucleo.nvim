@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
@@ -29,6 +31,10 @@ impl Window {
         self.pos = pos;
     }
 
+    fn set_height(&mut self, height: usize) {
+        self.height = height;
+    }
+
     fn start(&self) -> usize {
         self.pos
     }
@@ -38,22 +44,91 @@ impl Window {
     }
 }
 
+pub trait Contents {
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+pub trait BufferContents<T: Clone>: Contents + Sized {
+    fn lines(&self) -> Vec<T>;
+    fn window(&self) -> &Window;
+    fn window_mut(&mut self) -> &mut Window;
+    fn cursor(&self) -> &Cursor;
+    fn cursor_mut(&mut self) -> &mut Cursor;
+    fn window_height(&self) -> usize {
+        self.window().height
+    }
+    fn visible_lines(&self) -> Vec<T> {
+        let start = self.window().start();
+        let end = self.len().min(self.window().end());
+
+        self.lines()[start..end].to_vec()
+    }
+
+    fn set_window_pos(&mut self, pos: usize) {
+        if self.window_height() > self.len() {
+            self.window_mut().set_pos(0);
+        } else if pos > self.len() - self.window_height() {
+            let adjusted_pos = self.len() - self.window_height();
+            self.window_mut().set_pos(adjusted_pos);
+        } else {
+            self.window_mut().set_pos(pos);
+        }
+    }
+
+    /// Sets the position of the cursor constrained by the window
+    fn set_cursor_pos_in_window(&mut self, pos: usize) {
+        let max_pos = self.window().end().min(self.len()).saturating_sub(1);
+        log::info!("window max_pos: {}", max_pos);
+        self.cursor_mut().pos = pos.clamp(self.window().start(), max_pos);
+    }
+
+    fn set_window_height(&mut self, height: usize) {
+        self.window_mut().height = height;
+    }
+
+    fn get_cursor_pos(&self, rel: Relative) -> usize {
+        match rel {
+            Relative::Buffer => self.cursor().pos(),
+            Relative::Window => self.cursor().pos().saturating_sub(self.window().start()),
+        }
+    }
+
+    fn set_cursor_pos(&mut self, pos: usize) {
+        log::info!("trying to set cursor pos to {}", pos);
+        let max_pos = self.window_height().max(self.len().saturating_sub(1));
+        log::info!("buffer max_pos: {}", max_pos);
+        if pos >= self.window().end().saturating_sub(1) && pos < max_pos {
+            log::info!("pos above");
+            self.set_window_pos(pos.saturating_sub(self.window_height().saturating_sub(1)));
+            self.set_cursor_pos_in_window(pos);
+        } else if pos < self.window().start() {
+            log::info!("pos below");
+            self.set_window_pos(pos);
+            self.set_cursor_pos_in_window(pos);
+        } else {
+            log::info!("pos within");
+            self.cursor_mut().pos = pos;
+        }
+        log::info!("buffer cursor pos: {}", self.cursor().pos);
+        log::info!(
+            "window cursor pos: {}",
+            self.get_cursor_pos(Relative::Window)
+        );
+        log::info!("window height: {}", self.window_height());
+        log::info!("window pos: {}", self.window().pos);
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Buffer<T> {
     window: Window,
     cursor: Cursor,
     lines: Vec<T>,
+    // lines: Arc<T>,
 }
-
-// impl<T: Default> Default for Buffer<T> {
-//     fn default() -> Self {
-//         Self {
-//             window: Default::default(),
-//             lines: vec![Default::default()],
-//             cursor: Default::default(),
-//         }
-//     }
-// }
 
 impl<T> Buffer<T> {
     pub fn new(lines: Vec<T>, window_height: usize) -> Self {
@@ -66,6 +141,10 @@ impl<T> Buffer<T> {
 
     fn lines(&self) -> &[T] {
         &self.lines
+    }
+
+    fn with(&mut self, lines: Vec<T>) {
+        self.lines = lines;
     }
 
     fn visible_lines(&self) -> &[T] {
@@ -135,6 +214,16 @@ pub struct Cursor {
     // window: Window,
     // buffer: Box<Buffer<T>>,
     pos: usize,
+}
+
+impl Cursor {
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
+
+    pub fn set_pos(&mut self, pos: usize) {
+        self.pos = pos;
+    }
 }
 
 // impl<T: Default> Cursor<T> {

@@ -15,7 +15,7 @@ use parking_lot::Mutex;
 use range_rover::range_rover;
 use serde::{Deserialize, Serialize};
 
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, BufferContents, Contents, Cursor, Relative, Window};
 use crate::injector::Injector;
 
 pub trait Entry: Serialize + Clone + Sync + Send + 'static {
@@ -137,15 +137,22 @@ enum SortDirection {
     Descending,
 }
 
+impl<T: Entry> Contents for Matcher<T> {
+    fn len(&self) -> usize {
+        self.0.snapshot().matched_item_count() as usize
+    }
+}
+
 pub struct Picker<T: Entry> {
     pub matcher: Matcher<T>,
     pub string_matcher: StringMatcher,
     previous_query: String,
     cwd: String,
-    cursor: u32,
+    cursor: Cursor,
     lower_bound: u32,
     upper_bound: u32,
-    results: Buffer<T>,
+    window: Window,
+    // results: Buffer<Vec<String>>,
     selections: BTreeSet<u32>,
     receiver: crossbeam_channel::Receiver<()>,
     git_ignore: bool,
@@ -168,12 +175,12 @@ impl<T: Entry> Picker<T> {
             cwd,
             receiver,
             git_ignore: true,
-            cursor: 0,
+            cursor: Cursor::default(),
             lower_bound: 0,
             upper_bound: 50,
             previous_query: String::new(),
             selections: BTreeSet::new(),
-            results: Buffer::new(Vec::new(), 10),
+            window: Window::new(50),
         }
     }
 
@@ -197,19 +204,19 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_cursor(&mut self) {
-        self.cursor = self.cursor.min(
-            self.matcher
-                .snapshot()
-                .matched_item_count()
-                .saturating_sub(1),
-        );
+        self.set_cursor_pos(self.cursor.pos());
+        // self.cursor.pos = self.cursor.pos.min(
+        //     self.matcher
+        //         .snapshot()
+        //         .matched_item_count()
+        //         .saturating_sub(1),
+        // );
     }
 
     pub fn update_window(&mut self, height: u32) {
         log::info!("Setting upper bound to {}", &height);
         self.upper_bound = height;
-        self.results
-            .set_window_height(height.try_into().unwrap_or(usize::MAX));
+        self.set_window_height(height.try_into().unwrap_or(usize::MAX));
     }
 
     pub fn update_query(&mut self, query: String) {
@@ -228,24 +235,29 @@ impl<T: Entry> Picker<T> {
 
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
         log::info!("Moving cursor {:?} by {}", direction, change);
-        log::info!("Lower bound: {}", self.lower_bound());
-        log::info!("Upper bound: {}", self.upper_bound());
-        let next_index = match direction {
-            Movement::Up => self.cursor + change,
-            Movement::Down => {
-                if change > self.cursor {
-                    0
-                } else {
-                    self.cursor - change
-                }
-            }
+        let new_pos = match direction {
+            Movement::Up => self.cursor.pos().saturating_add(change as usize),
+            Movement::Down => self.cursor.pos().saturating_sub(change as usize),
         };
-
-        // self.cursor.saturating_add_signed(rhs)
-
-        self.cursor = next_index;
-        self.update_cursor();
-        log::info!("Selection index: {}", self.cursor);
+        self.set_cursor_pos(new_pos);
+        // log::info!("Lower bound: {}", self.lower_bound());
+        // log::info!("Upper bound: {}", self.upper_bound());
+        // let next_index = match direction {
+        //     Movement::Up => self.cursor.pos() as u32 + change,
+        //     Movement::Down => {
+        //         if change > self.cursor.pos() as u32 {
+        //             0
+        //         } else {
+        //             self.cursor.pos() as u32 - change
+        //         }
+        //     }
+        // };
+        //
+        // // self.cursor.saturating_add_signed(rhs)
+        //
+        // self.cursor.set_pos(next_index);
+        // self.update_cursor();
+        log::info!("Selection index: {}", self.cursor.pos());
     }
 
     pub fn total_matches(&self) -> u32 {
@@ -321,6 +333,34 @@ impl<T: Entry> Default for Picker<T> {
     }
 }
 
+impl<T: Entry> Contents for Picker<T> {
+    fn len(&self) -> usize {
+        self.total_matches().try_into().unwrap_or(usize::MAX)
+    }
+}
+
+impl<T: Entry> BufferContents<T> for Picker<T> {
+    fn lines(&self) -> Vec<T> {
+        self.current_matches()
+    }
+
+    fn window(&self) -> &crate::buffer::Window {
+        &self.window
+    }
+
+    fn window_mut(&mut self) -> &mut crate::buffer::Window {
+        &mut self.window
+    }
+
+    fn cursor(&self) -> &crate::buffer::Cursor {
+        &self.cursor
+    }
+
+    fn cursor_mut(&mut self) -> &mut crate::buffer::Cursor {
+        &mut self.cursor
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub struct Config {
     pub cwd: Option<String>,
@@ -363,18 +403,20 @@ impl<T: Entry> UserData for Picker<T> {
 
         methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));
 
-        methods.add_method("get_selection_index", |_lua, this, ()| Ok(this.cursor));
+        methods.add_method("get_selection_index", |_lua, this, ()| {
+            Ok(this.get_cursor_pos(Relative::Window))
+        });
 
         methods.add_method("get_selection", |lua, this, ()| {
             match this
                 .matcher
                 .snapshot()
-                .get_matched_item(this.cursor)
+                .get_matched_item(this.cursor.pos() as u32)
             {
                 Some(selection) => Ok(lua.to_value(selection.data)),
                 None => {
-                    log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.cursor, this.lower_bound(), this.upper_bound());
-                    Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.cursor )))
+                    log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.cursor.pos(), this.lower_bound(), this.upper_bound());
+                    Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.cursor.pos() )))
                 },
             }
         });

@@ -23,8 +23,8 @@ function Results:init(opts)
 		options = {},
 	})
 
-	-- self.sort_direction = opts.sort_direction or "descending"
-	self.sort_direction = "ascending"
+	self.sort_direction = opts.sort_direction or "descending"
+	-- TODO: self.sort_direction = "ascending"
 
 	Results.super.init(self, popup_options)
 end
@@ -34,7 +34,7 @@ local function clear_buffer(bufnr, height)
 	for _ = 1, height do
 		table.insert(empty_lines, "")
 	end
-	vim.print(vim.tbl_count(empty_lines))
+	-- vim.print(vim.tbl_count(empty_lines))
 	-- return empty_lines
 	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, empty_lines)
 end
