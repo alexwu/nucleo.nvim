@@ -21,30 +21,49 @@ M.results = nil
 M.highlighter = nil
 M.original_cursor = nil
 M.tx = nil
+M.should_rerender = false
 
-M.render_matches = function()
-	M.picker:tick(10)
-
+local function render_caret()
 	if M.picker:total_matches() == 0 then
-		if vim.api.nvim_buf_is_loaded(M.results_bufnr) then
-			vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, {})
-		end
 	else
-		local results = M.picker:current_matches()
-		vim.iter(ipairs(results)):each(function(i, entry)
-			local cursor = M.picker:get_selection_index()
-			return Entry(i, entry, M.results.bufnr):render(cursor)
-		end)
-
-		if not vim.tbl_isempty(results) then
-			M.highlighter:highlight_selection()
+		if vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+			vim.api.nvim_buf_set_text(
+				M.results_bufnr,
+				M.picker:get_selection_index(),
+				0,
+				M.picker:get_selection_index(),
+				2,
+				{ "> " }
+			)
 		end
 	end
+end
+
+M.render_matches = function()
+	-- M.picker:tick(10)
+	--
+	-- if M.picker:total_matches() == 0 then
+	-- 	if vim.api.nvim_buf_is_loaded(M.results_bufnr) then
+	-- 		vim.api.nvim_buf_set_lines(M.results_bufnr, 0, -1, false, {})
+	-- 	end
+	-- else
+	-- 	local results = M.picker:current_matches()
+	-- 	vim.iter(ipairs(results)):each(function(i, entry)
+	-- 		local cursor = M.picker:get_selection_index()
+	-- 		return Entry(i, entry, M.results.bufnr):render(cursor)
+	-- 	end)
+	--
+	-- 	-- if not vim.tbl_isempty(results) then
+	-- 	-- 	M.highlighter:highlight_selection()
+	-- 	-- end
+	-- end
+	M.results:render_entries(M.picker)
 end
 
 ---@param val string
 M.process_input = debounce(function(val)
 	M.picker:update_query(val)
+	M.should_rerender = true
 	log.info("Updated input: " .. val)
 
 	if M.tx then
@@ -55,20 +74,21 @@ end, 50)
 M.initialize = function(opts)
 	if not M.picker then
 		M.picker = nu.Picker(opts)
+		M.should_rerender = true
 	else
 		M.picker:populate_files()
 		M.picker:tick(10)
+		M.should_rerender = true
 
-		vim.schedule(function()
-			M.render_matches()
-		end)
+		M.tx.send()
 	end
 end
 
----@class PickerConfig
+---@class PickerOptions
 ---@field cwd? string
+---@field sort_direction? "ascending"|"descending"
 
----@param opts? PickerConfig
+---@param opts? PickerOptions
 M.find = function(opts)
 	M.original_winid = vim.api.nvim_get_current_win()
 	M.original_cursor = vim.api.nvim_win_get_cursor(M.original_winid)
@@ -113,8 +133,7 @@ M.find = function(opts)
 				vim.api.nvim_set_current_win(M.original_winid)
 			end
 		end,
-		---@param value string
-		on_submit = function(value)
+		on_submit = function()
 			if M.picker:total_matches() == 0 then
 				vim.notify("There's nothing to select", vim.log.levels.WARN)
 				if M.original_winid then
@@ -143,12 +162,14 @@ M.find = function(opts)
 	input:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
 		-- M.highlighter:highlight_selection()
+		-- render_caret()
 		M.tx.send()
 	end, { noremap = true })
 
 	input:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
 		-- M.highlighter:highlight_selection()
+		-- render_caret()
 		M.tx.send()
 	end, { noremap = true })
 
@@ -192,13 +213,48 @@ M.find = function(opts)
 
 	layout:mount()
 
-	local tx, rx = channel.mpsc()
+	local tx, rx = channel.counter()
 	M.tx = tx
 
-	M.picker:update_query("")
+	function M.set_interval(interval, callback)
+		M.timer = vim.uv.new_timer()
+		M.timer:start(interval, interval, function()
+			callback()
+		end)
+		return M.timer
+	end
+
+	M.check_for_updates = vim.schedule_wrap(function()
+		log.info("trying wait callback")
+		if not M.results.bufnr or not vim.api.nvim_buf_is_loaded(M.results.bufnr) then
+			M.timer:stop()
+			M.timer:close()
+		end
+
+		local status = M.picker:tick(10)
+		log.info("running: ", status.running)
+		log.info("changed: ", status.changed)
+		log.info("should_update: ", M.picker:should_update())
+		if status.changed or status.running or M.picker:should_update() then
+			M.should_rerender = true
+			M.tx.send()
+		end
+
+		if not (status.running or status.changed or M.picker:should_update()) then
+			M.timer:stop()
+			M.timer:close()
+		end
+	end)
+
+	-- M.picker:update_query("")
 
 	local main_loop = a.void(function()
 		log.info("Starting main loop")
+
+		M.set_interval(100, M.check_for_updates)
+
+		log.info("Right after the wait call")
+
 		await_schedule()
 
 		while true do
@@ -211,8 +267,10 @@ M.find = function(opts)
 			end
 
 			local status = M.picker:tick(10)
-			if status.changed then
+			if M.should_rerender or status.changed then
+				log.info("trying to render in the main loop")
 				M.render_matches()
+				M.should_rerender = false
 			end
 
 			if M.picker:total_matches() > 0 then

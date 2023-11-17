@@ -1,4 +1,3 @@
----@type NuiLine
 local NuiLine = require("nui.line")
 
 ---@class Line: NuiLine

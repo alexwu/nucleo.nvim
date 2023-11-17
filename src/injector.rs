@@ -2,7 +2,7 @@ use std::{path::Path, sync::mpsc};
 
 use ignore::{types::TypesBuilder, DirEntry, WalkBuilder, WalkState};
 use nucleo::Utf32String;
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, task::JoinHandle};
 
 use crate::picker::Entry;
 
@@ -86,11 +86,11 @@ impl<T: Entry> Injector<T> {
         let runtime = Runtime::new().expect("Failed to create runtime");
 
         let (tx, rx) = mpsc::channel::<T>();
-        let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
+        let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
             for val in rx.iter() {
                 self.push(val.clone(), |dst| dst[0] = val.into_utf32());
             }
-            Ok(())
+            anyhow::Ok(())
         });
 
         runtime.spawn(async move {

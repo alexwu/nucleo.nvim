@@ -22,6 +22,14 @@ local highlight_selection = function(highlighter)
 	api.nvim_buf_clear_namespace(highlighter.bufnr, ns_selection, 0, -1)
 
 	local line_nr = highlighter.picker:get_selection_index()
+
+	api.nvim_buf_set_extmark(highlighter.bufnr, ns_selection, line_nr, 0, {
+		end_col = 1,
+		hl_eol = false,
+		virt_text_pos = "overlay",
+		virt_text = { { ">", "TelescopeSelectionCaret" } },
+	})
+
 	api.nvim_buf_set_extmark(
 		highlighter.bufnr,
 		ns_selection,

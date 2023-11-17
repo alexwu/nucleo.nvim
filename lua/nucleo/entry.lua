@@ -18,17 +18,9 @@ function Entry:new(index, entry, bufnr)
 	}
 end
 
----@param cursor number
----@return string
-function Entry:render(cursor)
-	if self.index == cursor + 1 then
-		self.selection_caret = ""
-	else
-		self.selection_caret = " "
-	end
-
+function Entry:render()
 	-- TODO: Make the separator a part of the Line API
-	local picker_icon = Text(self.selection_caret, "TelescopeSelectionCaret")
+	local picker_icon = Text(self.selection_caret, "Normal")
 	local icon = Text(self.icon.value, self.icon.color)
 	local path = Text(self.entry.path)
 	local line = Line({ picker_icon, icon, path })

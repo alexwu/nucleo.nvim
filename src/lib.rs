@@ -33,11 +33,14 @@ pub fn init_picker(
     Ok(picker)
 }
 
-pub fn preview_file(lua: &Lua, params: (Option<String>,usize)) -> LuaResult<String> {
+pub fn preview_file(lua: &Lua, params: (Option<String>, usize)) -> LuaResult<String> {
     match params.0 {
         Some(path) => {
             log::info!("Previewing file {}", path);
-            let  text = Rope::from_reader(BufReader::new(File::open(path)?))?;
+            let text = match Rope::from_reader(BufReader::new(File::open(path)?)) {
+                Ok(rope) => rope,
+                Err(_) => return Ok(String::new()),
+            };
             let end_line = text.len_lines().min(params.1);
             let start_idx = text.line_to_char(0);
             let end_idx = text.line_to_char(end_line);
