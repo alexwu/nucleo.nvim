@@ -31,26 +31,26 @@ impl Window {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Buffer {
+pub struct Buffer<T: Default> {
     window: Window,
-    lines: Vec<String>,
+    lines: Vec<T>,
 }
 
-impl Default for Buffer {
+impl<T: Default> Default for Buffer<T> {
     fn default() -> Self {
         Self {
             window: Default::default(),
-            lines: vec![String::new()],
+            lines: vec![Default::default()],
         }
     }
 }
 
-impl Buffer {
-    fn lines(&self) -> &[String] {
+impl<T: Default> Buffer<T> {
+    fn lines(&self) -> &[T] {
         &self.lines
     }
 
-    fn visible_lines(&self) -> &[String] {
+    fn visible_lines(&self) -> &[T] {
         let start = self.window.start();
         let end = self.lines.len().min(self.window.end());
 
@@ -83,13 +83,13 @@ pub enum Relative {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Cursor {
+pub struct Cursor<T: Default> {
     window: Window,
-    buffer: Box<Buffer>,
+    buffer: Box<Buffer<T>>,
     pos: usize,
 }
 
-impl Cursor {
+impl<T: Default> Cursor<T> {
     pub fn get_pos(&self, rel: Relative) -> usize {
         match rel {
             Relative::Buffer => self.pos,
