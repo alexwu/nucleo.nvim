@@ -21,6 +21,10 @@ end
 local highlight_selection = function(highlighter)
 	api.nvim_buf_clear_namespace(highlighter.bufnr, ns_selection, 0, -1)
 
+	if highlighter.picker:total_matches() == 0 then
+		return
+	end
+
 	local line_nr = highlighter.picker:get_selection_index()
 
 	api.nvim_buf_set_extmark(highlighter.bufnr, ns_selection, line_nr, 0, {

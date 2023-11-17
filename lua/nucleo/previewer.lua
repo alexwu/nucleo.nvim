@@ -25,6 +25,12 @@ function Previewer:render(file)
 		local height = vim.api.nvim_win_get_height(self.winid)
 		local lines = preview_file(file, height)
 		vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, vim.split(lines, "\n"))
+
+		local line_count = vim.api.nvim_buf_line_count(self.bufnr)
+		if line_count == 0 then
+			return
+		end
+
 		vim.schedule(function()
 			local ft = vim.filetype.match({ filename = file })
 			if not ft or ft == "" then

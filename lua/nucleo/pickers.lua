@@ -86,7 +86,7 @@ M.find = function(opts)
 			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
 		},
 	}, {
-		prompt = "> ",
+		prompt = "❯ ",
 		default_value = "",
 		on_close = function()
 			if M.picker then
@@ -232,8 +232,8 @@ M.find = function(opts)
 				M.should_rerender = false
 			end
 
+			M.highlighter:highlight_selection()
 			if M.picker:total_matches() > 0 then
-				M.highlighter:highlight_selection()
 				M.previewer:render(M.picker:get_selection().path)
 			end
 		end
