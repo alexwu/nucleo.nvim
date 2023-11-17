@@ -87,7 +87,7 @@ M.find = function(opts)
 			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
 		},
 	}, {
-		prompt = Text("❯ ", "TelescopePromptPrefix"),
+		prompt = Text(" ", "TelescopePromptPrefix"),
 		default_value = "",
 		on_close = function()
 			if M.picker then
