@@ -10,6 +10,7 @@ local nu = require("nucleo")
 local debounce = require("nucleo.debounce").debounce_trailing
 local Highlighter = require("nucleo.highlighter")
 local Previewer = require("nucleo.previewer")
+local api = vim.api
 
 local M = {}
 
@@ -54,8 +55,8 @@ end
 
 ---@param opts? PickerOptions
 M.find = function(opts)
-	M.original_winid = vim.api.nvim_get_current_win()
-	M.original_cursor = vim.api.nvim_win_get_cursor(M.original_winid)
+	M.original_winid = api.nvim_get_current_win()
+	M.original_cursor = api.nvim_win_get_cursor(M.original_winid)
 
 	M.results = Results()
 	M.previewer = Previewer()
@@ -74,21 +75,21 @@ M.find = function(opts)
 					M.picker:restart()
 				end
 				if M.original_winid then
-					vim.api.nvim_set_current_win(M.original_winid)
+					api.nvim_set_current_win(M.original_winid)
 				end
 			end,
 			on_submit = function()
 				if M.picker:total_matches() == 0 then
 					vim.notify("There's nothing to select", vim.log.levels.WARN)
 					if M.original_winid then
-						vim.api.nvim_set_current_win(M.original_winid)
+						api.nvim_set_current_win(M.original_winid)
 					end
 				else
 					local selection = M.picker:get_selection().path
 					log.info("Input Submitted: " .. selection)
 
 					if M.original_winid then
-						vim.api.nvim_set_current_win(M.original_winid)
+						api.nvim_set_current_win(M.original_winid)
 					end
 					vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
 
@@ -139,13 +140,13 @@ M.find = function(opts)
 	)
 
 	M.results:on(event.BufWinEnter, function()
-		local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
+		local height = math.max(api.nvim_win_get_height(M.results.winid), 10)
 
 		M.picker:update_window(height)
 	end)
 
 	input:on("VimResized", function()
-		local height = math.max(vim.api.nvim_win_get_height(M.results.winid), 10)
+		local height = math.max(api.nvim_win_get_height(M.results.winid), 10)
 
 		M.picker:update_window(height)
 	end)
@@ -169,7 +170,7 @@ M.find = function(opts)
 
 	M.check_for_updates = vim.schedule_wrap(function()
 		log.info("Checking for updates...")
-		if not M.results.bufnr or not vim.api.nvim_buf_is_loaded(M.results.bufnr) then
+		if not M.results.bufnr or not api.nvim_buf_is_loaded(M.results.bufnr) then
 			M.timer:stop()
 			M.timer:close()
 		end
@@ -198,7 +199,7 @@ M.find = function(opts)
 			rx.last()
 			await_schedule()
 
-			if not M.results.bufnr or not vim.api.nvim_buf_is_loaded(M.results.bufnr) or not M.results.winid then
+			if not M.results.bufnr or not api.nvim_buf_is_loaded(M.results.bufnr) or not M.results.winid then
 				return
 			end
 
@@ -223,7 +224,7 @@ M.find = function(opts)
 end
 
 function M.setup()
-	vim.api.nvim_create_user_command("Nucleo", function()
+	api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})
 end
