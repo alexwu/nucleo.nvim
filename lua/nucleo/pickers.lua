@@ -1,6 +1,7 @@
 local Input = require("nui.input")
 local Layout = require("nui.layout")
 local event = require("nui.utils.autocmd").event
+local Prompt = require("nucleo.prompt")
 local Results = require("nucleo.results")
 local a = require("plenary.async")
 local await_schedule = a.util.scheduler
@@ -19,7 +20,7 @@ M.results = nil
 M.highlighter = nil
 M.original_cursor = nil
 M.tx = nil
-M.should_rerender = false
+M.force_rerender = false
 
 M.render_matches = function()
 	M.results:render_entries(M.picker)
@@ -28,7 +29,7 @@ end
 ---@param val string
 M.process_input = debounce(function(val)
 	M.picker:update_query(val)
-	M.should_rerender = true
+	M.force_rerender = true
 	log.info("Updated input: " .. val)
 
 	if M.tx then
@@ -39,11 +40,11 @@ end, 50)
 M.initialize = function(opts)
 	if not M.picker then
 		M.picker = nu.Picker(opts)
-		M.should_rerender = true
+		M.force_rerender = true
 	else
 		M.picker:populate_files()
 		M.picker:tick(10)
-		M.should_rerender = true
+		M.force_rerender = true
 
 		M.tx.send()
 	end
@@ -68,76 +69,57 @@ M.find = function(opts)
 		bufnr = M.results.bufnr,
 	})
 
-	local input = Input({
-		position = "50%",
-		size = {
-			width = 20,
-			height = 1,
-		},
-		border = {
-			style = "rounded",
-			text = {
-				top = "",
-				top_align = "center",
-			},
-		},
-		buf_options = {
-			filetype = "nucleo",
-		},
-		win_options = {
-			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
-		},
-	}, {
-		prompt = Text(" ", "TelescopePromptPrefix"),
-		default_value = "",
-		on_close = function()
-			if M.picker then
-				M.picker:restart()
-			end
-			if M.original_winid then
-				vim.api.nvim_set_current_win(M.original_winid)
-			end
-		end,
-		on_submit = function()
-			if M.picker:total_matches() == 0 then
-				vim.notify("There's nothing to select", vim.log.levels.WARN)
+	local input = Prompt({
+		input_options = {
+			on_close = function()
+				if M.picker then
+					M.picker:restart()
+				end
 				if M.original_winid then
 					vim.api.nvim_set_current_win(M.original_winid)
 				end
-			else
-				local selection = M.picker:get_selection().path
-				log.info("Input Submitted: " .. selection)
+			end,
+			on_submit = function()
+				if M.picker:total_matches() == 0 then
+					vim.notify("There's nothing to select", vim.log.levels.WARN)
+					if M.original_winid then
+						vim.api.nvim_set_current_win(M.original_winid)
+					end
+				else
+					local selection = M.picker:get_selection().path
+					log.info("Input Submitted: " .. selection)
 
-				if M.original_winid then
-					vim.api.nvim_set_current_win(M.original_winid)
+					if M.original_winid then
+						vim.api.nvim_set_current_win(M.original_winid)
+					end
+					vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
+
+					-- TODO: Figure out what to actually do here
+					M.picker:restart()
 				end
-				vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
-
-				-- TODO: Figure out what to actually do here
-				M.picker:restart()
-			end
-		end,
-		on_change = M.process_input,
+			end,
+			on_change = M.process_input,
+		},
 	})
 
 	input:map("n", "<Esc>", function()
 		input:unmount()
 	end, { noremap = true })
 
+	input:map("i", "<Esc>", function()
+		input:unmount()
+	end, { noremap = true })
+
 	input:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
-		M.should_rerender = true
+		M.force_rerender = true
 		M.tx.send()
 	end, { noremap = true })
 
 	input:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
-		M.should_rerender = true
+		M.force_rerender = true
 		M.tx.send()
-	end, { noremap = true })
-
-	input:map("i", "<Esc>", function()
-		input:unmount()
 	end, { noremap = true })
 
 	local layout = Layout(
@@ -188,18 +170,15 @@ M.find = function(opts)
 	end
 
 	M.check_for_updates = vim.schedule_wrap(function()
-		log.info("trying wait callback")
+		log.info("Checking for updates...")
 		if not M.results.bufnr or not vim.api.nvim_buf_is_loaded(M.results.bufnr) then
 			M.timer:stop()
 			M.timer:close()
 		end
 
 		local status = M.picker:tick(10)
-		log.info("running: ", status.running)
-		log.info("changed: ", status.changed)
-		log.info("should_update: ", M.picker:should_update())
 		if status.changed or status.running or M.picker:should_update() then
-			M.should_rerender = true
+			M.force_rerender = true
 			M.tx.send()
 		end
 
@@ -210,11 +189,9 @@ M.find = function(opts)
 	end)
 
 	local main_loop = a.void(function()
-		log.info("Starting main loop")
+		log.info("Starting main loop...")
 
 		M.set_interval(100, M.check_for_updates)
-
-		log.info("Right after the wait call")
 
 		await_schedule()
 
@@ -228,10 +205,10 @@ M.find = function(opts)
 			end
 
 			local status = M.picker:tick(10)
-			if M.should_rerender or status.changed then
+			if M.force_rerender or status.changed then
 				log.info("trying to render in the main loop")
 				M.render_matches()
-				M.should_rerender = false
+				M.force_rerender = false
 			end
 
 			M.highlighter:highlight_selection()

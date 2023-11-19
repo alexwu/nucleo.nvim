@@ -150,8 +150,6 @@ pub struct Picker<T: Entry> {
     previous_query: String,
     cwd: String,
     cursor: Cursor,
-    lower_bound: u32,
-    upper_bound: u32,
     window: Window,
     selections: BTreeSet<u32>,
     receiver: crossbeam_channel::Receiver<()>,
@@ -176,8 +174,6 @@ impl<T: Entry> Picker<T> {
             receiver,
             git_ignore: true,
             cursor: Cursor::default(),
-            lower_bound: 0,
-            upper_bound: 50,
             previous_query: String::new(),
             selections: BTreeSet::new(),
             window: Window::new(50),
@@ -192,30 +188,28 @@ impl<T: Entry> Picker<T> {
         status
     }
 
-    pub fn upper_bound(&self) -> u32 {
-        min(
-            self.upper_bound,
-            self.matcher.snapshot().matched_item_count(),
-        )
+    fn try_recv(&self) -> Result<(), crossbeam_channel::TryRecvError> {
+        self.receiver.try_recv()
+    }
+
+    pub fn should_rerender(&self) -> bool {
+        self.try_recv().is_ok()
     }
 
     pub fn lower_bound(&self) -> u32 {
-        max(self.lower_bound, 0)
+        max(self.window().start() as u32, 0)
+    }
+
+    pub fn upper_bound(&self) -> u32 {
+        min(self.window.end() as u32, self.total_matches())
     }
 
     pub fn update_cursor(&mut self) {
         self.set_cursor_pos(self.cursor.pos());
-        // self.cursor.pos = self.cursor.pos.min(
-        //     self.matcher
-        //         .snapshot()
-        //         .matched_item_count()
-        //         .saturating_sub(1),
-        // );
     }
 
     pub fn update_window(&mut self, height: u32) {
         log::info!("Setting upper bound to {}", &height);
-        self.upper_bound = height;
         self.set_window_height(height.try_into().unwrap_or(usize::MAX));
     }
 
@@ -241,23 +235,6 @@ impl<T: Entry> Picker<T> {
             Movement::Down => self.cursor.pos().saturating_sub(change as usize),
         };
         self.set_cursor_pos(new_pos);
-        // log::info!("Lower bound: {}", self.lower_bound());
-        // log::info!("Upper bound: {}", self.upper_bound());
-        // let next_index = match direction {
-        //     Movement::Up => self.cursor.pos() as u32 + change,
-        //     Movement::Down => {
-        //         if change > self.cursor.pos() as u32 {
-        //             0
-        //         } else {
-        //             self.cursor.pos() as u32 - change
-        //         }
-        //     }
-        // };
-        //
-        // // self.cursor.saturating_add_signed(rhs)
-        //
-        // self.cursor.set_pos(next_index);
-        // self.update_cursor();
         log::info!("Selection index: {}", self.cursor.pos());
     }
 
@@ -443,6 +420,10 @@ impl<T: Entry> UserData for Picker<T> {
                 }
                 Err(_) => Ok(false),
             }
-        })
+        });
+
+        methods.add_method("should_rerender", |_lua, this, ()| {
+            Ok(this.should_rerender())
+        });
     }
 }
