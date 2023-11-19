@@ -1,10 +1,6 @@
-local Entry = require("nucleo.entry")
-local Highlighter = require("nucleo.highlighter")
 local Input = require("nui.input")
 local Layout = require("nui.layout")
-local Popup = require("nui.popup")
 local Results = require("nucleo.results")
-local log = require("nucleo.log")
 
 local Manager = Layout:extend("Manager")
 
