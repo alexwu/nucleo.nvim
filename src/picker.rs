@@ -15,7 +15,7 @@ use parking_lot::Mutex;
 use range_rover::range_rover;
 use serde::{Deserialize, Serialize};
 
-use crate::buffer::{Buffer, BufferContents, Contents, Cursor, Relative, Window};
+use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::injector::Injector;
 
 pub trait Entry: Serialize + Clone + Sync + Send + 'static {
@@ -152,7 +152,6 @@ pub struct Picker<T: Entry> {
     lower_bound: u32,
     upper_bound: u32,
     window: Window,
-    // results: Buffer<Vec<String>>,
     selections: BTreeSet<u32>,
     receiver: crossbeam_channel::Receiver<()>,
     git_ignore: bool,
@@ -235,6 +234,7 @@ impl<T: Entry> Picker<T> {
 
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
         log::info!("Moving cursor {:?} by {}", direction, change);
+        self.tick(10);
         let new_pos = match direction {
             Movement::Up => self.cursor.pos().saturating_add(change as usize),
             Movement::Down => self.cursor.pos().saturating_sub(change as usize),
@@ -271,8 +271,8 @@ impl<T: Entry> Picker<T> {
         log::info!("Match count: {:?}", snapshot.matched_item_count());
         let string_matcher = &mut STRING_MATCHER.lock().0;
 
-        let lower_bound = self.lower_bound();
-        let upper_bound = self.upper_bound();
+        let lower_bound = self.window().start() as u32;
+        let upper_bound = self.window().end().min(self.total_matches() as usize) as u32;
 
         snapshot
             .matched_items(lower_bound..upper_bound)

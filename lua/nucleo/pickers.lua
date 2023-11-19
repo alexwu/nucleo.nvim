@@ -127,12 +127,14 @@ M.find = function(opts)
 	input:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
 		-- M.highlighter:highlight_selection()
+		M.should_rerender = true
 		M.tx.send()
 	end, { noremap = true })
 
 	input:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
 		-- M.highlighter:highlight_selection()
+		M.should_rerender = true
 		M.tx.send()
 	end, { noremap = true })
 

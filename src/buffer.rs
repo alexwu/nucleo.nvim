@@ -35,11 +35,11 @@ impl Window {
         self.height = height;
     }
 
-    fn start(&self) -> usize {
+    pub fn start(&self) -> usize {
         self.pos
     }
 
-    fn end(&self) -> usize {
+    pub fn end(&self) -> usize {
         self.pos + self.height
     }
 }
@@ -98,9 +98,12 @@ pub trait BufferContents<T: Clone>: Contents + Sized {
 
     fn set_cursor_pos(&mut self, pos: usize) {
         log::info!("trying to set cursor pos to {}", pos);
-        let max_pos = self.window_height().max(self.len().saturating_sub(1));
+        let max_pos = self.window_height().min(self.len().saturating_sub(1));
         log::info!("buffer max_pos: {}", max_pos);
-        if pos >= self.window().end().saturating_sub(1) && pos < max_pos {
+        log::info!("window end: {}", self.window().end());
+        log::info!("total matches: {}", self.len());
+        // if pos >= self.window().end().saturating_sub(1) && pos < max_pos {
+        if pos >= self.window().end().saturating_sub(1) {
             log::info!("pos above");
             self.set_window_pos(pos.saturating_sub(self.window_height().saturating_sub(1)));
             self.set_cursor_pos_in_window(pos);
@@ -112,6 +115,8 @@ pub trait BufferContents<T: Clone>: Contents + Sized {
             log::info!("pos within");
             self.cursor_mut().pos = pos;
         }
+
+        self.cursor_mut().pos = self.cursor().pos.clamp(0, self.len().saturating_sub(1));
         log::info!("buffer cursor pos: {}", self.cursor().pos);
         log::info!(
             "window cursor pos: {}",
