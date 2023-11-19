@@ -212,6 +212,8 @@ M.find = function(opts)
 			M.highlighter:highlight_selection()
 			if M.picker:total_matches() > 0 then
 				M.previewer:render(M.picker:get_selection().path)
+			else
+				M.previewer:clear()
 			end
 		end
 	end)
