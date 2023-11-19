@@ -1,6 +1,7 @@
 local Input = require("nui.input")
 local Text = require("nui.text")
 
+---@class Prompt: NuiInput
 local Prompt = Input:extend("Prompt")
 
 function Prompt:init(opts)
