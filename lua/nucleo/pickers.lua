@@ -1,4 +1,3 @@
-local Input = require("nui.input")
 local Layout = require("nui.layout")
 local event = require("nui.utils.autocmd").event
 local Prompt = require("nucleo.prompt")
@@ -8,10 +7,9 @@ local await_schedule = a.util.scheduler
 local channel = require("plenary.async.control").channel
 local log = require("nucleo.log")
 local nu = require("nucleo")
-local debounce = require("throttle-debounce").debounce_trailing
+local debounce = require("nucleo.debounce").debounce_trailing
 local Highlighter = require("nucleo.highlighter")
 local Previewer = require("nucleo.previewer")
-local Text = require("nui.text")
 
 local M = {}
 
