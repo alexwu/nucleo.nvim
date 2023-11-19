@@ -2,6 +2,8 @@
 local M = {}
 
 ---Validates args for `throttle()` and  `debounce()`.
+---@param fn (function) Function to throttle/debounce
+---@param ms (number) Timeout in ms
 local function td_validate(fn, ms)
 	vim.validate({
 		fn = { fn, "f" },
