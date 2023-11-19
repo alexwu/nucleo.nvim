@@ -97,6 +97,7 @@ impl Entry for FileEntry {
     fn into_utf32(self) -> Utf32String {
         self.path.into()
     }
+
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
         Self { indices, ..self }
     }
@@ -293,6 +294,7 @@ impl<T: Entry> Picker<T> {
             })
             .collect::<Vec<_>>()
     }
+
     pub fn restart(&mut self) {
         self.matcher.0.restart(true)
     }

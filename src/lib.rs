@@ -33,7 +33,7 @@ pub fn init_picker(
     Ok(picker)
 }
 
-pub fn preview_file(lua: &Lua, params: (Option<String>, usize)) -> LuaResult<String> {
+pub fn preview_file(_lua: &Lua, params: (Option<String>, usize)) -> LuaResult<String> {
     match params.0 {
         Some(path) => {
             log::info!("Previewing file {}", path);
