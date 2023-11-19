@@ -14,12 +14,10 @@ function Highlighter:new(opts)
 	vim.validate({
 		picker = { opts.picker, "userdata" },
 		results = { opts.results, "table" },
-		bufnr = { opts.bufnr, "number" },
 	})
 
 	self.picker = opts.picker
 	self.results = opts.results
-	-- self.bufnr = opts.bufnr
 end
 
 ---@param highlighter Highlighter
@@ -37,9 +35,7 @@ local highlight_selection = function(highlighter)
 	end
 
 	api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 0, {
-		-- end_col = 1,
 		hl_eol = false,
-		-- virt_text_pos = "overlay",
 		virt_text_win_col = 0,
 		virt_text = { { ">", "TelescopeSelectionCaret" } },
 	})

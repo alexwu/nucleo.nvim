@@ -65,7 +65,6 @@ M.find = function(opts)
 	M.highlighter = Highlighter({
 		picker = M.picker,
 		results = M.results,
-		bufnr = M.results.bufnr,
 	})
 
 	local input = Prompt({
