@@ -1,11 +1,17 @@
+---@module 'nui.text'
 local NuiLine = require("nui.line")
 
 ---@class Line: NuiLine
 local Line = NuiLine:extend("Line")
 
--- TODO: Make the separator a part of the Line API
+---@class LineOptions
+---@field separator? string
+
+---@param texts string|NuiText[]
+---@param options? LineOptions
 function Line:init(texts, options)
-	self.separator = " "
+	local opts = options or {}
+	self.separator = opts.separator or " "
 
 	Line.super.init(self, texts)
 end
