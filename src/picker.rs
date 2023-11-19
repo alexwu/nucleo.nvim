@@ -238,6 +238,10 @@ impl<T: Entry> Picker<T> {
         log::info!("Selection index: {}", self.cursor.pos());
     }
 
+    pub fn total_items(&self) -> u32 {
+        self.matcher.snapshot().item_count()
+    }
+
     pub fn total_matches(&self) -> u32 {
         self.matcher.snapshot().matched_item_count()
     }
@@ -380,6 +384,7 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(lua.to_value(&this.current_matches()))
         });
 
+        methods.add_method("total_items", |_lua, this, ()| Ok(this.total_items()));
         methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));
 
         methods.add_method("get_selection_index", |_lua, this, ()| {

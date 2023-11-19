@@ -49,6 +49,57 @@ M.initialize = function(opts)
 	end
 end
 
+function M.set_interval(interval, callback)
+	local timer = vim.uv.new_timer()
+	timer:start(interval, interval, function()
+		callback()
+	end)
+
+	return timer
+end
+
+M.check_for_updates = vim.schedule_wrap(function()
+	if not M.results or not M.picker then
+		return
+	end
+
+	log.info("Checking for updates...")
+	if not M.results.bufnr or not api.nvim_buf_is_loaded(M.results.bufnr) then
+		M.main_timer:stop()
+		M.main_timer:close()
+	end
+
+	local status = M.picker:tick(10)
+	if status.changed or status.running or M.picker:should_update() then
+		M.force_rerender = true
+		M.tx.send()
+	end
+
+	if not (status.running or status.changed or M.picker:should_update()) then
+		M.main_timer:stop()
+		M.main_timer:close()
+	end
+end)
+
+M.render_match_counts = vim.schedule_wrap(function()
+	if not M.picker or not M.prompt then
+		return
+	end
+
+	if not M.prompt.bufnr or not api.nvim_buf_is_loaded(M.prompt.bufnr) then
+		if M.counter_timer and not M.counter_timer:is_closing() then
+			M.counter_timer:stop()
+			M.counter_timer:close()
+		end
+	end
+
+	M.picker:tick(10)
+	local item_count = M.picker:total_items()
+	local match_count = M.picker:total_matches()
+
+	M.prompt:render_match_count(match_count, item_count)
+end)
+
 ---@class PickerOptions
 ---@field cwd? string
 ---@field sort_direction? "ascending"|"descending"
@@ -67,7 +118,7 @@ M.find = function(opts)
 		results = M.results,
 	})
 
-	local input = Prompt({
+	M.prompt = Prompt({
 		input_options = {
 			on_close = function()
 				if M.picker then
@@ -100,21 +151,21 @@ M.find = function(opts)
 		},
 	})
 
-	input:map("n", "<Esc>", function()
-		input:unmount()
+	M.prompt:map("n", "<Esc>", function()
+		M.prompt:unmount()
 	end, { noremap = true })
 
-	input:map("i", "<Esc>", function()
-		input:unmount()
+	M.prompt:map("i", "<Esc>", function()
+		M.prompt:unmount()
 	end, { noremap = true })
 
-	input:map("i", { "<C-n>", "<Down>" }, function()
+	M.prompt:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
 		M.force_rerender = true
 		M.tx.send()
 	end, { noremap = true })
 
-	input:map("i", { "<C-p>", "<Up>" }, function()
+	M.prompt:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
 		M.force_rerender = true
 		M.tx.send()
@@ -130,7 +181,7 @@ M.find = function(opts)
 			},
 		},
 		Layout.Box({
-			Layout.Box(input, { size = { width = "100%", height = "3" } }),
+			Layout.Box(M.prompt, { size = { width = "100%", height = "3" } }),
 			Layout.Box({
 				Layout.Box(M.results, { size = "40%" }),
 				Layout.Box(M.previewer, { size = "60%" }),
@@ -144,13 +195,13 @@ M.find = function(opts)
 		M.picker:update_window(height)
 	end)
 
-	input:on("VimResized", function()
+	M.prompt:on("VimResized", function()
 		local height = math.max(api.nvim_win_get_height(M.results.winid), 10)
 
 		M.picker:update_window(height)
 	end)
 
-	input:on(event.BufLeave, function()
+	M.prompt:on(event.BufLeave, function()
 		layout:unmount()
 	end)
 
@@ -159,37 +210,11 @@ M.find = function(opts)
 	local tx, rx = channel.counter()
 	M.tx = tx
 
-	function M.set_interval(interval, callback)
-		M.timer = vim.uv.new_timer()
-		M.timer:start(interval, interval, function()
-			callback()
-		end)
-		return M.timer
-	end
-
-	M.check_for_updates = vim.schedule_wrap(function()
-		log.info("Checking for updates...")
-		if not M.results.bufnr or not api.nvim_buf_is_loaded(M.results.bufnr) then
-			M.timer:stop()
-			M.timer:close()
-		end
-
-		local status = M.picker:tick(10)
-		if status.changed or status.running or M.picker:should_update() then
-			M.force_rerender = true
-			M.tx.send()
-		end
-
-		if not (status.running or status.changed or M.picker:should_update()) then
-			M.timer:stop()
-			M.timer:close()
-		end
-	end)
-
 	local main_loop = a.void(function()
 		log.info("Starting main loop...")
 
-		M.set_interval(100, M.check_for_updates)
+		M.main_timer = M.set_interval(100, M.check_for_updates)
+		-- M.counter_timer = M.set_interval(1000, M.render_match_counts)
 
 		await_schedule()
 
@@ -205,6 +230,7 @@ M.find = function(opts)
 			local status = M.picker:tick(10)
 			if M.force_rerender or status.changed then
 				log.info("trying to render in the main loop")
+				M.render_match_counts()
 				M.render_matches()
 				M.force_rerender = false
 			end

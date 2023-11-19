@@ -3,8 +3,8 @@
 ---@field results Results
 ---@field bufnr number
 local Highlighter = require("plenary.class"):extend()
-local api = vim.api
 local log = require("nucleo.log")
+local api = vim.api
 
 local ns_selection = vim.api.nvim_create_namespace("nucleo_selection")
 
@@ -30,7 +30,7 @@ local highlight_selection = function(highlighter)
 
 	local line_nr = highlighter.picker:get_selection_index()
 	if highlighter.results.sort_direction == "ascending" then
-		local height = vim.api.nvim_win_get_height(highlighter.results.winid)
+		local height = api.nvim_win_get_height(highlighter.results.winid)
 		line_nr = height - line_nr - 1
 	end
 

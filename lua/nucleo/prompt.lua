@@ -1,5 +1,8 @@
 local Input = require("nui.input")
 local Text = require("nui.text")
+local api = vim.api
+
+local ns_match_count = vim.api.nvim_create_namespace("nucleo_match_count")
 
 ---@class Prompt: NuiInput
 local Prompt = Input:extend("Prompt")
@@ -30,7 +33,22 @@ function Prompt:init(opts)
 		default_value = "",
 	})
 
+	self.extmark_id = nil
+
 	Prompt.super.init(self, popup_options, input_options)
+end
+
+function Prompt:render_match_count(total_matches, total_options)
+	if not self.bufnr or not vim.api.nvim_buf_is_loaded(self.bufnr) then
+		return
+	end
+
+	local match_count_str = string.format("%s / %s", total_matches, total_options)
+	self.extmark_id = api.nvim_buf_set_extmark(self.bufnr, ns_match_count, 0, 0, {
+		id = self.extmark_id,
+		virt_text = { { match_count_str, "TelescopePromptCounter" } },
+		virt_text_pos = "right_align",
+	})
 end
 
 return Prompt
