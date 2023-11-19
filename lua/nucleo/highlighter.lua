@@ -41,13 +41,11 @@ local highlight_selection = function(highlighter)
 	})
 
 	log.info("highlight_selection", line_nr)
-	api.nvim_buf_set_extmark(
-		highlighter.results.bufnr,
-		ns_selection,
-		line_nr,
-		1,
-		{ hl_eol = true, hl_group = "TelescopeSelection" }
-	)
+	api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 1, {
+		hl_eol = true,
+		end_row = line_nr + 1,
+		hl_group = "TelescopeSelection",
+	})
 end
 
 function Highlighter:highlight_selection()

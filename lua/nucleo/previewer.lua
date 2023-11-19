@@ -30,7 +30,8 @@ function Previewer:render(file)
 	if self.winid then
 		local height = api.nvim_win_get_height(self.winid)
 		local lines = preview_file(file, height)
-		api.nvim_buf_set_lines(self.bufnr, 0, -1, false, vim.split(lines, "\n"))
+		local content = vim.split(lines, "\n")
+		api.nvim_buf_set_lines(self.bufnr, 0, -1, false, content)
 
 		local line_count = api.nvim_buf_line_count(self.bufnr)
 		if line_count == 0 then
@@ -38,7 +39,8 @@ function Previewer:render(file)
 		end
 
 		vim.schedule(function()
-			local ft = vim.filetype.match({ filename = file })
+			local name = vim.fs.basename(file)
+			local ft = vim.filetype.match({ filename = name, content = content })
 			if not ft or ft == "" then
 				return
 			end
