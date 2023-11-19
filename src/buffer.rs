@@ -119,15 +119,12 @@ pub trait BufferContents<T: Clone>: Contents + Sized {
         let new_pos = if pos >= self.len() { 0 } else { pos };
 
         if new_pos >= self.window().end().saturating_sub(1) {
-            log::info!("pos above");
             self.set_window_pos(new_pos.saturating_sub(self.window_height().saturating_sub(1)));
             self.set_cursor_pos_in_window(new_pos);
         } else if new_pos < self.window().start() {
-            log::info!("pos below");
             self.set_window_pos(new_pos);
             self.set_cursor_pos_in_window(new_pos);
         } else {
-            log::info!("pos within");
             self.cursor_mut().pos = new_pos;
         }
 

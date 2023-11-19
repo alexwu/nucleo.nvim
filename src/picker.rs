@@ -308,6 +308,14 @@ impl<T: Entry> Picker<T> {
             })
             .collect()
     }
+
+    pub fn cursor_pos(&self) -> Option<u32> {
+        if self.total_matches() == 0 {
+            None
+        } else {
+            self.get_cursor_pos(Relative::Window).try_into().ok()
+        }
+    }
 }
 
 impl<T: Entry> Default for Picker<T> {
@@ -390,6 +398,8 @@ impl<T: Entry> UserData for Picker<T> {
         methods.add_method("get_selection_index", |_lua, this, ()| {
             Ok(this.get_cursor_pos(Relative::Window))
         });
+
+        methods.add_method("get_cursor_pos", |_lua, this, ()| Ok(this.cursor_pos()));
 
         methods.add_method("get_selection", |lua, this, ()| {
             match this

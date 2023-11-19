@@ -46,8 +46,6 @@ pub fn preview_file(_lua: &Lua, params: (Option<String>, usize)) -> LuaResult<St
             let end_idx = text.line_to_char(end_line);
 
             Ok(text.slice(start_idx..end_idx).to_string())
-
-            // todo!()
         }
         None => Ok(String::new()),
     }

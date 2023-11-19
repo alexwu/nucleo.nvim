@@ -18,6 +18,7 @@ function Highlighter:new(opts)
 
 	self.picker = opts.picker
 	self.results = opts.results
+	self.caret_extmark_id = nil
 end
 
 ---@param highlighter Highlighter
@@ -28,13 +29,18 @@ local highlight_selection = function(highlighter)
 		return
 	end
 
-	local line_nr = highlighter.picker:get_selection_index()
+	local line_nr = highlighter.picker:get_cursor_pos()
+	if not line_nr then
+		return
+	end
+
 	if highlighter.results.sort_direction == "ascending" then
 		local height = api.nvim_win_get_height(highlighter.results.winid)
 		line_nr = height - line_nr - 1
 	end
 
-	api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 0, {
+	highlighter.caret_extmark_id = api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 0, {
+		id = highlighter.caret_extmark_id,
 		hl_eol = false,
 		virt_text_win_col = 0,
 		virt_text = { { ">", "TelescopeSelectionCaret" } },
