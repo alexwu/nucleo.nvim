@@ -109,14 +109,8 @@ pub trait BufferContents<T: Clone>: Contents + Sized {
     }
 
     fn set_cursor_pos(&mut self, pos: usize) {
-        log::info!("trying to set cursor pos to {}", pos);
         let max_pos = self.window_height().min(self.len().saturating_sub(1));
-        log::info!("buffer max_pos: {}", max_pos);
-        log::info!("window end: {}", self.window().end());
-        log::info!("total matches: {}", self.len());
-
-        // Loop back around if we're at the end of the buffer
-        let new_pos = if pos >= self.len() { 0 } else { pos };
+        let new_pos = pos;
 
         if new_pos >= self.window().end().saturating_sub(1) {
             self.set_window_pos(new_pos.saturating_sub(self.window_height().saturating_sub(1)));

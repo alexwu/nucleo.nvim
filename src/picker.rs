@@ -196,6 +196,14 @@ impl<T: Entry> Picker<T> {
         self.try_recv().is_ok()
     }
 
+    pub fn total_matches(&self) -> u32 {
+        self.matcher.snapshot().matched_item_count()
+    }
+
+    pub fn total_items(&self) -> u32 {
+        self.matcher.snapshot().item_count()
+    }
+
     pub fn lower_bound(&self) -> u32 {
         max(self.window().start() as u32, 0)
     }
@@ -230,20 +238,25 @@ impl<T: Entry> Picker<T> {
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
         log::info!("Moving cursor {:?} by {}", direction, change);
         self.tick(10);
+
+        if self.total_matches() == 0 {
+            return;
+        }
+
         let new_pos = match direction {
-            Movement::Up => self.cursor.pos().saturating_add(change as usize),
-            Movement::Down => self.cursor.pos().saturating_sub(change as usize),
+            Movement::Up => {
+                self.cursor.pos().saturating_add(change as usize) as u32 % self.total_matches()
+            }
+            Movement::Down => {
+                self.cursor
+                    .pos()
+                    .saturating_add(self.total_matches() as usize)
+                    .saturating_sub(change as usize) as u32
+                    % self.total_matches()
+            }
         };
-        self.set_cursor_pos(new_pos);
+        self.set_cursor_pos(new_pos as usize);
         log::info!("Selection index: {}", self.cursor.pos());
-    }
-
-    pub fn total_items(&self) -> u32 {
-        self.matcher.snapshot().item_count()
-    }
-
-    pub fn total_matches(&self) -> u32 {
-        self.matcher.snapshot().matched_item_count()
     }
 
     pub fn current_matches(&self) -> Vec<T> {
