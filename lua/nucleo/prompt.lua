@@ -7,6 +7,10 @@ local ns_match_count = vim.api.nvim_create_namespace("nucleo_match_count")
 ---@class Prompt: NuiInput
 local Prompt = Input:extend("Prompt")
 
+---@class PromptConfig
+---@field popup_options nui_popup_options
+
+---@param opts? PromptConfig
 function Prompt:init(opts)
 	local popup_options = vim.tbl_deep_extend("force", opts.popup_options or {}, {
 		position = "50%",
@@ -38,6 +42,8 @@ function Prompt:init(opts)
 	Prompt.super.init(self, popup_options, input_options)
 end
 
+---@param total_matches number
+---@param total_options number
 function Prompt:render_match_count(total_matches, total_options)
 	if not self.bufnr or not vim.api.nvim_buf_is_loaded(self.bufnr) then
 		return

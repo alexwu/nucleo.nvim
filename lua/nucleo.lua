@@ -7,13 +7,12 @@ M._rust = {
 	preview_file = true,
 }
 
-function M.setup(opts)
-	opts = vim.F.if_nil(opts, {})
-	require("nucleo.pickers").setup()
+function M.setup(...)
+	require("nucleo.pickers").setup(...)
 end
 
-function M.find()
-	require("nucleo.pickers").find()
+function M.find(...)
+	require("nucleo.pickers").find(...)
 end
 
 return setmetatable(M, {

@@ -15,8 +15,6 @@ function Results:init(opts)
 	local popup_options = vim.tbl_deep_extend("force", opts.popup_options or {}, {
 		border = "rounded",
 		focusable = true,
-		-- position = { row = 0, col = "100%" },
-		-- size = { width = 10, height = 1 },
 		win_options = {
 			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
 		},
@@ -29,13 +27,14 @@ function Results:init(opts)
 	Results.super.init(self, popup_options)
 end
 
+---@param bufnr number
+---@param height number
 local function clear_buffer(bufnr, height)
 	local empty_lines = {}
 	for _ = 1, height do
-		table.insert(empty_lines, "")
+		table.insert(empty_lines, #empty_lines + 1, "")
 	end
-	-- vim.print(vim.tbl_count(empty_lines))
-	-- return empty_lines
+
 	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, empty_lines)
 end
 
@@ -53,7 +52,6 @@ function Results:render_entries(picker)
 
 	if picker:total_matches() == 0 then
 		if vim.api.nvim_buf_is_loaded(self.bufnr) and vim.api.nvim_win_is_valid(self.winid) then
-			-- vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, {})
 			Results.clear_buffer(self)
 		end
 	else

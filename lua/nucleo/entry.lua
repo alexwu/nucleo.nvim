@@ -25,7 +25,7 @@ end
 function Entry:render()
 	local picker_icon = Text(self.selection_caret, "Normal")
 	local icon = Text(self.icon.value, self.icon.color)
-	local path = Text(self.entry.path)
+	local path = Text(self.entry.match_value)
 	local line = Line({ picker_icon, icon, path })
 
 	local leading_length = picker_icon:length() + icon:length()

@@ -87,10 +87,7 @@ M.render_match_counts = vim.schedule_wrap(function()
 	end
 
 	if not M.prompt.bufnr or not api.nvim_buf_is_loaded(M.prompt.bufnr) then
-		if M.counter_timer and not M.counter_timer:is_closing() then
-			M.counter_timer:stop()
-			M.counter_timer:close()
-		end
+		return
 	end
 
 	M.picker:tick(10)
@@ -214,7 +211,6 @@ M.find = function(opts)
 		log.info("Starting main loop...")
 
 		M.main_timer = M.set_interval(100, M.check_for_updates)
-		-- M.counter_timer = M.set_interval(1000, M.render_match_counts)
 
 		await_schedule()
 

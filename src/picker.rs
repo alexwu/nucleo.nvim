@@ -88,6 +88,7 @@ pub enum Movement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileEntry {
     pub path: String,
+    pub match_value: String,
     pub file_type: String,
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
@@ -95,7 +96,7 @@ pub struct FileEntry {
 
 impl Entry for FileEntry {
     fn into_utf32(self) -> Utf32String {
-        self.path.into()
+        self.match_value.into()
     }
 
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
@@ -103,7 +104,9 @@ impl Entry for FileEntry {
     }
 
     fn from_path(path: &Path, cwd: Option<String>) -> FileEntry {
-        let val = path
+        let full_path = path.to_str().expect("Failed to convert path to string");
+        let match_value = path
+            .clone()
             .strip_prefix(&cwd.unwrap_or_default())
             .expect("Failed to strip prefix")
             .to_str()
@@ -112,7 +115,8 @@ impl Entry for FileEntry {
 
         Self {
             selected: false,
-            path: val,
+            match_value,
+            path: full_path.to_string(),
             indices: Vec::new(),
             file_type: path
                 .extension()
