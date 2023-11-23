@@ -1,4 +1,4 @@
----@class Entry
+---@class Entry: Object
 ---@field index number
 ---@field bufnr number
 ---@field selection_caret string
@@ -9,6 +9,7 @@ local Text = require("nui.text")
 
 local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
 
+---@param index number Lua index-ed
 function Entry:new(index, entry, bufnr)
 	self.index = index
 	self.entry = entry
@@ -30,7 +31,6 @@ function Entry:render()
 
 	local leading_length = picker_icon:length() + icon:length()
 
-	-- line:render(self.bufnr, -1, self.index, -1)
 	line:render(self.bufnr, -1, self.index)
 	vim.iter(self.entry.indices):each(function(range)
 		vim.highlight.range(
