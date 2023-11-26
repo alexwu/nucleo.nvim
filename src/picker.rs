@@ -239,6 +239,10 @@ impl<T: Entry> Picker<T> {
         }
     }
 
+    pub fn update_cwd(&mut self, cwd: &str) {
+        self.cwd = cwd.to_string();
+    }
+
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
         log::info!("Moving cursor {:?} by {}", direction, change);
         self.tick(10);
@@ -387,6 +391,11 @@ impl<T: Entry> UserData for Picker<T> {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
             this.update_query(params.0);
+            Ok(())
+        });
+
+        methods.add_method_mut("update_cwd", |_lua, this, params: (String,)| {
+            this.update_cwd(&params.0);
             Ok(())
         });
 

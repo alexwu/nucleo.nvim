@@ -22,6 +22,7 @@ local M = {}
 
 ---@class Picker
 ---@field update_query fun(self: Picker, query: string)
+---@field update_cwd fun(self: Picker, cwd: string)
 ---@field populate_files fun(self: Picker)
 ---@field restart fun(self: Picker)
 ---@field tick fun(self: Picker, timeout: integer): PickerStatus
@@ -55,11 +56,16 @@ M.process_input = debounce(function(val)
 	end
 end, 50)
 
+---@param opts? PickerOptions
 M.initialize = function(opts)
+	opts = opts or { cwd = vim.uv.cwd() }
 	if not M.picker then
 		M.picker = nu.Picker(opts)
 		M.force_rerender = true
 	else
+		if opts.cwd then
+			M.picker:update_cwd(opts.cwd)
+		end
 		M.picker:populate_files()
 		M.picker:tick(10)
 		M.force_rerender = true
