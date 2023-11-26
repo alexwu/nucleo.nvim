@@ -1,5 +1,4 @@
 local Popup = require("nui.popup")
-local preview_file = require("nucleo").preview_file
 local api = vim.api
 
 local Previewer = Popup:extend("Previewer")
@@ -15,6 +14,8 @@ function Previewer:init(popup_options)
 		options = {},
 	})
 
+	self.previewer = require("nucleo_nvim").Previewer()
+
 	Previewer.super.init(self, options)
 end
 
@@ -29,7 +30,7 @@ end
 function Previewer:render(file)
 	if self.winid then
 		local height = api.nvim_win_get_height(self.winid)
-		local lines = preview_file(file, height)
+		local lines = self.previewer:preview_file(file, 0, height)
 		local content = vim.split(lines, "\n")
 		api.nvim_buf_set_lines(self.bufnr, 0, -1, false, content)
 

@@ -1,4 +1,3 @@
----@module 'nui.text'
 local NuiLine = require("nui.line")
 
 ---@class Line: NuiLine

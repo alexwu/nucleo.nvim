@@ -14,6 +14,25 @@ local api = vim.api
 
 local M = {}
 
+---@class PickerEntry
+
+---@class PickerStatus
+---@field running boolean
+---@field changed boolean
+
+---@class Picker
+---@field update_query fun(self: Picker, query: string)
+---@field populate_files fun(self: Picker)
+---@field restart fun(self: Picker)
+---@field tick fun(self: Picker, timeout: integer): PickerStatus
+---@field total_matches fun(self: Picker): integer
+---@field total_items fun(self: Picker): integer
+---@field should_update fun(self: Picker): boolean
+---@field move_cursor_up fun(self: Picker)
+---@field move_cursor_down fun(self: Picker)
+---@field get_selection fun(self: Picker): PickerEntry
+
+---@type Picker|nil
 M.picker = nil
 M.results = nil
 M.highlighter = nil
@@ -49,6 +68,9 @@ M.initialize = function(opts)
 	end
 end
 
+---@param interval integer
+---@param callback function
+---@return uv_timer_t
 function M.set_interval(interval, callback)
 	local timer = vim.uv.new_timer()
 	timer:start(interval, interval, function()

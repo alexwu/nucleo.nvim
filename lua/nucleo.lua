@@ -2,9 +2,8 @@ local M = {}
 
 --- @private
 M._rust = {
-	init_picker = true,
 	Picker = true,
-	preview_file = true,
+	Previewer = true,
 }
 
 function M.setup(...)
