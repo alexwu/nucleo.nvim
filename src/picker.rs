@@ -106,7 +106,6 @@ impl Entry for FileEntry {
     fn from_path(path: &Path, cwd: Option<String>) -> FileEntry {
         let full_path = path.to_str().expect("Failed to convert path to string");
         let match_value = path
-            .clone()
             .strip_prefix(&cwd.unwrap_or_default())
             .expect("Failed to strip prefix")
             .to_str()
