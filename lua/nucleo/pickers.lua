@@ -15,6 +15,8 @@ local api = vim.api
 local M = {}
 
 ---@class PickerEntry
+---@field path string
+---@field file_type string
 
 ---@class PickerStatus
 ---@field running boolean
@@ -23,6 +25,7 @@ local M = {}
 ---@class Picker
 ---@field update_query fun(self: Picker, query: string)
 ---@field update_cwd fun(self: Picker, cwd: string)
+---@field update_window fun(self: Picker, height: integer)
 ---@field populate_files fun(self: Picker)
 ---@field restart fun(self: Picker)
 ---@field tick fun(self: Picker, timeout: integer): PickerStatus
