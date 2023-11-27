@@ -17,7 +17,7 @@ end
 return setmetatable(M, {
 	__index = function(t, key)
 		if M._rust[key] then
-			t[key] = require("nucleo_nvim")[key]
+			t[key] = require("nucleo_rs")[key]
 			return t[key]
 		end
 	end,

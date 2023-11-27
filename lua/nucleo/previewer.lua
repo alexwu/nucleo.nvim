@@ -14,7 +14,7 @@ function Previewer:init(popup_options)
 		options = {},
 	})
 
-	self.previewer = require("nucleo_nvim").Previewer()
+	self.previewer = require("nucleo_rs").Previewer()
 
 	Previewer.super.init(self, options)
 end

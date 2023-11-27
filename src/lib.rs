@@ -33,7 +33,7 @@ pub fn init_picker(
 }
 
 #[mlua::lua_module]
-fn nucleo_nvim(lua: &Lua) -> LuaResult<LuaTable> {
+fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
     let _ = WriteLogger::init(
         LevelFilter::Info,
         Config::default(),
