@@ -48,7 +48,6 @@ local highlight_selection = function(highlighter)
 
 	log.info("highlight_selection", line_nr)
 	log.info("buf_line_count: ", api.nvim_buf_line_count(highlighter.results.bufnr))
-	log.info("buf_line_count: ", api.nvim_buf_get_lines(highlighter.results.bufnr, 0, -1, false))
 
 	local selection_line = api.nvim_buf_get_lines(highlighter.results.bufnr, line_nr, line_nr + 1, false)
 

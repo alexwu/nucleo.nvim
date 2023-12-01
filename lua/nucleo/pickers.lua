@@ -81,19 +81,22 @@ end, 50)
 M.initialize = function(opts)
 	opts = opts or { cwd = vim.uv.cwd() }
 	M.main_timer = vim.uv.new_timer()
+	---@type Sender, Receiver
+	M.tx, M.rx = channel.counter()
+
 	if not M.picker then
 		M.picker = nu.Picker(opts)
-		M.picker:force_rerender()
 	else
 		if opts.cwd then
 			M.picker:update_cwd(opts.cwd)
 		end
 		M.picker:populate_files()
-		M.picker:tick(10)
-		M.picker:force_rerender()
-
-		M.queue_rerender()
 	end
+
+	M.picker:tick(10)
+	M.picker:force_rerender()
+
+	M.queue_rerender()
 end
 
 ---@param interval integer
@@ -276,9 +279,6 @@ M.find = function(opts)
 
 	layout:mount()
 
-	local tx, rx = channel.counter()
-	M.tx = tx
-
 	local main_loop = a.void(function()
 		log.info("Starting main loop...")
 
@@ -288,16 +288,14 @@ M.find = function(opts)
 
 		while true do
 			log.info("Looping...")
-			rx.last()
+			M.rx.last()
 			await_schedule()
 
 			if not M.results.bufnr or not api.nvim_buf_is_loaded(M.results.bufnr) or not M.results.winid then
 				return
 			end
 
-			if api.nvim_buf_line_count(M.results.bufnr) > 0 then
-				M.highlighter:highlight_selection()
-			end
+			M.highlighter:highlight_selection()
 
 			local status = M.picker:tick(10)
 			if M.picker:should_rerender() or status.changed then
