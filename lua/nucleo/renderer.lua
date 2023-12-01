@@ -2,6 +2,7 @@ local Input = require("nui.input")
 local Layout = require("nui.layout")
 local Results = require("nucleo.results")
 
+---@class Manager: NuiLayout
 local Manager = Layout:extend("Manager")
 
 function Manager:init(layout_options)

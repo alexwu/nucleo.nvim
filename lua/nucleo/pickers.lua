@@ -31,10 +31,13 @@ local M = {}
 ---@field tick fun(self: Picker, timeout: integer): PickerStatus
 ---@field total_matches fun(self: Picker): integer
 ---@field total_items fun(self: Picker): integer
----@field should_update fun(self: Picker): boolean
+---@field should_rerender fun(self: Picker): boolean
+---@field force_rerender fun(self: Picker)
+---@field drain_channel fun(self: Picker)
 ---@field move_cursor_up fun(self: Picker)
 ---@field move_cursor_down fun(self: Picker)
 ---@field get_selection fun(self: Picker): PickerEntry
+---@field get_cursor_pos fun(self: Picker): integer|nil
 
 ---@type Picker|nil
 M.picker = nil
@@ -42,51 +45,67 @@ M.results = nil
 M.highlighter = nil
 M.original_cursor = nil
 M.tx = nil
-M.force_rerender = false
 
 M.render_matches = function()
 	M.results:render_entries(M.picker)
 end
 
----@param val string
-M.process_input = debounce(function(val)
-	M.picker:update_query(val)
-	M.force_rerender = true
-	log.info("Updated input: " .. val)
-
+function M.queue_rerender()
 	if M.tx then
 		M.tx.send()
 	end
+end
+
+---@param val string
+M.process_input = debounce(function(val)
+	M.picker:update_query(val)
+	-- M.picker:force_rerender()
+	log.info("Updated input: " .. val)
+
+	M.set_interval(10, M.check_for_updates)
+
+	-- if M.tx then
+	-- 	M.tx.send()
+	-- end
+	M.queue_rerender()
 end, 50)
 
 ---@param opts? PickerOptions
 M.initialize = function(opts)
 	opts = opts or { cwd = vim.uv.cwd() }
+	M.main_timer = vim.uv.new_timer()
 	if not M.picker then
 		M.picker = nu.Picker(opts)
-		M.force_rerender = true
+		M.picker:force_rerender()
 	else
 		if opts.cwd then
 			M.picker:update_cwd(opts.cwd)
 		end
 		M.picker:populate_files()
 		M.picker:tick(10)
-		M.force_rerender = true
+		M.picker:force_rerender()
 
-		M.tx.send()
+		M.queue_rerender()
 	end
 end
 
 ---@param interval integer
 ---@param callback function
----@return uv_timer_t
 function M.set_interval(interval, callback)
-	local timer = vim.uv.new_timer()
-	timer:start(interval, interval, function()
+	if not M.main_timer then
+		M.main_timer = vim.uv.new_timer()
+	elseif M.main_timer:is_closing() then
+		return
+	elseif M.main_timer:is_active() and interval ~= M.main_timer:get_repeat() then
+		M.main_timer:set_repeat(interval)
+		return
+	elseif M.main_timer:is_active() then
+		return
+	end
+
+	M.main_timer:start(interval, interval, function()
 		callback()
 	end)
-
-	return timer
 end
 
 M.check_for_updates = vim.schedule_wrap(function()
@@ -97,18 +116,20 @@ M.check_for_updates = vim.schedule_wrap(function()
 	log.info("Checking for updates...")
 	if not M.results.bufnr or not api.nvim_buf_is_loaded(M.results.bufnr) then
 		M.main_timer:stop()
-		M.main_timer:close()
+		-- M.main_timer:close()
 	end
 
 	local status = M.picker:tick(10)
-	if status.changed or status.running or M.picker:should_update() then
-		M.force_rerender = true
+	if status.changed or status.running or M.picker:should_rerender() then
+		M.picker:force_rerender()
 		M.tx.send()
 	end
 
-	if not (status.running or status.changed or M.picker:should_update()) then
-		M.main_timer:stop()
-		M.main_timer:close()
+	if not (status.running or status.changed or M.picker:should_rerender()) and M.picker:total_items() > 0 then
+		if not M.main_timer:is_closing() then
+			M.main_timer:stop()
+			-- M.main_timer:close()
+		end
 	end
 end)
 
@@ -149,6 +170,10 @@ M.find = function(opts)
 	M.prompt = Prompt({
 		input_options = {
 			on_close = function()
+				if M.main_timer and not M.main_timer:is_closing() then
+					M.main_timer:stop()
+					M.main_timer:close()
+				end
 				if M.picker then
 					M.picker:restart()
 				end
@@ -157,6 +182,11 @@ M.find = function(opts)
 				end
 			end,
 			on_submit = function()
+				if M.main_timer and not M.main_timer:is_closing() then
+					M.main_timer:stop()
+					M.main_timer:close()
+				end
+
 				if M.picker:total_matches() == 0 then
 					vim.notify("There's nothing to select", vim.log.levels.WARN)
 					if M.original_winid then
@@ -189,14 +219,18 @@ M.find = function(opts)
 
 	M.prompt:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
-		M.force_rerender = true
+		-- M.highlighter:highlight_selection()
+		-- if M.picker:should_rerender() then
 		M.tx.send()
+		-- end
 	end, { noremap = true })
 
 	M.prompt:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
-		M.force_rerender = true
+		-- M.highlighter:highlight_selection()
+		-- if M.picker:should_rerender() then
 		M.tx.send()
+		-- end
 	end, { noremap = true })
 
 	local layout = Layout(
@@ -241,7 +275,7 @@ M.find = function(opts)
 	local main_loop = a.void(function()
 		log.info("Starting main loop...")
 
-		M.main_timer = M.set_interval(100, M.check_for_updates)
+		M.set_interval(10, M.check_for_updates)
 
 		await_schedule()
 
@@ -254,16 +288,21 @@ M.find = function(opts)
 				return
 			end
 
-			local status = M.picker:tick(10)
-			if M.force_rerender or status.changed then
-				log.info("trying to render in the main loop")
-				M.render_match_counts()
-				M.render_matches()
-				M.force_rerender = false
+			if api.nvim_buf_line_count(M.results.bufnr) > 0 then
+				M.highlighter:highlight_selection()
 			end
 
-			M.highlighter:highlight_selection()
+			local status = M.picker:tick(10)
+			if M.picker:should_rerender() or status.changed then
+				log.info("trying to render in the main loop")
+				log.info("Rendering with total matches: ", M.picker:total_matches())
+				M.picker:drain_channel()
+				M.render_match_counts()
+				M.render_matches()
+			end
+
 			if M.picker:total_matches() > 0 then
+				M.highlighter:highlight_selection()
 				M.previewer:render(M.picker:get_selection().path)
 			else
 				M.previewer:clear()

@@ -9,9 +9,11 @@ local Prompt = Input:extend("Prompt")
 
 ---@class PromptConfig
 ---@field popup_options nui_popup_options
+---@field input_options nui_input_options
 
 ---@param opts? PromptConfig
 function Prompt:init(opts)
+	opts = opts or {}
 	local popup_options = vim.tbl_deep_extend("force", opts.popup_options or {}, {
 		position = "50%",
 		size = {
@@ -32,6 +34,7 @@ function Prompt:init(opts)
 			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
 		},
 	})
+
 	local input_options = vim.tbl_deep_extend("force", opts.input_options or {}, {
 		prompt = Text(" ", "TelescopePromptPrefix"),
 		default_value = "",

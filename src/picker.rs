@@ -155,6 +155,7 @@ pub struct Picker<T: Entry> {
     cursor: Cursor,
     window: Window,
     selections: BTreeSet<u32>,
+    sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
     git_ignore: bool,
 }
@@ -162,8 +163,9 @@ pub struct Picker<T: Entry> {
 impl<T: Entry> Picker<T> {
     pub fn new(cwd: String) -> Self {
         let (sender, receiver) = bounded::<()>(1);
+        let notifier = sender.clone();
         let notify = Arc::new(move || {
-            if sender.try_send(()).is_ok() {
+            if notifier.try_send(()).is_ok() {
                 log::info!("Message sent!")
             };
         });
@@ -175,6 +177,7 @@ impl<T: Entry> Picker<T> {
             string_matcher,
             cwd,
             receiver,
+            sender,
             git_ignore: true,
             cursor: Cursor::default(),
             previous_query: String::new(),
@@ -196,7 +199,7 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn should_rerender(&self) -> bool {
-        self.try_recv().is_ok()
+        !self.receiver.is_empty()
     }
 
     pub fn total_matches(&self) -> u32 {
@@ -250,6 +253,8 @@ impl<T: Entry> Picker<T> {
             return;
         }
 
+        let last_window_pos = self.window().start();
+
         let new_pos = match direction {
             Movement::Up => {
                 self.cursor.pos().saturating_add(change as usize) as u32 % self.total_matches()
@@ -263,6 +268,11 @@ impl<T: Entry> Picker<T> {
             }
         };
         self.set_cursor_pos(new_pos as usize);
+
+        if last_window_pos != self.window().start() {
+            let _ = self.sender.try_send(());
+        }
+
         log::info!("Selection index: {}", self.cursor.pos());
     }
 
@@ -273,6 +283,7 @@ impl<T: Entry> Picker<T> {
         log::info!("Match count: {:?}", snapshot.matched_item_count());
         let string_matcher = &mut STRING_MATCHER.lock().0;
 
+        // FIXME: If the window start is greater than the upper bownd (if it falls back to toal matches),
         let lower_bound = self.window().start() as u32;
         let upper_bound = self.window().end().min(self.total_matches() as usize) as u32;
 
@@ -297,7 +308,7 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn restart(&mut self) {
-        self.matcher.0.restart(true)
+        self.matcher.0.restart(true);
     }
 
     pub fn populate_files(&mut self) {
@@ -452,18 +463,18 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
-        methods.add_method("should_update", |_lua, this, ()| {
-            match this.receiver.try_recv() {
-                Ok(_) => {
-                    log::info!("Message received!");
-                    Ok(true)
-                }
-                Err(_) => Ok(false),
-            }
-        });
-
         methods.add_method("should_rerender", |_lua, this, ()| {
             Ok(this.should_rerender())
+        });
+
+        methods.add_method("force_rerender", |_lua, this, ()| {
+            let _ = this.sender.try_send(());
+            Ok(())
+        });
+
+        methods.add_method("drain_channel", |_lua, this, ()| {
+            let _ = this.receiver.try_recv();
+            Ok(())
         });
     }
 }
