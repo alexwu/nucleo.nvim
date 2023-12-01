@@ -473,7 +473,7 @@ impl<T: Entry> UserData for Picker<T> {
         });
 
         methods.add_method("drain_channel", |_lua, this, ()| {
-            let _ = this.receiver.try_recv();
+            let _ = this.try_recv();
             Ok(())
         });
     }
