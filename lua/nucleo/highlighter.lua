@@ -47,6 +47,15 @@ local highlight_selection = function(highlighter)
 	})
 
 	log.info("highlight_selection", line_nr)
+	log.info("buf_line_count: ", api.nvim_buf_line_count(highlighter.results.bufnr))
+	log.info("buf_line_count: ", api.nvim_buf_get_lines(highlighter.results.bufnr, 0, -1, false))
+
+	local selection_line = api.nvim_buf_get_lines(highlighter.results.bufnr, line_nr, line_nr + 1, false)
+
+	if vim.tbl_isempty(selection_line) or #selection_line[1] == 0 then
+		return
+	end
+
 	api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 1, {
 		hl_eol = true,
 		end_row = line_nr + 1,

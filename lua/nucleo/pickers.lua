@@ -14,6 +14,13 @@ local api = vim.api
 
 local M = {}
 
+---@class Receiver
+---@field recv fun()
+---@field last fun()
+
+---@class Sender
+---@field send fun()
+
 ---@class PickerEntry
 ---@field path string
 ---@field file_type string
@@ -44,7 +51,10 @@ M.picker = nil
 M.results = nil
 M.highlighter = nil
 M.original_cursor = nil
+---@type Sender|nil
 M.tx = nil
+---@type Receiver|nil
+M.rx = nil
 
 M.render_matches = function()
 	M.results:render_entries(M.picker)
@@ -64,9 +74,6 @@ M.process_input = debounce(function(val)
 
 	M.set_interval(10, M.check_for_updates)
 
-	-- if M.tx then
-	-- 	M.tx.send()
-	-- end
 	M.queue_rerender()
 end, 50)
 
