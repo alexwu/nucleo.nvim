@@ -9,6 +9,16 @@ local api = vim.api
 
 local ns_match_count = vim.api.nvim_create_namespace("nucleo_match_count")
 
+--- @param buf? integer
+--- @param cb function
+local scheduler_if_buf_valid = a.wrap(function(buf, cb)
+	vim.schedule(function()
+		if buf and api.nvim_buf_is_loaded(buf) then
+			cb()
+		end
+	end)
+end, 2)
+
 ---@class Prompt: NuiInput
 local Prompt = Input:extend("Prompt")
 
@@ -59,7 +69,6 @@ function Prompt:update(interval)
 		interval,
 		interval,
 		a.void(function()
-			await_schedule()
 			local match_count = self.picker:total_matches()
 			local item_count = self.picker:total_items()
 
@@ -74,7 +83,8 @@ function Prompt:update(interval)
 end
 
 function Prompt:stop()
-	if not self.timer:is_closing() then
+	self.extmark_id = nil
+	if self.timer:is_closing() then
 		return
 	end
 
@@ -85,37 +95,19 @@ end
 ---@param total_matches number
 ---@param total_options number
 function Prompt:render_match_count(total_matches, total_options)
-	if not self.bufnr or not api.nvim_buf_is_loaded(self.bufnr) then
-		return
-	end
+	-- await_schedule()
+	scheduler_if_buf_valid(self.bufnr, function()
+		-- if not self.bufnr or not api.nvim_buf_is_loaded(self.bufnr) then
+		-- 	return
+		-- end
 
-	local match_count_str = string.format("%s / %s", total_matches, total_options)
-	self.extmark_id = api.nvim_buf_set_extmark(self.bufnr, ns_match_count, 0, 0, {
-		id = self.extmark_id,
-		virt_text = { { match_count_str, "TelescopePromptCounter" } },
-		virt_text_pos = "right_align",
-	})
-end
-
----@param self Prompt
-local render = a.void(function(self)
-	while true do
-		self.rx.last()
-		await_schedule()
-
-		if not self.bufnr or not api.nvim_buf_is_loaded(self.bufnr) then
-			return
-		end
-
-		local match_count = self.picker:total_matches()
-		local item_count = self.picker:total_items()
-
-		self:render_match_count(match_count, item_count)
-	end
-end)
-
-function Prompt:render()
-	render(self)
+		local match_count_str = string.format("%s / %s", total_matches, total_options)
+		self.extmark_id = api.nvim_buf_set_extmark(self.bufnr, ns_match_count, 0, 0, {
+			id = self.extmark_id,
+			virt_text = { { match_count_str, "TelescopePromptCounter" } },
+			virt_text_pos = "right_align",
+		})
+	end)
 end
 
 return Prompt

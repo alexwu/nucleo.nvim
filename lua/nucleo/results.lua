@@ -48,7 +48,7 @@ function Results:render_entries(picker)
 		return
 	end
 
-	picker:tick(10)
+	-- picker:tick(10)
 
 	if picker:total_matches() == 0 then
 		if vim.api.nvim_buf_is_loaded(self.bufnr) and vim.api.nvim_win_is_valid(self.winid) then

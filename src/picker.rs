@@ -188,9 +188,9 @@ impl<T: Entry> Picker<T> {
 
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
-        if status.0.changed {
-            self.update_cursor();
-        }
+        // if status.0.changed {
+        self.update_cursor();
+        // }
         status
     }
 
@@ -211,7 +211,7 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn lower_bound(&self) -> u32 {
-        max(self.window().start() as u32, 0)
+        max(self.window().start() as u32, 0).min(self.upper_bound())
     }
 
     pub fn upper_bound(&self) -> u32 {
@@ -283,9 +283,11 @@ impl<T: Entry> Picker<T> {
         log::info!("Match count: {:?}", snapshot.matched_item_count());
         let string_matcher = &mut STRING_MATCHER.lock().0;
 
-        // FIXME: If the window start is greater than the upper bownd (if it falls back to toal matches),
-        let lower_bound = self.window().start() as u32;
-        let upper_bound = self.window().end().min(self.total_matches() as usize) as u32;
+        // FIXME: If the window start is greater than the upper bownd (if it falls back to total matches),
+        // let lower_bound = self.window().start() as u32;
+        let lower_bound = self.lower_bound();
+        // let upper_bound = self.window().end().min(self.total_matches() as usize) as u32;
+        let upper_bound = self.upper_bound();
 
         snapshot
             .matched_items(lower_bound..upper_bound)

@@ -39,13 +39,6 @@ local highlight_selection = function(highlighter)
 		line_nr = height - line_nr - 1
 	end
 
-	highlighter.caret_extmark_id = api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 0, {
-		id = highlighter.caret_extmark_id,
-		hl_eol = false,
-		virt_text_win_col = 0,
-		virt_text = { { ">", "TelescopeSelectionCaret" } },
-	})
-
 	log.info("highlight_selection", line_nr)
 	log.info("buf_line_count: ", api.nvim_buf_line_count(highlighter.results.bufnr))
 
@@ -54,6 +47,13 @@ local highlight_selection = function(highlighter)
 	if vim.tbl_isempty(selection_line) or #selection_line[1] == 0 then
 		return
 	end
+
+	highlighter.caret_extmark_id = api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 0, {
+		id = highlighter.caret_extmark_id,
+		hl_eol = false,
+		virt_text_win_col = 0,
+		virt_text = { { ">", "TelescopeSelectionCaret" } },
+	})
 
 	api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 1, {
 		hl_eol = true,

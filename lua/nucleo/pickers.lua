@@ -182,6 +182,8 @@ M.find = function(opts)
 					M.main_timer:close()
 				end
 				if M.picker then
+					M.prompt:stop()
+					M.picker:update_query("")
 					M.picker:restart()
 				end
 				if M.original_winid then
@@ -208,7 +210,9 @@ M.find = function(opts)
 					end
 					vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
 
+					M.prompt:stop()
 					-- TODO: Figure out what to actually do here
+					M.picker:update_query("")
 					M.picker:restart()
 				end
 			end,
@@ -295,6 +299,7 @@ M.find = function(opts)
 			end
 
 			-- M.highlighter:highlight_selection()
+			M.highlight_selection()
 
 			local status = M.picker:tick(10)
 			if M.picker:should_rerender() or status.changed then
