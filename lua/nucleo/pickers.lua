@@ -93,10 +93,13 @@ M.initialize = function(opts)
 		M.picker:populate_files()
 	end
 
-	M.picker:tick(10)
-	M.picker:force_rerender()
+	a.run(function()
+		M.picker:tick(10)
+	end, function()
+		M.picker:force_rerender()
 
-	M.queue_rerender()
+		M.queue_rerender()
+	end)
 end
 
 ---@param interval integer
@@ -143,20 +146,13 @@ M.check_for_updates = vim.schedule_wrap(function()
 	end
 end)
 
-M.render_match_counts = vim.schedule_wrap(function()
-	if not M.picker or not M.prompt then
-		return
+M.highlight_selection = a.void(function()
+	if M.picker:total_matches() > 0 then
+		M.highlighter:highlight_selection()
+		M.previewer:render(M.picker:get_selection().path)
+	else
+		M.previewer:clear()
 	end
-
-	if not M.prompt.bufnr or not api.nvim_buf_is_loaded(M.prompt.bufnr) then
-		return
-	end
-
-	M.picker:tick(10)
-	local item_count = M.picker:total_items()
-	local match_count = M.picker:total_matches()
-
-	M.prompt:render_match_count(match_count, item_count)
 end)
 
 ---@class PickerOptions
@@ -178,6 +174,7 @@ M.find = function(opts)
 	})
 
 	M.prompt = Prompt({
+		picker = M.picker,
 		input_options = {
 			on_close = function()
 				if M.main_timer and not M.main_timer:is_closing() then
@@ -229,6 +226,7 @@ M.find = function(opts)
 
 	M.prompt:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
+		-- M.highlight_selection()
 		-- M.highlighter:highlight_selection()
 		-- if M.picker:should_rerender() then
 		M.tx.send()
@@ -237,6 +235,7 @@ M.find = function(opts)
 
 	M.prompt:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
+		-- M.highlight_selection()
 		-- M.highlighter:highlight_selection()
 		-- if M.picker:should_rerender() then
 		M.tx.send()
@@ -295,26 +294,27 @@ M.find = function(opts)
 				return
 			end
 
-			M.highlighter:highlight_selection()
+			-- M.highlighter:highlight_selection()
 
 			local status = M.picker:tick(10)
 			if M.picker:should_rerender() or status.changed then
 				log.info("trying to render in the main loop")
 				log.info("Rendering with total matches: ", M.picker:total_matches())
 				M.picker:drain_channel()
-				M.render_match_counts()
 				M.render_matches()
 			end
 
-			if M.picker:total_matches() > 0 then
-				M.highlighter:highlight_selection()
-				M.previewer:render(M.picker:get_selection().path)
-			else
-				M.previewer:clear()
-			end
+			M.highlight_selection()
+			-- if M.picker:total_matches() > 0 then
+			-- 	M.highlighter:highlight_selection()
+			-- 	M.previewer:render(M.picker:get_selection().path)
+			-- else
+			-- 	M.previewer:clear()
+			-- end
 		end
 	end)
 
+	M.prompt:update(100)
 	M.tx.send()
 	main_loop()
 end
