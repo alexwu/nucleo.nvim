@@ -53,5 +53,10 @@ impl UserData for Previewer {
                 None => Ok(String::new()),
             },
         );
+
+        methods.add_method_mut("reset", |_lua, this, ()| {
+            this.file_cache.clear();
+            Ok(())
+        });
     }
 }
