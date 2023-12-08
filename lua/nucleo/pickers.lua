@@ -41,12 +41,13 @@ local M = {}
 ---@field should_rerender fun(self: Picker): boolean
 ---@field force_rerender fun(self: Picker)
 ---@field drain_channel fun(self: Picker)
----@field move_cursor_up fun(self: Picker)
----@field move_cursor_down fun(self: Picker)
+---@field move_cursor_up fun(self: Picker, delta?: integer)
+---@field move_cursor_down fun(self: Picker, delta?: integer)
 ---@field move_to_top fun(self: Picker)
 ---@field move_to_bottom fun(self: Picker)
 ---@field get_selection fun(self: Picker): PickerEntry
 ---@field get_cursor_pos fun(self: Picker): integer|nil
+---@field select fun(self: Picker, pos: integer)
 
 ---@type Picker|nil
 M.picker = nil
@@ -248,6 +249,18 @@ M.find = function(opts)
 		-- end
 	end, { noremap = true })
 
+	M.prompt:map("i", { "<ScrollWheelUp>" }, function()
+		local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
+		M.picker:move_cursor_up(delta)
+		M.tx.send()
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<ScrollWheelDown>" }, function()
+		local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
+		M.picker:move_cursor_down(delta)
+		M.tx.send()
+	end, { noremap = true })
+
 	M.prompt:map("i", { "<Tab>" }, function()
 		local pos = M.picker:get_cursor_pos()
 		if pos then
@@ -263,6 +276,12 @@ M.find = function(opts)
 
 	M.prompt:map("i", { "<C-f>" }, function()
 		M.picker:move_to_bottom()
+		M.tx.send()
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<C-r>" }, function()
+		M.picker:tick(10)
+		M.picker:force_rerender()
 		M.tx.send()
 	end, { noremap = true })
 

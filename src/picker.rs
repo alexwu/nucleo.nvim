@@ -13,6 +13,7 @@ use nucleo::{Nucleo, Utf32String};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use range_rover::range_rover;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
@@ -194,6 +195,14 @@ impl<T: Entry> Picker<T> {
         status
     }
 
+    pub async fn tick_async(&mut self, timeout: u64) -> Status {
+        let status = self.matcher.tick(timeout);
+        // if status.0.changed {
+        self.update_cursor();
+        // }
+        status
+    }
+
     fn try_recv(&self) -> Result<(), crossbeam_channel::TryRecvError> {
         self.receiver.try_recv()
     }
@@ -314,11 +323,12 @@ impl<T: Entry> Picker<T> {
                     string_matcher,
                     &mut indices,
                 );
-                indices.sort_unstable();
+                // indices.sort_unstable();
+                indices.par_sort_unstable();
                 indices.dedup();
 
                 let ranges = range_rover(indices.drain(..))
-                    .into_iter()
+                    .into_par_iter()
                     .map(|range| range.into_inner());
                 // TODO: Probably a better way to do this
                 item.data.clone().with_indices(ranges.collect())
@@ -349,7 +359,7 @@ impl<T: Entry> Picker<T> {
 
     pub fn selections(&self) -> Vec<T> {
         self.selections
-            .iter()
+            .par_iter()
             .filter_map(|selection| {
                 self.matcher
                     .snapshot()
@@ -428,13 +438,15 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
-        methods.add_method_mut("move_cursor_up", |_lua, this, ()| {
-            this.move_cursor(Movement::Down, 1);
+        methods.add_method_mut("move_cursor_up", |_lua, this, params: (Option<u32>,)| {
+            let delta = params.0.unwrap_or(1);
+            this.move_cursor(Movement::Down, delta);
             Ok(())
         });
 
-        methods.add_method_mut("move_cursor_down", |_lua, this, ()| {
-            this.move_cursor(Movement::Up, 1);
+        methods.add_method_mut("move_cursor_down", |_lua, this, params: (Option<u32>,)| {
+            let delta = params.0.unwrap_or(1);
+            this.move_cursor(Movement::Up, delta);
             Ok(())
         });
 
@@ -485,7 +497,15 @@ impl<T: Entry> UserData for Picker<T> {
             }
         });
 
-        methods.add_method_mut("tick", |_lua, this, ms: u64| Ok(this.tick(ms)));
+        methods.add_method_mut("select", |_lua, this, params: (usize,)| {
+            this.select(params.0.try_into().expect("Selection index out of bounds"));
+            Ok(())
+        });
+
+        methods.add_async_method_mut("tick", |_lua, this, ms: u64| async move {
+            let status = this.tick_async(ms).await;
+            Ok(status)
+        });
 
         methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
             this.populate_files();

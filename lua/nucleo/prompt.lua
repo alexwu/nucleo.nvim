@@ -2,22 +2,12 @@ local Input = require("nui.input")
 local Text = require("nui.text")
 local a = require("plenary.async")
 local log = require("nucleo.log")
-local await_schedule = a.util.scheduler
 local channel = require("plenary.async.control").channel
+local scheduler_if_buf_valid = require("nucleo.async").scheduler_if_buf_valid
 
 local api = vim.api
 
 local ns_match_count = vim.api.nvim_create_namespace("nucleo_match_count")
-
---- @param buf? integer
---- @param cb function
-local scheduler_if_buf_valid = a.wrap(function(buf, cb)
-	vim.schedule(function()
-		if buf and api.nvim_buf_is_loaded(buf) then
-			cb()
-		end
-	end)
-end, 2)
 
 ---@class Prompt: NuiInput
 local Prompt = Input:extend("Prompt")
