@@ -276,6 +276,23 @@ impl<T: Entry> Picker<T> {
         log::info!("Selection index: {}", self.cursor.pos());
     }
 
+    pub fn move_cursor_to(&mut self, pos: usize) {
+        log::info!("Moving cursor to {}", pos);
+        self.tick(10);
+
+        if self.total_matches() == 0 {
+            return;
+        }
+
+        let last_window_pos = self.window().start();
+        self.set_cursor_pos(pos);
+        if last_window_pos != self.window().start() {
+            let _ = self.sender.try_send(());
+        }
+
+        log::info!("Selection index: {}", self.cursor.pos());
+    }
+
     pub fn current_matches(&self) -> Vec<T> {
         let mut indices = Vec::new();
         let snapshot = self.matcher.snapshot();
@@ -418,6 +435,21 @@ impl<T: Entry> UserData for Picker<T> {
 
         methods.add_method_mut("move_cursor_down", |_lua, this, ()| {
             this.move_cursor(Movement::Up, 1);
+            Ok(())
+        });
+
+        methods.add_method_mut("move_to_top", |_lua, this, ()| {
+            this.move_cursor_to(0);
+            Ok(())
+        });
+
+        methods.add_method_mut("move_to_bottom", |_lua, this, ()| {
+            this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
+            Ok(())
+        });
+
+        methods.add_method_mut("set_cursor", |_lua, this, params: (usize,)| {
+            this.set_cursor_pos_in_window(params.0);
             Ok(())
         });
 

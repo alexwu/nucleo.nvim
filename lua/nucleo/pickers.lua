@@ -43,6 +43,8 @@ local M = {}
 ---@field drain_channel fun(self: Picker)
 ---@field move_cursor_up fun(self: Picker)
 ---@field move_cursor_down fun(self: Picker)
+---@field move_to_top fun(self: Picker)
+---@field move_to_bottom fun(self: Picker)
 ---@field get_selection fun(self: Picker): PickerEntry
 ---@field get_cursor_pos fun(self: Picker): integer|nil
 
@@ -244,6 +246,24 @@ M.find = function(opts)
 		-- if M.picker:should_rerender() then
 		M.tx.send()
 		-- end
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<Tab>" }, function()
+		local pos = M.picker:get_cursor_pos()
+		if pos then
+			M.picker:select(pos)
+			M.tx.send()
+		end
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<C-b>" }, function()
+		M.picker:move_to_top()
+		M.tx.send()
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<C-f>" }, function()
+		M.picker:move_to_bottom()
+		M.tx.send()
 	end, { noremap = true })
 
 	local layout = Layout(
