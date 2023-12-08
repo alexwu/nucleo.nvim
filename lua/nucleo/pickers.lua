@@ -12,6 +12,8 @@ local Highlighter = require("nucleo.highlighter")
 local Previewer = require("nucleo.previewer")
 local api = vim.api
 
+local has_flash, flash = pcall(require, "flash")
+
 local M = {}
 
 ---@class Receiver
@@ -284,6 +286,29 @@ M.find = function(opts)
 		M.picker:force_rerender()
 		M.tx.send()
 	end, { noremap = true })
+
+	if has_flash then
+		M.prompt:map("i", { "<C-s>" }, function()
+			flash.jump({
+				pattern = "^.",
+				label = { after = { 0, 0 } },
+				search = {
+					mode = "search",
+					multi_window = true,
+					exclude = {
+						function(win)
+							return win ~= M.results.winid
+						end,
+					},
+				},
+				action = function(match)
+					M.picker:set_cursor(match.pos[1] - 1)
+				end,
+				highlight = { backdrop = false },
+			})
+			M.tx.send()
+		end, { noremap = true })
+	end
 
 	local layout = Layout(
 		{
