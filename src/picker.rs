@@ -150,7 +150,6 @@ impl<T: Entry> Contents for Matcher<T> {
 
 pub struct Picker<T: Entry> {
     pub matcher: Matcher<T>,
-    pub string_matcher: StringMatcher,
     previous_query: String,
     cwd: String,
     cursor: Cursor,
@@ -171,11 +170,9 @@ impl<T: Entry> Picker<T> {
             };
         });
         let matcher: Matcher<T> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1).into();
-        let string_matcher = StringMatcher::default();
 
         Self {
             matcher,
-            string_matcher,
             cwd,
             receiver,
             sender,
