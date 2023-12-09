@@ -16,8 +16,6 @@ use range_rover::range_rover;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-
-
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::injector::Injector;
 
@@ -241,6 +239,9 @@ impl<T: Entry> Picker<T> {
         self.set_cursor_pos(self.cursor.pos());
     }
 
+    pub fn window_height(&self) -> usize {
+        self.window.height()
+    }
     pub fn update_window(&mut self, height: u32) {
         log::info!("Setting upper bound to {}", &height);
         self.set_window_height(height.try_into().unwrap_or(usize::MAX));
@@ -479,6 +480,8 @@ impl<T: Entry> UserData for Picker<T> {
             this.update_window(params.0 as u32);
             Ok(())
         });
+
+        methods.add_method_mut("window_height", |_lua, this, ()| Ok(this.window_height()));
 
         methods.add_method("current_matches", |lua, this, ()| {
             Ok(lua.to_value(&this.current_matches()))

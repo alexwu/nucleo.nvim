@@ -289,7 +289,7 @@ M.find = function(opts)
 	end, { noremap = true })
 
 	M.prompt:map("i", { "<C-s>" }, function()
-		extensions.flash.jump(M.picker, M.results.winid)
+		extensions.flash.jump(M.picker, M.results)
 		M.tx.send()
 	end, { noremap = true })
 
