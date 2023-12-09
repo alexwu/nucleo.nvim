@@ -1,12 +1,13 @@
 use std::cmp::{max, min};
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crossbeam_channel::bounded;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
-    FromLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
+    FromLua, IntoLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
 };
 use nucleo::pattern::CaseMatching;
 use nucleo::{Nucleo, Utf32String};
@@ -15,6 +16,7 @@ use parking_lot::Mutex;
 use range_rover::range_rover;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::injector::Injector;
@@ -135,11 +137,33 @@ impl Entry for FileEntry {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-enum SortDirection {
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum SortDirection {
     Ascending,
     #[default]
     Descending,
+}
+
+impl FromLua<'_> for SortDirection {
+    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
+        match value {
+            mlua::Value::String(str) => {
+                let direction = match SortDirection::from_str(str.to_str()?) {
+                    Ok(direction) => direction,
+                    Err(_) => SortDirection::Descending,
+                };
+                Ok(direction)
+            }
+            _ => Ok(SortDirection::Descending),
+        }
+    }
+}
+
+impl IntoLua<'_> for SortDirection {
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+        self.to_string().into_lua(lua)
+    }
 }
 
 impl<T: Entry> Contents for Matcher<T> {
@@ -158,10 +182,11 @@ pub struct Picker<T: Entry> {
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
     git_ignore: bool,
+    sort_direction: SortDirection,
 }
 
 impl<T: Entry> Picker<T> {
-    pub fn new(cwd: String) -> Self {
+    pub fn new(cwd: String, sort_direction: SortDirection) -> Self {
         let (sender, receiver) = bounded::<()>(1);
         let notifier = sender.clone();
         let notify = Arc::new(move || {
@@ -176,6 +201,7 @@ impl<T: Entry> Picker<T> {
             cwd,
             receiver,
             sender,
+            sort_direction,
             git_ignore: true,
             cursor: Cursor::default(),
             previous_query: String::new(),
@@ -189,25 +215,6 @@ impl<T: Entry> Picker<T> {
 
         self.update_cursor();
 
-        status
-    }
-
-    pub async fn tick_async(&mut self, timeout: u64) -> Status {
-        // let local = task::LocalSet::new();
-        //
-        // // Run the local task set.
-        // local
-        //     .run_until(async {
-        //         task::spawn_local(async {
-        //         })
-        //         .await
-        //         .unwrap();
-        //     })
-        //     .await;
-        let status = self.matcher.tick(timeout);
-        // if status.0.changed {
-        self.update_cursor();
-        // }
         status
     }
 
@@ -265,6 +272,20 @@ impl<T: Entry> Picker<T> {
         self.cwd = cwd.to_string();
     }
 
+    pub fn update_config(&mut self, config: Config) {
+        // let cwd = match config.cwd {
+        //     Some(cwd) => cwd,
+        //     None => ;
+
+        if let Some(cwd) = config.cwd {
+            self.cwd = cwd;
+        }
+
+        if let Some(sort_direction) = config.sort_direction {
+            self.sort_direction = sort_direction;
+        }
+    }
+
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
         log::info!("Moving cursor {:?} by {}", direction, change);
         self.tick(10);
@@ -276,10 +297,10 @@ impl<T: Entry> Picker<T> {
         let last_window_pos = self.window().start();
 
         let new_pos = match direction {
-            Movement::Up => {
+            Movement::Down => {
                 self.cursor.pos().saturating_add(change as usize) as u32 % self.total_matches()
             }
-            Movement::Down => {
+            Movement::Up => {
                 self.cursor
                     .pos()
                     .saturating_add(self.total_matches() as usize)
@@ -320,10 +341,7 @@ impl<T: Entry> Picker<T> {
         log::info!("Match count: {:?}", snapshot.matched_item_count());
         let string_matcher = &mut STRING_MATCHER.lock().0;
 
-        // FIXME: If the window start is greater than the upper bownd (if it falls back to total matches),
-        // let lower_bound = self.window().start() as u32;
         let lower_bound = self.lower_bound();
-        // let upper_bound = self.window().end().min(self.total_matches() as usize) as u32;
         let upper_bound = self.upper_bound();
 
         snapshot
@@ -391,7 +409,7 @@ impl<T: Entry> Picker<T> {
 
 impl<T: Entry> Default for Picker<T> {
     fn default() -> Self {
-        Self::new(String::new())
+        Self::new(String::new(), SortDirection::Descending)
     }
 }
 
@@ -426,6 +444,7 @@ impl<T: Entry> BufferContents<T> for Picker<T> {
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub struct Config {
     pub cwd: Option<String>,
+    pub sort_direction: Option<SortDirection>,
 }
 
 impl FromLua<'_> for Config {
@@ -433,6 +452,7 @@ impl FromLua<'_> for Config {
         let table = LuaTable::from_lua(value, lua)?;
         Ok(Config {
             cwd: table.get("cwd")?,
+            sort_direction: table.get("sort_direction")?,
         })
     }
 }
@@ -449,25 +469,60 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
+        methods.add_method_mut("update_config", |_lua, this, params: (Config,)| {
+            this.update_config(params.0);
+            Ok(())
+        });
+
+        methods.add_method("sort_direction", |_lua, this, ()| Ok(this.sort_direction));
+
         methods.add_method_mut("move_cursor_up", |_lua, this, params: (Option<u32>,)| {
             let delta = params.0.unwrap_or(1);
-            this.move_cursor(Movement::Down, delta);
+            match this.sort_direction {
+                SortDirection::Descending => {
+                    this.move_cursor(Movement::Up, delta);
+                }
+                SortDirection::Ascending => {
+                    this.move_cursor(Movement::Down, delta);
+                }
+            }
             Ok(())
         });
 
         methods.add_method_mut("move_cursor_down", |_lua, this, params: (Option<u32>,)| {
             let delta = params.0.unwrap_or(1);
-            this.move_cursor(Movement::Up, delta);
+            match this.sort_direction {
+                SortDirection::Descending => {
+                    this.move_cursor(Movement::Down, delta);
+                }
+                SortDirection::Ascending => {
+                    this.move_cursor(Movement::Up, delta);
+                }
+            }
             Ok(())
         });
 
         methods.add_method_mut("move_to_top", |_lua, this, ()| {
-            this.move_cursor_to(0);
+            match this.sort_direction {
+                SortDirection::Descending => {
+                    this.move_cursor_to(0);
+                }
+                SortDirection::Ascending => {
+                    this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
+                }
+            }
             Ok(())
         });
 
         methods.add_method_mut("move_to_bottom", |_lua, this, ()| {
-            this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
+            match this.sort_direction {
+                SortDirection::Descending => {
+                    this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
+                }
+                SortDirection::Ascending => {
+                    this.move_cursor_to(0);
+                }
+            }
             Ok(())
         });
 
@@ -515,8 +570,8 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
-        methods.add_async_method_mut("tick", |_lua, this, ms: u64| async move {
-            let status = this.tick_async(ms).await;
+        methods.add_method_mut("tick", |_lua, this, ms: u64| {
+            let status = this.tick(ms);
             Ok(status)
         });
 

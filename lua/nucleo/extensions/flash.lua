@@ -21,7 +21,7 @@ function M.jump(picker, results)
 			},
 		},
 		action = function(match)
-			if results.sort_direction == "ascending" then
+			if picker:sort_direction() == "ascending" then
 				picker:set_cursor(picker:window_height() - match.pos[1])
 			else
 				picker:set_cursor(match.pos[1] - 1)

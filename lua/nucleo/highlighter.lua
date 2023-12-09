@@ -34,7 +34,7 @@ local highlight_selection = function(highlighter)
 		return
 	end
 
-	if highlighter.results.sort_direction == "ascending" then
+	if highlighter.picker:sort_direction() == "ascending" then
 		local height = api.nvim_win_get_height(highlighter.results.winid)
 		line_nr = height - line_nr - 1
 	end

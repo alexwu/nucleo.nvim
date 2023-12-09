@@ -1,5 +1,5 @@
 use std::env::current_dir;
-use std::{fs::File};
+use std::fs::File;
 
 use log::LevelFilter;
 use mlua::prelude::*;
@@ -12,10 +12,7 @@ mod injector;
 mod picker;
 mod previewer;
 
-pub fn init_picker(
-    _: &Lua,
-    params: (Option<picker::Config>,),
-) -> LuaResult<Picker<FileEntry>> {
+pub fn init_picker(_: &Lua, params: (Option<picker::Config>,)) -> LuaResult<Picker<FileEntry>> {
     let config = match params.0 {
         Some(config) => config,
         None => picker::Config::default(),
@@ -25,7 +22,9 @@ pub fn init_picker(
         Some(cwd) => cwd,
         None => current_dir().unwrap().to_string_lossy().to_string(),
     };
-    let mut picker = Picker::new(cwd);
+    let sort_direction = config.sort_direction.unwrap_or_default();
+
+    let mut picker = Picker::new(cwd, sort_direction);
 
     picker.populate_files();
 

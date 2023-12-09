@@ -3,11 +3,9 @@ local NuiPopup = require("nui.popup")
 local log = require("nucleo.log")
 
 ---@class Results: NuiPopup
----@field sort_direction "ascending"|"descending"
 local Results = NuiPopup:extend("Results")
 
 ---@class ResultsOptions
----@field sort_direction? "ascending"|"descending"
 ---@field popup_options? nui_popup_options
 
 ---@param opts? ResultsOptions
@@ -24,9 +22,6 @@ function Results:init(opts)
 		},
 		options = {},
 	})
-
-	-- self.sort_direction = opts.sort_direction or "descending"
-	self.sort_direction = "ascending"
 
 	Results.super.init(self, popup_options)
 end
@@ -64,7 +59,7 @@ function Results:render_entries(picker)
 		local results = picker:current_matches()
 		vim.iter(ipairs(results)):each(function(i, entry)
 			local index = i
-			if self.sort_direction == "ascending" then
+			if picker:sort_direction() == "ascending" then
 				index = height - i + 1
 				log.info("trying to render index", index)
 			end

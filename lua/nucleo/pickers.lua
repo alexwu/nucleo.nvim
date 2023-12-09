@@ -52,6 +52,7 @@ local M = {}
 ---@field select fun(self: Picker, pos: integer)
 ---@field set_cursor fun(self: Picker, pos: integer)
 ---@field window_height fun(self: Picker): integer
+---@field sort_direction fun(self: Picker): "descending"|"ascending"
 
 ---@type Picker|nil
 M.picker = nil
@@ -84,9 +85,9 @@ M.process_input = debounce(function(val)
 	M.queue_rerender()
 end, 50)
 
----@param opts? PickerOptions
+---@param opts? Nucleo.FilePicker.Config
 M.initialize = function(opts)
-	opts = opts or { cwd = vim.uv.cwd() }
+	opts = opts or { cwd = vim.uv.cwd(), sort_direction = "ascending" }
 	M.main_timer = vim.uv.new_timer()
 	---@type Sender, Receiver
 	M.tx, M.rx = channel.counter()
@@ -94,9 +95,7 @@ M.initialize = function(opts)
 	if not M.picker then
 		M.picker = nu.Picker(opts)
 	else
-		if opts.cwd then
-			M.picker:update_cwd(opts.cwd)
-		end
+		M.picker:update_config(opts)
 		M.picker:populate_files()
 	end
 
@@ -128,7 +127,7 @@ function M.set_interval(interval, callback)
 	end)
 end
 
-M.check_for_updates = vim.schedule_wrap(function()
+M.check_for_updates = vim.schedule_wrap(a.void(function()
 	if not M.results or not M.picker then
 		return
 	end
@@ -151,7 +150,7 @@ M.check_for_updates = vim.schedule_wrap(function()
 			-- M.main_timer:close()
 		end
 	end
-end)
+end))
 
 M.highlight_selection = a.void(function()
 	if M.picker:total_matches() > 0 then
@@ -162,12 +161,12 @@ M.highlight_selection = a.void(function()
 	end
 end)
 
----@class PickerOptions
+---@class Nucleo.FilePicker.Config
 ---@field cwd? string
 ---@field sort_direction? "ascending"|"descending"
 ---@field git_ignore? boolean
 
----@param opts? PickerOptions
+---@param opts? Nucleo.FilePicker.Config
 M.find = function(opts)
 	M.original_winid = api.nvim_get_current_win()
 	M.original_cursor = api.nvim_win_get_cursor(M.original_winid)
@@ -238,20 +237,12 @@ M.find = function(opts)
 
 	M.prompt:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
-		-- M.highlight_selection()
-		-- M.highlighter:highlight_selection()
-		-- if M.picker:should_rerender() then
 		M.tx.send()
-		-- end
 	end, { noremap = true })
 
 	M.prompt:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
-		-- M.highlight_selection()
-		-- M.highlighter:highlight_selection()
-		-- if M.picker:should_rerender() then
 		M.tx.send()
-		-- end
 	end, { noremap = true })
 
 	M.prompt:map("i", { "<ScrollWheelUp>" }, function()
@@ -347,7 +338,6 @@ M.find = function(opts)
 				return
 			end
 
-			-- M.highlighter:highlight_selection()
 			M.highlight_selection()
 
 			local status = M.picker:tick(10)
@@ -359,12 +349,6 @@ M.find = function(opts)
 			end
 
 			M.highlight_selection()
-			-- if M.picker:total_matches() > 0 then
-			-- 	M.highlighter:highlight_selection()
-			-- 	M.previewer:render(M.picker:get_selection().path)
-			-- else
-			-- 	M.previewer:clear()
-			-- end
 		end
 	end)
 
