@@ -10,9 +10,9 @@ local nu = require("nucleo")
 local debounce = require("nucleo.debounce").debounce_trailing
 local Highlighter = require("nucleo.highlighter")
 local Previewer = require("nucleo.previewer")
-local api = vim.api
+local extensions = require("nucleo.extensions")
 
-local has_flash, flash = pcall(require, "flash")
+local api = vim.api
 
 local M = {}
 
@@ -50,6 +50,7 @@ local M = {}
 ---@field get_selection fun(self: Picker): PickerEntry
 ---@field get_cursor_pos fun(self: Picker): integer|nil
 ---@field select fun(self: Picker, pos: integer)
+---@field set_cursor fun(self: Picker, pos: integer)
 
 ---@type Picker|nil
 M.picker = nil
@@ -287,28 +288,10 @@ M.find = function(opts)
 		M.tx.send()
 	end, { noremap = true })
 
-	if has_flash then
-		M.prompt:map("i", { "<C-s>" }, function()
-			flash.jump({
-				pattern = "^.",
-				label = { after = { 0, 0 } },
-				search = {
-					mode = "search",
-					multi_window = true,
-					exclude = {
-						function(win)
-							return win ~= M.results.winid
-						end,
-					},
-				},
-				action = function(match)
-					M.picker:set_cursor(match.pos[1] - 1)
-				end,
-				highlight = { backdrop = false },
-			})
-			M.tx.send()
-		end, { noremap = true })
-	end
+	M.prompt:map("i", { "<C-s>" }, function()
+		extensions.flash.jump(M.picker, M.results.winid)
+		M.tx.send()
+	end, { noremap = true })
 
 	local layout = Layout(
 		{

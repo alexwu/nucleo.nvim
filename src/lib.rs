@@ -15,7 +15,7 @@ mod previewer;
 pub fn init_picker(
     _: &Lua,
     params: (Option<picker::Config>,),
-) -> LuaResult<Arc<Mutex<Picker<FileEntry>>>> {
+) -> LuaResult<Picker<FileEntry>> {
     let config = match params.0 {
         Some(config) => config,
         None => picker::Config::default(),
@@ -25,9 +25,9 @@ pub fn init_picker(
         Some(cwd) => cwd,
         None => current_dir().unwrap().to_string_lossy().to_string(),
     };
-    let picker = Arc::new(Mutex::new(Picker::new(cwd)));
+    let mut picker = Picker::new(cwd);
 
-    picker.lock().populate_files();
+    picker.populate_files();
 
     Ok(picker)
 }
