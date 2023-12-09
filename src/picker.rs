@@ -16,6 +16,8 @@ use range_rover::range_rover;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+
+
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::injector::Injector;
 
@@ -186,13 +188,24 @@ impl<T: Entry> Picker<T> {
 
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
-        // if status.0.changed {
+
         self.update_cursor();
-        // }
+
         status
     }
 
     pub async fn tick_async(&mut self, timeout: u64) -> Status {
+        // let local = task::LocalSet::new();
+        //
+        // // Run the local task set.
+        // local
+        //     .run_until(async {
+        //         task::spawn_local(async {
+        //         })
+        //         .await
+        //         .unwrap();
+        //     })
+        //     .await;
         let status = self.matcher.tick(timeout);
         // if status.0.changed {
         self.update_cursor();

@@ -1,9 +1,9 @@
 use std::env::current_dir;
-use std::{fs::File, sync::Arc};
+use std::{fs::File};
 
 use log::LevelFilter;
 use mlua::prelude::*;
-use parking_lot::Mutex;
+
 use picker::{FileEntry, Picker};
 use simplelog::{Config, WriteLogger};
 
