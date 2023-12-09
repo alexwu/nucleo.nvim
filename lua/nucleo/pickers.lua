@@ -51,6 +51,7 @@ local M = {}
 ---@field get_cursor_pos fun(self: Picker): integer|nil
 ---@field select fun(self: Picker, pos: integer)
 ---@field set_cursor fun(self: Picker, pos: integer)
+---@field window_height fun(self: Picker): integer
 
 ---@type Picker|nil
 M.picker = nil
@@ -164,6 +165,7 @@ end)
 ---@class PickerOptions
 ---@field cwd? string
 ---@field sort_direction? "ascending"|"descending"
+---@field git_ignore? boolean
 
 ---@param opts? PickerOptions
 M.find = function(opts)
@@ -371,7 +373,7 @@ M.find = function(opts)
 	main_loop()
 end
 
-function M.setup()
+function M.setup(_)
 	api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})
