@@ -3,6 +3,7 @@ local NuiPopup = require("nui.popup")
 local log = require("nucleo.log")
 
 ---@class Results: NuiPopup
+---@field sort_direction "ascending"|"descending"
 local Results = NuiPopup:extend("Results")
 
 ---@class ResultsOptions
@@ -15,14 +16,17 @@ function Results:init(opts)
 	local popup_options = vim.tbl_deep_extend("force", opts.popup_options or {}, {
 		border = "rounded",
 		focusable = true,
+		buf_options = {
+			filetype = "NucleoResults",
+		},
 		win_options = {
 			winhighlight = "Normal:Normal,FloatBorder:FloatBorder",
 		},
 		options = {},
 	})
 
-	self.sort_direction = opts.sort_direction or "descending"
-	-- TODO: self.sort_direction = "ascending"
+	-- self.sort_direction = opts.sort_direction or "descending"
+	self.sort_direction = "ascending"
 
 	Results.super.init(self, popup_options)
 end
