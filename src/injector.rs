@@ -4,7 +4,7 @@ use crossbeam_channel::unbounded;
 use ignore::{types::TypesBuilder, WalkBuilder};
 use tokio::{runtime::Runtime, task::JoinHandle};
 
-use crate::{entry::Entry, picker::FileEntry};
+use crate::entry::Entry;
 
 pub struct Injector<T: Entry>(nucleo::Injector<T>);
 
