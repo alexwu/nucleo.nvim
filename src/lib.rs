@@ -3,7 +3,6 @@ use std::fs::File;
 
 use log::LevelFilter;
 use mlua::prelude::*;
-
 use picker::{FileEntry, Picker};
 use simplelog::{Config, WriteLogger};
 
@@ -25,7 +24,7 @@ pub fn init_picker(_: &Lua, params: (Option<picker::Config>,)) -> LuaResult<Pick
     };
     let sort_direction = config.sort_direction.unwrap_or_default();
 
-    let mut picker = Picker::new(cwd, sort_direction);
+    let picker = Picker::new(cwd, sort_direction);
 
     // picker.populate_files();
 

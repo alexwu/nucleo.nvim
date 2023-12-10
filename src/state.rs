@@ -1,8 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use mlua::UserData;
-use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 
 use crate::picker::{Entry, Picker};
 
@@ -13,7 +11,9 @@ pub struct State<T: Entry> {
 
 impl<T: Entry> State<T> {
     pub fn new() -> Self {
-        Self { pickers: HashMap::new() }
+        Self {
+            pickers: HashMap::new(),
+        }
     }
 }
 

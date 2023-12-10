@@ -249,6 +249,7 @@ impl<T: Entry> Picker<T> {
     pub fn window_height(&self) -> usize {
         self.window.height()
     }
+
     pub fn update_window(&mut self, height: u32) {
         log::info!("Setting upper bound to {}", &height);
         self.set_window_height(height.try_into().unwrap_or(usize::MAX));
