@@ -4,18 +4,23 @@ local extensions = require("nucleo.extensions")
 ---@class Nucleo.Config
 local M = {}
 
----@enum Mode ''
-
----@class Nucleo.Keymaps
----@field table<, Nucleo.Keymap>
-
 ---@class Nucleo.Keymap
 ---@field [integer] function
 ---@field opts table
 
 ---@class Nucleo.Config.Values
 local defaults = {
-	sort_direction = "descending",
+	defaults = {
+		sort_direction = "descending",
+	},
+	sources = {
+		---@type Nucleo.FilePicker.Config
+		files = {
+			cwd = vim.uv.cwd,
+			git_ignore = true,
+		},
+	},
+	---@class Nucleo.Keymaps
 	mappings = {
 		i = {
 			---@type table<string, Nucleo.Keymap>
@@ -41,6 +46,18 @@ local defaults = {
 				actions.move_cursor_down,
 				opts = {
 					desc = "Move down in results list",
+				},
+			},
+			["<ScrollWheelUp>"] = {
+				actions.scroll_up,
+				opts = {
+					desc = "Scroll up in results list",
+				},
+			},
+			["<ScrollWheelDown>"] = {
+				actions.scroll_down,
+				opts = {
+					desc = "Scroll down in results list",
 				},
 			},
 			["<C-b>"] = {
@@ -113,6 +130,12 @@ function M.get(...)
 
 	---@diagnostic disable-next-line: param-type-mismatch
 	return vim.tbl_get(options, ...)
+end
+
+---@param source string
+---@param ... string|nil
+function M.get_source_config(source, ...)
+	M.get("sources", source, ...)
 end
 
 return setmetatable(M, {

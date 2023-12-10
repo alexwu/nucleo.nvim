@@ -229,12 +229,17 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_config(&mut self, config: Config) {
+        log::info!("Updating config to: {:?}", config);
         if let Some(cwd) = config.cwd {
             self.cwd = cwd;
         }
 
         if let Some(sort_direction) = config.sort_direction {
             self.sort_direction = sort_direction;
+        }
+
+        if let Some(git_ignore) = config.git_ignore {
+            self.git_ignore = git_ignore;
         }
     }
 
@@ -404,6 +409,7 @@ impl<T: Entry> BufferContents<T> for Picker<T> {
 pub struct Config {
     pub cwd: Option<String>,
     pub sort_direction: Option<SortDirection>,
+    pub git_ignore: Option<bool>,
 }
 
 impl FromLua<'_> for Config {
@@ -412,6 +418,7 @@ impl FromLua<'_> for Config {
         Ok(Config {
             cwd: table.get("cwd")?,
             sort_direction: table.get("sort_direction")?,
+            git_ignore: table.get("git_ignore")?,
         })
     }
 }

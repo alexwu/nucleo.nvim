@@ -1,3 +1,5 @@
+local api = vim.api
+
 local M = {}
 
 --- @private
@@ -7,11 +9,13 @@ M._rust = {
 }
 
 function M.setup(...)
-	require("nucleo.pickers").setup(...)
+	require("nucleo.config").setup(...)
+	api.nvim_create_user_command("Nucleo", function()
+		M.find()
+	end, {})
 end
 
 function M.find(...)
-	-- require("nucleo.pickers").find(...)
 	local Picker = require("nucleo.picker")
 
 	Picker({

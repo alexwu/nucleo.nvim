@@ -14,20 +14,31 @@ local nu = require("nucleo_rs")
 
 local api = vim.api
 
+---@class Receiver
+---@field recv fun()
+---@field last fun()
+
+---@class Sender
+---@field send fun()
+
+---@class PickerStatus
+---@field running boolean
+---@field changed boolean
+
 ---@class PickerBackend
 ---@field drain_channel fun(self: PickerBackend)
 ---@field force_rerender fun(self: PickerBackend)
 ---@field get_cursor_pos fun(self: PickerBackend): integer|nil
----@field get_selection fun(self: PickerBackend): PickerEntry
----@field selections fun(self: PickerBackend): PickerEntry[]
----@field selection_indices fun(self: PickerBackend): integer[]
+---@field get_selection fun(self: PickerBackend): Nucleo.Picker.Entry
 ---@field move_cursor_down fun(self: PickerBackend, delta?: integer)
 ---@field move_cursor_up fun(self: PickerBackend, delta?: integer)
 ---@field move_to_bottom fun(self: PickerBackend)
 ---@field move_to_top fun(self: PickerBackend)
 ---@field populate_files fun(self: PickerBackend)
 ---@field restart fun(self: PickerBackend)
----@field select fun(self: PickerBackend, pos: integer)
+---@field multiselect fun(self: PickerBackend, pos: integer)
+---@field selection_indices fun(self: PickerBackend): integer[]
+---@field selections fun(self: PickerBackend): Nucleo.Picker.Entry[]
 ---@field set_cursor fun(self: PickerBackend, pos: integer)
 ---@field should_rerender fun(self: PickerBackend): boolean
 ---@field sort_direction fun(self: PickerBackend): "descending"|"ascending"
@@ -39,6 +50,11 @@ local api = vim.api
 ---@field update_query fun(self: PickerBackend, query: string)
 ---@field update_window fun(self: PickerBackend, height: integer)
 ---@field window_height fun(self: PickerBackend): integer
+
+---@class Nucleo.FilePicker.Config
+---@field git_ignore boolean
+---@field cwd fun()|string
+---@field sort_direction "descending"|"ascending"
 
 ---@class Nucleo.Picker: Object
 local Picker = require("plenary.class"):extend()
@@ -132,6 +148,15 @@ function Picker:new(opts)
 		self.layout:unmount()
 	end)
 end
+---@param opts? Nucleo.FilePicker.Config
+---@return Nucleo.FilePicker.Config
+local function override(opts)
+	opts = opts or {}
+
+	local configs = { config.get("defaults"), config.get("sources", "files"), opts }
+
+	return vim.tbl_deep_extend("force", unpack(configs))
+end
 
 ---@param mode 'i'|'n'
 ---@param key string
@@ -151,8 +176,12 @@ end
 
 ---@param opts Nucleo.FilePicker.Config
 function Picker:find(opts)
-	opts = opts or {}
-	self.picker:update_config(opts)
+	local options = override(opts)
+	if type(options.cwd) == "function" then
+		options.cwd = options.cwd()
+	end
+
+	self.picker:update_config(options)
 	self.picker:populate_files()
 	self.picker:tick(10)
 
@@ -195,7 +224,7 @@ Picker.process_input = debounce(function(self, val)
 	-- self.picker:force_rerender()
 	log.info("Updated input: " .. val)
 
-	-- self.set_interval(10, self.check_for_updates)
+	self:set_interval(10, self.check_for_updates)
 
 	self.tx.send()
 end, 50)
@@ -245,6 +274,7 @@ function Picker:set_interval(interval, callback)
 		callback(self)
 	end)
 end
+
 Picker.check_for_updates = vim.schedule_wrap(a.void(function(self)
 	if not self.results or not self.picker then
 		return
