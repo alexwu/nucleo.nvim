@@ -11,6 +11,7 @@ mod buffer;
 mod injector;
 mod picker;
 mod previewer;
+mod state;
 
 pub fn init_picker(_: &Lua, params: (Option<picker::Config>,)) -> LuaResult<Picker<FileEntry>> {
     let config = match params.0 {
@@ -26,7 +27,7 @@ pub fn init_picker(_: &Lua, params: (Option<picker::Config>,)) -> LuaResult<Pick
 
     let mut picker = Picker::new(cwd, sort_direction);
 
-    picker.populate_files();
+    // picker.populate_files();
 
     Ok(picker)
 }

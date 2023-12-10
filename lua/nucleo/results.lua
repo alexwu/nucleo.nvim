@@ -2,7 +2,7 @@ local Entry = require("nucleo.entry")
 local NuiPopup = require("nui.popup")
 local log = require("nucleo.log")
 
----@class Results: NuiPopup
+---@class Nucleo.Results: NuiPopup
 local Results = NuiPopup:extend("Results")
 
 ---@class ResultsOptions
@@ -46,8 +46,6 @@ function Results:render_entries(picker)
 	if not self.winid then
 		return
 	end
-
-	-- picker:tick(10)
 
 	if picker:total_matches() == 0 then
 		if vim.api.nvim_buf_is_loaded(self.bufnr) and vim.api.nvim_win_is_valid(self.winid) then

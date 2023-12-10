@@ -11,7 +11,15 @@ function M.setup(...)
 end
 
 function M.find(...)
-	require("nucleo.pickers").find(...)
+	-- require("nucleo.pickers").find(...)
+	local Picker = require("nucleo.picker")
+
+	Picker({
+		on_submit = function(selection)
+			local path = selection.path
+			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
+		end,
+	}):find(...)
 end
 
 return setmetatable(M, {
