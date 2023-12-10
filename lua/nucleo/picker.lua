@@ -19,6 +19,8 @@ local api = vim.api
 ---@field force_rerender fun(self: PickerBackend)
 ---@field get_cursor_pos fun(self: PickerBackend): integer|nil
 ---@field get_selection fun(self: PickerBackend): PickerEntry
+---@field selections fun(self: PickerBackend): PickerEntry[]
+---@field selection_indices fun(self: PickerBackend): integer[]
 ---@field move_cursor_down fun(self: PickerBackend, delta?: integer)
 ---@field move_cursor_up fun(self: PickerBackend, delta?: integer)
 ---@field move_to_bottom fun(self: PickerBackend)

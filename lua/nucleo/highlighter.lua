@@ -1,5 +1,5 @@
 ---@class Nucleo.Highlighter: Object
----@field picker Picker
+---@field picker PickerBackend
 ---@field results Nucleo.Results
 ---@field bufnr number
 local Highlighter = require("plenary.class"):extend()
@@ -22,8 +22,8 @@ function Highlighter:new(opts)
 end
 
 ---@param highlighter Nucleo.Highlighter
----@param picker Picker
----@param results Results
+---@param picker PickerBackend
+---@param results Nucleo.Results
 local highlight_selection = function(highlighter, picker, results)
 	api.nvim_buf_clear_namespace(results.bufnr, ns_selection, 0, -1)
 
@@ -62,6 +62,15 @@ local highlight_selection = function(highlighter, picker, results)
 		end_row = line_nr + 1,
 		hl_group = "TelescopeSelection",
 	})
+
+	vim.iter(picker:selection_indices()):each(function(index)
+		api.nvim_buf_set_extmark(results.bufnr, ns_selection, index, 0, {
+			-- id = self.selection_caret_extmark_id,
+			hl_eol = false,
+			virt_text_win_col = 0,
+			virt_text = { { "+", "TelescopeMultiSelection" } },
+		})
+	end)
 end
 
 function Highlighter:highlight_selection()

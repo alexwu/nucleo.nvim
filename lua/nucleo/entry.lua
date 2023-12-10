@@ -15,6 +15,7 @@ function Entry:new(index, entry, bufnr)
 	self.entry = entry
 	self.bufnr = bufnr
 	self.selection_caret = " "
+	self.selection_caret_extmark_id = nil
 
 	local value, color = require("nvim-web-devicons").get_icon(entry.path, entry.file_type, { default = true })
 	self.icon = {

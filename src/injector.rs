@@ -2,10 +2,9 @@ use std::path::Path;
 
 use crossbeam_channel::unbounded;
 use ignore::{types::TypesBuilder, WalkBuilder};
-use nucleo::Utf32String;
 use tokio::{runtime::Runtime, task::JoinHandle};
 
-use crate::picker::Entry;
+use crate::{entry::Entry, picker::FileEntry};
 
 pub struct Injector<T: Entry>(nucleo::Injector<T>);
 
@@ -22,8 +21,9 @@ impl<T: Entry> Clone for Injector<T> {
 }
 
 impl<T: Entry> Injector<T> {
-    pub fn push(&self, value: T, fill_columns: impl FnOnce(&mut [Utf32String])) -> u32 {
-        self.0.push(value, fill_columns)
+    pub fn push(&self, value: T) -> u32 {
+        self.0
+            .push(value.clone(), |dst| dst[0] = value.into_utf32())
     }
 
     pub fn populate_files_sorted(self, cwd: String, git_ignore: bool) {
@@ -33,7 +33,7 @@ impl<T: Entry> Injector<T> {
         let (tx, rx) = unbounded::<T>();
         let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
             for val in rx.iter() {
-                self.push(val.clone(), |dst| dst[0] = val.into_utf32());
+                self.push(val);
             }
             anyhow::Ok(())
         });

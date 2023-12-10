@@ -7,10 +7,12 @@ use picker::{FileEntry, Picker};
 use simplelog::{Config, WriteLogger};
 
 mod buffer;
+mod entry;
 mod injector;
+mod matcher;
 mod picker;
 mod previewer;
-mod state;
+mod sources;
 
 pub fn init_picker(_: &Lua, params: (Option<picker::Config>,)) -> LuaResult<Picker<FileEntry>> {
     let config = match params.0 {
@@ -25,8 +27,6 @@ pub fn init_picker(_: &Lua, params: (Option<picker::Config>,)) -> LuaResult<Pick
     let sort_direction = config.sort_direction.unwrap_or_default();
 
     let picker = Picker::new(cwd, sort_direction);
-
-    // picker.populate_files();
 
     Ok(picker)
 }

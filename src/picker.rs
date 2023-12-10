@@ -19,17 +19,8 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
-use crate::injector::Injector;
-
-pub trait Entry: Serialize + Clone + Sync + Send + 'static {
-    fn into_utf32(self) -> Utf32String;
-    fn from_path(path: &Path, cwd: Option<String>) -> Self;
-    fn set_selected(&mut self, selected: bool);
-    fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
-    fn with_selected(self, selected: bool) -> Self;
-}
-
-pub struct Matcher<T: Entry>(pub Nucleo<T>);
+use crate::entry::Entry;
+use crate::matcher::{Matcher, Status};
 
 #[derive(Default)]
 pub struct StringMatcher(pub nucleo::Matcher);
@@ -37,36 +28,10 @@ pub struct StringMatcher(pub nucleo::Matcher);
 pub static STRING_MATCHER: Lazy<Arc<Mutex<StringMatcher>>> =
     Lazy::new(|| Arc::new(Mutex::new(StringMatcher::default())));
 
-pub struct Status(pub nucleo::Status);
-
-impl<T: Entry> Matcher<T> {
-    pub fn pattern(&mut self) -> &mut nucleo::pattern::MultiPattern {
-        &mut self.0.pattern
-    }
-
-    pub fn injector(&mut self) -> Injector<T> {
-        self.0.injector().into()
-    }
-
-    pub fn tick(&mut self, timeout: u64) -> Status {
-        Status(self.0.tick(timeout))
-    }
-
-    pub fn snapshot(&self) -> &nucleo::Snapshot<T> {
-        self.0.snapshot()
-    }
-}
-
 impl UserData for Status {
     fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
         fields.add_field_method_get("changed", |_, this| Ok(this.0.changed));
         fields.add_field_method_get("running", |_, this| Ok(this.0.running));
-    }
-}
-
-impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
-    fn from(value: Nucleo<T>) -> Self {
-        Matcher(value)
     }
 }
 
@@ -166,23 +131,17 @@ impl IntoLua<'_> for SortDirection {
     }
 }
 
-impl<T: Entry> Contents for Matcher<T> {
-    fn len(&self) -> usize {
-        self.0.snapshot().matched_item_count() as usize
-    }
-}
-
 pub struct Picker<T: Entry> {
     pub matcher: Matcher<T>,
     previous_query: String,
-    cwd: String,
     cursor: Cursor,
     window: Window,
     selections: BTreeSet<u32>,
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
-    git_ignore: bool,
     sort_direction: SortDirection,
+    cwd: String,
+    git_ignore: bool,
 }
 
 impl<T: Entry> Picker<T> {
@@ -343,21 +302,27 @@ impl<T: Entry> Picker<T> {
 
         snapshot
             .matched_items(lower_bound..upper_bound)
-            .map(|item| {
+            .enumerate()
+            .map(|(i, item)| {
                 snapshot.pattern().column_pattern(0).indices(
                     item.matcher_columns[0].slice(..),
                     string_matcher,
                     &mut indices,
                 );
-                // indices.sort_unstable();
                 indices.par_sort_unstable();
                 indices.dedup();
 
                 let ranges = range_rover(indices.drain(..))
                     .into_par_iter()
                     .map(|range| range.into_inner());
+                let selected = self
+                    .selections
+                    .contains(&i.try_into().expect("Selection index out of range"));
                 // TODO: Probably a better way to do this
-                item.data.clone().with_indices(ranges.collect())
+                item.data
+                    .clone()
+                    .with_indices(ranges.collect())
+                    .with_selected(selected)
             })
             .collect::<Vec<_>>()
     }
@@ -377,6 +342,7 @@ impl<T: Entry> Picker<T> {
 
     pub fn select(&mut self, index: u32) {
         self.selections.insert(index);
+        log::info!("selections: {:?}", &self.selections);
     }
 
     pub fn deselect(&mut self, index: u32) {
@@ -560,6 +526,14 @@ impl<T: Entry> UserData for Picker<T> {
                     Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.cursor.pos() )))
                 },
             }
+        });
+
+        methods.add_method("selection_indices", |lua, this, ()| {
+            Ok(lua.to_value(&this.selections))
+        });
+
+        methods.add_method("selections", |lua, this, ()| {
+            Ok(lua.to_value(&this.selections()))
         });
 
         methods.add_method_mut("select", |_lua, this, params: (usize,)| {
