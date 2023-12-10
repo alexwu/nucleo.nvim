@@ -55,6 +55,12 @@ local defaults = {
 					desc = "Move to the bottom of the results list",
 				},
 			},
+			["<C-r>"] = {
+				actions.force_refresh,
+				opts = {
+					desc = "Force refresh the picker",
+				},
+			},
 			["<C-s>"] = {
 				extensions.flash.jump,
 				opts = {

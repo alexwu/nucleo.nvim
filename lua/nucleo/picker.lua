@@ -116,65 +116,6 @@ function Picker:new(opts)
 		end)
 	end)
 
-	-- self.prompt:map("n", "<Esc>", function()
-	-- 	self.prompt:unmount()
-	-- end, { noremap = true })
-
-	-- self.prompt:map("i", "<Esc>", function()
-	-- 	self.prompt:unmount()
-	-- end, { noremap = true })
-
-	-- self.prompt:map("i", { "<C-n>", "<Down>" }, function()
-	-- 	self.picker:move_cursor_down()
-	-- 	self.tx.send()
-	-- end, { noremap = true })
-	--
-	-- self.prompt:map("i", { "<C-p>", "<Up>" }, function()
-	-- 	self.picker:move_cursor_up()
-	-- 	self.tx.send()
-	-- end, { noremap = true })
-
-	-- self.prompt:map("i", { "<ScrollWheelUp>" }, function()
-	-- 	local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
-	-- 	self.picker:move_cursor_up(delta)
-	-- 	self.tx.send()
-	-- end, { noremap = true })
-	--
-	-- self.prompt:map("i", { "<ScrollWheelDown>" }, function()
-	-- 	local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
-	-- 	self.picker:move_cursor_down(delta)
-	-- 	self.tx.send()
-	-- end, { noremap = true })
-
-	-- self.prompt:map("i", { "<Tab>" }, function()
-	-- 	local pos = self.picker:get_cursor_pos()
-	-- 	if pos then
-	-- 		self.picker:select(pos)
-	-- 		self.tx.send()
-	-- 	end
-	-- end, { noremap = true })
-
-	-- self.prompt:map("i", { "<C-b>" }, function()
-	-- 	self.picker:move_to_top()
-	-- 	self.tx.send()
-	-- end, { noremap = true })
-	--
-	-- self.prompt:map("i", { "<C-f>" }, function()
-	-- 	self.picker:move_to_bottom()
-	-- 	self.tx.send()
-	-- end, { noremap = true })
-
-	self.prompt:map("i", { "<C-r>" }, function()
-		self.picker:tick(10)
-		self.picker:force_rerender()
-		self.tx.send()
-	end, { noremap = true })
-
-	-- self.prompt:map("i", { "<C-s>" }, function()
-	-- 	extensions.flash.jump(self.picker, self.results)
-	-- 	self.tx.send()
-	-- end, { noremap = true })
-
 	self.results:on(event.BufWinEnter, function()
 		local height = math.max(api.nvim_win_get_height(self.results.winid), 10)
 

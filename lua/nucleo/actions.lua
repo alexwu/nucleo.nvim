@@ -46,4 +46,10 @@ function M.multiselect(picker)
 	end
 end
 
+---@param picker Nucleo.Picker
+function M.force_refresh(picker)
+	picker.picker:tick(10)
+	picker.picker:force_rerender()
+end
+
 return M
