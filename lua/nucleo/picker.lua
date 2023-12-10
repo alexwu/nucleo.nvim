@@ -227,6 +227,24 @@ function Picker:reset_cursor()
 	end
 end
 
+---@param interval integer
+---@param callback function
+function Picker:set_interval(interval, callback)
+	if not self.timer then
+		self.timer = vim.uv.new_timer()
+	elseif self.timer:is_closing() then
+		return
+	elseif self.timer:is_active() and interval ~= self.timer:get_repeat() then
+		self.timer:set_repeat(interval)
+		return
+	elseif self.timer:is_active() then
+		return
+	end
+
+	self.timer:start(interval, interval, function()
+		callback(self)
+	end)
+end
 Picker.check_for_updates = vim.schedule_wrap(a.void(function(self)
 	if not self.results or not self.picker then
 		return
@@ -254,7 +272,7 @@ function Picker:render()
 	local main_loop = a.void(function()
 		log.info("Starting main loop...")
 
-		-- self.set_interval(10, self.check_for_updates)
+		self:set_interval(10, self.check_for_updates)
 
 		await_schedule()
 

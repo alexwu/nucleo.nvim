@@ -4,6 +4,7 @@ local M = {}
 function M.jump(picker)
 	local has_flash, flash = pcall(require, "flash")
 	if not has_flash then
+		vim.notify("flash.nvim is not installed!", vim.log.levels.WARN)
 		return
 	end
 
