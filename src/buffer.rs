@@ -41,6 +41,10 @@ impl Window {
     pub fn end(&self) -> usize {
         self.pos + self.height
     }
+
+    pub fn height(&self) -> usize {
+        self.height
+    }
 }
 
 pub trait Contents {
@@ -128,8 +132,6 @@ pub trait BufferContents<T: Clone>: Contents + Sized {
             "window cursor pos: {}",
             self.get_cursor_pos(Relative::Window)
         );
-
-        log::info!("window height: {}", self.window_height());
         log::info!("window pos: {}", self.window().pos);
     }
 }

@@ -10,6 +10,8 @@ local nu = require("nucleo")
 local debounce = require("nucleo.debounce").debounce_trailing
 local Highlighter = require("nucleo.highlighter")
 local Previewer = require("nucleo.previewer")
+local extensions = require("nucleo.extensions")
+
 local api = vim.api
 
 local M = {}
@@ -32,6 +34,7 @@ local M = {}
 ---@class Picker
 ---@field update_query fun(self: Picker, query: string)
 ---@field update_cwd fun(self: Picker, cwd: string)
+---@field update_config fun(self: Picker, config: Nucleo.FilePicker.Config)
 ---@field update_window fun(self: Picker, height: integer)
 ---@field populate_files fun(self: Picker)
 ---@field restart fun(self: Picker)
@@ -41,10 +44,16 @@ local M = {}
 ---@field should_rerender fun(self: Picker): boolean
 ---@field force_rerender fun(self: Picker)
 ---@field drain_channel fun(self: Picker)
----@field move_cursor_up fun(self: Picker)
----@field move_cursor_down fun(self: Picker)
+---@field move_cursor_up fun(self: Picker, delta?: integer)
+---@field move_cursor_down fun(self: Picker, delta?: integer)
+---@field move_to_top fun(self: Picker)
+---@field move_to_bottom fun(self: Picker)
 ---@field get_selection fun(self: Picker): PickerEntry
 ---@field get_cursor_pos fun(self: Picker): integer|nil
+---@field select fun(self: Picker, pos: integer)
+---@field set_cursor fun(self: Picker, pos: integer)
+---@field window_height fun(self: Picker): integer
+---@field sort_direction fun(self: Picker): "descending"|"ascending"
 
 ---@type Picker|nil
 M.picker = nil
@@ -77,9 +86,9 @@ M.process_input = debounce(function(val)
 	M.queue_rerender()
 end, 50)
 
----@param opts? PickerOptions
+---@param opts? Nucleo.FilePicker.Config
 M.initialize = function(opts)
-	opts = opts or { cwd = vim.uv.cwd() }
+	opts = opts or { cwd = vim.uv.cwd(), sort_direction = "ascending" }
 	M.main_timer = vim.uv.new_timer()
 	---@type Sender, Receiver
 	M.tx, M.rx = channel.counter()
@@ -87,16 +96,17 @@ M.initialize = function(opts)
 	if not M.picker then
 		M.picker = nu.Picker(opts)
 	else
-		if opts.cwd then
-			M.picker:update_cwd(opts.cwd)
-		end
+		M.picker:update_config(opts)
 		M.picker:populate_files()
 	end
 
-	M.picker:tick(10)
-	M.picker:force_rerender()
+	a.run(function()
+		M.picker:tick(10)
+	end, function()
+		M.picker:force_rerender()
 
-	M.queue_rerender()
+		M.queue_rerender()
+	end)
 end
 
 ---@param interval integer
@@ -118,7 +128,7 @@ function M.set_interval(interval, callback)
 	end)
 end
 
-M.check_for_updates = vim.schedule_wrap(function()
+M.check_for_updates = vim.schedule_wrap(a.void(function()
 	if not M.results or not M.picker then
 		return
 	end
@@ -141,29 +151,23 @@ M.check_for_updates = vim.schedule_wrap(function()
 			-- M.main_timer:close()
 		end
 	end
+end))
+
+M.highlight_selection = a.void(function()
+	if M.picker:total_matches() > 0 then
+		M.highlighter:highlight_selection()
+		M.previewer:render(M.picker:get_selection().path)
+	else
+		M.previewer:clear()
+	end
 end)
 
-M.render_match_counts = vim.schedule_wrap(function()
-	if not M.picker or not M.prompt then
-		return
-	end
-
-	if not M.prompt.bufnr or not api.nvim_buf_is_loaded(M.prompt.bufnr) then
-		return
-	end
-
-	M.picker:tick(10)
-	local item_count = M.picker:total_items()
-	local match_count = M.picker:total_matches()
-
-	M.prompt:render_match_count(match_count, item_count)
-end)
-
----@class PickerOptions
+---@class Nucleo.FilePicker.Config
 ---@field cwd? string
 ---@field sort_direction? "ascending"|"descending"
+---@field git_ignore? boolean
 
----@param opts? PickerOptions
+---@param opts? Nucleo.FilePicker.Config
 M.find = function(opts)
 	M.original_winid = api.nvim_get_current_win()
 	M.original_cursor = api.nvim_win_get_cursor(M.original_winid)
@@ -178,6 +182,7 @@ M.find = function(opts)
 	})
 
 	M.prompt = Prompt({
+		picker = M.picker,
 		input_options = {
 			on_close = function()
 				if M.main_timer and not M.main_timer:is_closing() then
@@ -185,6 +190,8 @@ M.find = function(opts)
 					M.main_timer:close()
 				end
 				if M.picker then
+					M.prompt:stop()
+					M.picker:update_query("")
 					M.picker:restart()
 				end
 				if M.original_winid then
@@ -211,7 +218,9 @@ M.find = function(opts)
 					end
 					vim.cmd.drop(string.format("%s", vim.fn.fnameescape(selection)))
 
+					M.prompt:stop()
 					-- TODO: Figure out what to actually do here
+					M.picker:update_query("")
 					M.picker:restart()
 				end
 			end,
@@ -229,18 +238,53 @@ M.find = function(opts)
 
 	M.prompt:map("i", { "<C-n>", "<Down>" }, function()
 		M.picker:move_cursor_down()
-		-- M.highlighter:highlight_selection()
-		-- if M.picker:should_rerender() then
 		M.tx.send()
-		-- end
 	end, { noremap = true })
 
 	M.prompt:map("i", { "<C-p>", "<Up>" }, function()
 		M.picker:move_cursor_up()
-		-- M.highlighter:highlight_selection()
-		-- if M.picker:should_rerender() then
 		M.tx.send()
-		-- end
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<ScrollWheelUp>" }, function()
+		local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
+		M.picker:move_cursor_up(delta)
+		M.tx.send()
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<ScrollWheelDown>" }, function()
+		local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
+		M.picker:move_cursor_down(delta)
+		M.tx.send()
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<Tab>" }, function()
+		local pos = M.picker:get_cursor_pos()
+		if pos then
+			M.picker:select(pos)
+			M.tx.send()
+		end
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<C-b>" }, function()
+		M.picker:move_to_top()
+		M.tx.send()
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<C-f>" }, function()
+		M.picker:move_to_bottom()
+		M.tx.send()
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<C-r>" }, function()
+		M.picker:tick(10)
+		M.picker:force_rerender()
+		M.tx.send()
+	end, { noremap = true })
+
+	M.prompt:map("i", { "<C-s>" }, function()
+		extensions.flash.jump(M.picker, M.results)
+		M.tx.send()
 	end, { noremap = true })
 
 	local layout = Layout(
@@ -295,31 +339,26 @@ M.find = function(opts)
 				return
 			end
 
-			M.highlighter:highlight_selection()
+			M.highlight_selection()
 
 			local status = M.picker:tick(10)
 			if M.picker:should_rerender() or status.changed then
 				log.info("trying to render in the main loop")
 				log.info("Rendering with total matches: ", M.picker:total_matches())
 				M.picker:drain_channel()
-				M.render_match_counts()
 				M.render_matches()
 			end
 
-			if M.picker:total_matches() > 0 then
-				M.highlighter:highlight_selection()
-				M.previewer:render(M.picker:get_selection().path)
-			else
-				M.previewer:clear()
-			end
+			M.highlight_selection()
 		end
 	end)
 
+	M.prompt:update(100)
 	M.tx.send()
 	main_loop()
 end
 
-function M.setup()
+function M.setup(_)
 	api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})

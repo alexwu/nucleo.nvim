@@ -1,19 +1,22 @@
 use std::cmp::{max, min};
 use std::collections::BTreeSet;
 use std::path::Path;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use crossbeam_channel::bounded;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
-    FromLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
+    FromLua, IntoLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
 };
 use nucleo::pattern::CaseMatching;
 use nucleo::{Nucleo, Utf32String};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use range_rover::range_rover;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::injector::Injector;
@@ -134,11 +137,33 @@ impl Entry for FileEntry {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-enum SortDirection {
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum SortDirection {
     Ascending,
     #[default]
     Descending,
+}
+
+impl FromLua<'_> for SortDirection {
+    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
+        match value {
+            mlua::Value::String(str) => {
+                let direction = match SortDirection::from_str(str.to_str()?) {
+                    Ok(direction) => direction,
+                    Err(_) => SortDirection::Descending,
+                };
+                Ok(direction)
+            }
+            _ => Ok(SortDirection::Descending),
+        }
+    }
+}
+
+impl IntoLua<'_> for SortDirection {
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+        self.to_string().into_lua(lua)
+    }
 }
 
 impl<T: Entry> Contents for Matcher<T> {
@@ -149,7 +174,6 @@ impl<T: Entry> Contents for Matcher<T> {
 
 pub struct Picker<T: Entry> {
     pub matcher: Matcher<T>,
-    pub string_matcher: StringMatcher,
     previous_query: String,
     cwd: String,
     cursor: Cursor,
@@ -158,10 +182,11 @@ pub struct Picker<T: Entry> {
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
     git_ignore: bool,
+    sort_direction: SortDirection,
 }
 
 impl<T: Entry> Picker<T> {
-    pub fn new(cwd: String) -> Self {
+    pub fn new(cwd: String, sort_direction: SortDirection) -> Self {
         let (sender, receiver) = bounded::<()>(1);
         let notifier = sender.clone();
         let notify = Arc::new(move || {
@@ -170,14 +195,13 @@ impl<T: Entry> Picker<T> {
             };
         });
         let matcher: Matcher<T> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1).into();
-        let string_matcher = StringMatcher::default();
 
         Self {
             matcher,
-            string_matcher,
             cwd,
             receiver,
             sender,
+            sort_direction,
             git_ignore: true,
             cursor: Cursor::default(),
             previous_query: String::new(),
@@ -188,9 +212,9 @@ impl<T: Entry> Picker<T> {
 
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
-        if status.0.changed {
-            self.update_cursor();
-        }
+
+        self.update_cursor();
+
         status
     }
 
@@ -211,7 +235,7 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn lower_bound(&self) -> u32 {
-        max(self.window().start() as u32, 0)
+        max(self.window().start() as u32, 0).min(self.upper_bound())
     }
 
     pub fn upper_bound(&self) -> u32 {
@@ -222,6 +246,9 @@ impl<T: Entry> Picker<T> {
         self.set_cursor_pos(self.cursor.pos());
     }
 
+    pub fn window_height(&self) -> usize {
+        self.window.height()
+    }
     pub fn update_window(&mut self, height: u32) {
         log::info!("Setting upper bound to {}", &height);
         self.set_window_height(height.try_into().unwrap_or(usize::MAX));
@@ -245,6 +272,20 @@ impl<T: Entry> Picker<T> {
         self.cwd = cwd.to_string();
     }
 
+    pub fn update_config(&mut self, config: Config) {
+        // let cwd = match config.cwd {
+        //     Some(cwd) => cwd,
+        //     None => ;
+
+        if let Some(cwd) = config.cwd {
+            self.cwd = cwd;
+        }
+
+        if let Some(sort_direction) = config.sort_direction {
+            self.sort_direction = sort_direction;
+        }
+    }
+
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
         log::info!("Moving cursor {:?} by {}", direction, change);
         self.tick(10);
@@ -256,10 +297,10 @@ impl<T: Entry> Picker<T> {
         let last_window_pos = self.window().start();
 
         let new_pos = match direction {
-            Movement::Up => {
+            Movement::Down => {
                 self.cursor.pos().saturating_add(change as usize) as u32 % self.total_matches()
             }
-            Movement::Down => {
+            Movement::Up => {
                 self.cursor
                     .pos()
                     .saturating_add(self.total_matches() as usize)
@@ -276,6 +317,23 @@ impl<T: Entry> Picker<T> {
         log::info!("Selection index: {}", self.cursor.pos());
     }
 
+    pub fn move_cursor_to(&mut self, pos: usize) {
+        log::info!("Moving cursor to {}", pos);
+        self.tick(10);
+
+        if self.total_matches() == 0 {
+            return;
+        }
+
+        let last_window_pos = self.window().start();
+        self.set_cursor_pos(pos);
+        if last_window_pos != self.window().start() {
+            let _ = self.sender.try_send(());
+        }
+
+        log::info!("Selection index: {}", self.cursor.pos());
+    }
+
     pub fn current_matches(&self) -> Vec<T> {
         let mut indices = Vec::new();
         let snapshot = self.matcher.snapshot();
@@ -283,9 +341,8 @@ impl<T: Entry> Picker<T> {
         log::info!("Match count: {:?}", snapshot.matched_item_count());
         let string_matcher = &mut STRING_MATCHER.lock().0;
 
-        // FIXME: If the window start is greater than the upper bownd (if it falls back to toal matches),
-        let lower_bound = self.window().start() as u32;
-        let upper_bound = self.window().end().min(self.total_matches() as usize) as u32;
+        let lower_bound = self.lower_bound();
+        let upper_bound = self.upper_bound();
 
         snapshot
             .matched_items(lower_bound..upper_bound)
@@ -295,11 +352,12 @@ impl<T: Entry> Picker<T> {
                     string_matcher,
                     &mut indices,
                 );
-                indices.sort_unstable();
+                // indices.sort_unstable();
+                indices.par_sort_unstable();
                 indices.dedup();
 
                 let ranges = range_rover(indices.drain(..))
-                    .into_iter()
+                    .into_par_iter()
                     .map(|range| range.into_inner());
                 // TODO: Probably a better way to do this
                 item.data.clone().with_indices(ranges.collect())
@@ -330,7 +388,7 @@ impl<T: Entry> Picker<T> {
 
     pub fn selections(&self) -> Vec<T> {
         self.selections
-            .iter()
+            .par_iter()
             .filter_map(|selection| {
                 self.matcher
                     .snapshot()
@@ -351,7 +409,7 @@ impl<T: Entry> Picker<T> {
 
 impl<T: Entry> Default for Picker<T> {
     fn default() -> Self {
-        Self::new(String::new())
+        Self::new(String::new(), SortDirection::Descending)
     }
 }
 
@@ -386,6 +444,7 @@ impl<T: Entry> BufferContents<T> for Picker<T> {
 #[derive(Clone, Debug, Deserialize, Serialize, Default)]
 pub struct Config {
     pub cwd: Option<String>,
+    pub sort_direction: Option<SortDirection>,
 }
 
 impl FromLua<'_> for Config {
@@ -393,6 +452,7 @@ impl FromLua<'_> for Config {
         let table = LuaTable::from_lua(value, lua)?;
         Ok(Config {
             cwd: table.get("cwd")?,
+            sort_direction: table.get("sort_direction")?,
         })
     }
 }
@@ -409,13 +469,65 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
-        methods.add_method_mut("move_cursor_up", |_lua, this, ()| {
-            this.move_cursor(Movement::Down, 1);
+        methods.add_method_mut("update_config", |_lua, this, params: (Config,)| {
+            this.update_config(params.0);
             Ok(())
         });
 
-        methods.add_method_mut("move_cursor_down", |_lua, this, ()| {
-            this.move_cursor(Movement::Up, 1);
+        methods.add_method("sort_direction", |_lua, this, ()| Ok(this.sort_direction));
+
+        methods.add_method_mut("move_cursor_up", |_lua, this, params: (Option<u32>,)| {
+            let delta = params.0.unwrap_or(1);
+            match this.sort_direction {
+                SortDirection::Descending => {
+                    this.move_cursor(Movement::Up, delta);
+                }
+                SortDirection::Ascending => {
+                    this.move_cursor(Movement::Down, delta);
+                }
+            }
+            Ok(())
+        });
+
+        methods.add_method_mut("move_cursor_down", |_lua, this, params: (Option<u32>,)| {
+            let delta = params.0.unwrap_or(1);
+            match this.sort_direction {
+                SortDirection::Descending => {
+                    this.move_cursor(Movement::Down, delta);
+                }
+                SortDirection::Ascending => {
+                    this.move_cursor(Movement::Up, delta);
+                }
+            }
+            Ok(())
+        });
+
+        methods.add_method_mut("move_to_top", |_lua, this, ()| {
+            match this.sort_direction {
+                SortDirection::Descending => {
+                    this.move_cursor_to(0);
+                }
+                SortDirection::Ascending => {
+                    this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
+                }
+            }
+            Ok(())
+        });
+
+        methods.add_method_mut("move_to_bottom", |_lua, this, ()| {
+            match this.sort_direction {
+                SortDirection::Descending => {
+                    this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
+                }
+                SortDirection::Ascending => {
+                    this.move_cursor_to(0);
+                }
+            }
+            Ok(())
+        });
+
+        methods.add_method_mut("set_cursor", |_lua, this, params: (usize,)| {
+            this.set_cursor_pos_in_window(params.0);
             Ok(())
         });
 
@@ -423,6 +535,8 @@ impl<T: Entry> UserData for Picker<T> {
             this.update_window(params.0 as u32);
             Ok(())
         });
+
+        methods.add_method_mut("window_height", |_lua, this, ()| Ok(this.window_height()));
 
         methods.add_method("current_matches", |lua, this, ()| {
             Ok(lua.to_value(&this.current_matches()))
@@ -451,7 +565,15 @@ impl<T: Entry> UserData for Picker<T> {
             }
         });
 
-        methods.add_method_mut("tick", |_lua, this, ms: u64| Ok(this.tick(ms)));
+        methods.add_method_mut("select", |_lua, this, params: (usize,)| {
+            this.select(params.0.try_into().expect("Selection index out of bounds"));
+            Ok(())
+        });
+
+        methods.add_method_mut("tick", |_lua, this, ms: u64| {
+            let status = this.tick(ms);
+            Ok(status)
+        });
 
         methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
             this.populate_files();
