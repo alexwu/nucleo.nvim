@@ -93,10 +93,6 @@ impl Entry for FileEntry {
         }
     }
 
-    fn set_selected(&mut self, selected: bool) {
-        self.selected = selected;
-    }
-
     fn with_selected(self, selected: bool) -> Self {
         Self { selected, ..self }
     }

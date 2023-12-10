@@ -10,7 +10,6 @@ local event = require("nui.utils.autocmd").event
 local Results = require("nucleo.results")
 local a = require("plenary.async")
 local await_schedule = a.util.scheduler
-local extensions = require("nucleo.extensions")
 local nu = require("nucleo_rs")
 
 local api = vim.api
@@ -202,7 +201,6 @@ function Picker:apply_mapping(mode, key, mapping)
 	})
 
 	local opts = vim.tbl_extend("force", mapping.opts, { buffer = self.prompt.bufnr })
-	vim.print(opts)
 
 	vim.keymap.set(mode, key, function()
 		mapping[1](self)

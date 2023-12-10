@@ -11,6 +11,7 @@ local M = {}
 
 ---@class Nucleo.Keymap
 ---@field [integer] function
+---@field opts table
 
 ---@class Nucleo.Config.Values
 local defaults = {
