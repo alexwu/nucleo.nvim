@@ -5,7 +5,6 @@ use mlua::{UserData, UserDataMethods};
 use ropey::Rope;
 use serde::{Deserialize, Serialize};
 
-// TODO: Add caching
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Previewer {
     #[serde(skip)]

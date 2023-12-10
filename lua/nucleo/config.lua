@@ -18,6 +18,7 @@ local defaults = {
 		files = {
 			cwd = vim.uv.cwd,
 			git_ignore = true,
+			ignore = true,
 		},
 	},
 	---@class Nucleo.Keymaps

@@ -47,6 +47,12 @@ impl From<StringMatcher> for nucleo::Matcher {
     }
 }
 
+impl StringMatcher {
+    fn as_inner_mut(&mut self) -> &mut nucleo::Matcher {
+        &mut self.0
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
     Up,
@@ -138,18 +144,21 @@ pub struct Picker<T: Entry> {
     sort_direction: SortDirection,
     cwd: String,
     git_ignore: bool,
+    ignore: bool,
 }
 
 impl<T: Entry> Picker<T> {
     pub fn new(cwd: String, sort_direction: SortDirection) -> Self {
         let (sender, receiver) = bounded::<()>(1);
-        let notifier = sender.clone();
+        // let notifier = sender.clone();
+        // TODO: This hammers re-renders when loading lots of files. Is this even necessary?
         let notify = Arc::new(move || {
-            if notifier.try_send(()).is_ok() {
-                log::info!("Message sent!")
-            };
+            // if notifier.try_send(()).is_ok() {
+            //     log::info!("Message sent!")
+            // };
         });
-        let matcher: Matcher<T> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1).into();
+        let matcher: Matcher<T> =
+            Nucleo::new(nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
 
         Self {
             matcher,
@@ -158,6 +167,7 @@ impl<T: Entry> Picker<T> {
             sender,
             sort_direction,
             git_ignore: true,
+            ignore: true,
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: BTreeSet::new(),
@@ -167,6 +177,10 @@ impl<T: Entry> Picker<T> {
 
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
+        // if status.0.changed && self.total_matches() < self.window_height() as u32 {
+        if status.0.changed {
+            self.force_rerender();
+        }
 
         self.update_cursor();
 
@@ -179,6 +193,10 @@ impl<T: Entry> Picker<T> {
 
     pub fn should_rerender(&self) -> bool {
         !self.receiver.is_empty()
+    }
+
+    pub fn force_rerender(&mut self) {
+        let _ = self.sender.try_send(());
     }
 
     pub fn total_matches(&self) -> u32 {
@@ -221,6 +239,10 @@ impl<T: Entry> Picker<T> {
                 query.starts_with(&previous_query),
             );
             self.previous_query = query.to_string();
+            // TODO: Debounce this tick? This whole function?
+            // TODO: I feel like this can make this hitch scenarios where there's lots of matches...
+            self.tick(10);
+            self.force_rerender();
         }
     }
 
@@ -240,6 +262,10 @@ impl<T: Entry> Picker<T> {
 
         if let Some(git_ignore) = config.git_ignore {
             self.git_ignore = git_ignore;
+        }
+
+        if let Some(ignore) = config.ignore {
+            self.ignore = ignore;
         }
     }
 
@@ -296,7 +322,8 @@ impl<T: Entry> Picker<T> {
         let snapshot = self.matcher.snapshot();
         log::info!("Item count: {:?}", snapshot.item_count());
         log::info!("Match count: {:?}", snapshot.matched_item_count());
-        let string_matcher = &mut STRING_MATCHER.lock().0;
+        let matcher = &mut STRING_MATCHER.lock();
+        let string_matcher = matcher.as_inner_mut();
 
         let lower_bound = self.lower_bound();
         let upper_bound = self.upper_bound();
@@ -335,13 +362,14 @@ impl<T: Entry> Picker<T> {
     pub fn populate_files(&mut self) {
         let dir = self.cwd.clone();
         let git_ignore = self.git_ignore;
+        let ignore = self.ignore;
         let injector = self.matcher.injector();
-        std::thread::spawn(move || {
-            injector.populate_files_sorted(dir, git_ignore);
+        rayon::spawn(move || {
+            injector.populate_files_sorted(dir, git_ignore, ignore);
         });
     }
 
-    pub fn select(&mut self, index: u32) {
+    pub fn multiselect(&mut self, index: u32) {
         self.selections.insert(index);
         log::info!("selections: {:?}", &self.selections);
     }
@@ -410,15 +438,26 @@ pub struct Config {
     pub cwd: Option<String>,
     pub sort_direction: Option<SortDirection>,
     pub git_ignore: Option<bool>,
+    pub ignore: Option<bool>,
 }
 
 impl FromLua<'_> for Config {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
+        let cwd = match table.get::<&str, LuaValue>("cwd") {
+            Ok(val) => match val {
+                LuaValue::String(cwd) => Some(cwd.to_string_lossy().to_string()),
+                LuaValue::Function(thunk) => Some(thunk.call::<_, String>(())?),
+                _ => None,
+            },
+            _ => None,
+        };
+
         Ok(Config {
-            cwd: table.get("cwd")?,
+            cwd,
             sort_direction: table.get("sort_direction")?,
             git_ignore: table.get("git_ignore")?,
+            ignore: table.get("ignore")?,
         })
     }
 }
@@ -540,7 +579,7 @@ impl<T: Entry> UserData for Picker<T> {
         });
 
         methods.add_method_mut("select", |_lua, this, params: (usize,)| {
-            this.select(params.0.try_into().expect("Selection index out of bounds"));
+            this.multiselect(params.0.try_into().expect("Selection index out of bounds"));
             Ok(())
         });
 

@@ -26,7 +26,7 @@ impl<T: Entry> Injector<T> {
             .push(value.clone(), |dst| dst[0] = value.into_utf32())
     }
 
-    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool) {
+    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool, ignore: bool) {
         log::info!("Populating picker with {}", &cwd);
         let runtime = Runtime::new().expect("Failed to create runtime");
 
@@ -46,7 +46,7 @@ impl<T: Entry> Injector<T> {
                 .hidden(false)
                 .follow_links(true)
                 .git_ignore(git_ignore)
-                .ignore(true)
+                .ignore(ignore)
                 .sort_by_file_name(std::cmp::Ord::cmp);
 
             let mut type_builder = TypesBuilder::new();

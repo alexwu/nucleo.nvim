@@ -41,8 +41,7 @@ end
 function M.multiselect(picker)
 	local pos = picker.picker:get_cursor_pos()
 	if pos then
-		picker.picker:select(pos)
-		picker.tx.send()
+		picker.picker:multiselect(pos)
 	end
 end
 

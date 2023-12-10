@@ -2,14 +2,14 @@ local Highlighter = require("nucleo.highlighter")
 local debounce = require("nucleo.debounce").debounce_trailing
 local Layout = require("nui.layout")
 local log = require("nucleo.log")
-local channel = require("plenary.async.control").channel
+local channel = require("nucleo.async").channel
 local Previewer = require("nucleo.previewer")
 local Prompt = require("nucleo.prompt")
 local config = require("nucleo.config")
 local event = require("nui.utils.autocmd").event
 local Results = require("nucleo.results")
-local a = require("plenary.async")
-local await_schedule = a.util.scheduler
+local a = require("nucleo.async").a
+local await_schedule = require("nucleo.async").scheduler
 local nu = require("nucleo_rs")
 
 local api = vim.api
@@ -55,6 +55,7 @@ local api = vim.api
 ---@field git_ignore boolean
 ---@field cwd fun()|string
 ---@field sort_direction "descending"|"ascending"
+---@field ignore boolean
 
 ---@class Nucleo.Picker: Object
 local Picker = require("plenary.class"):extend()
@@ -177,9 +178,9 @@ end
 ---@param opts Nucleo.FilePicker.Config
 function Picker:find(opts)
 	local options = override(opts)
-	if type(options.cwd) == "function" then
-		options.cwd = options.cwd()
-	end
+	-- if type(options.cwd) == "function" then
+	-- 	options.cwd = options.cwd()
+	-- end
 
 	self.picker:update_config(options)
 	self.picker:populate_files()
@@ -224,7 +225,7 @@ Picker.process_input = debounce(function(self, val)
 	-- self.picker:force_rerender()
 	log.info("Updated input: " .. val)
 
-	self:set_interval(10, self.check_for_updates)
+	-- self:check_for_updates(10)
 
 	self.tx.send()
 end, 50)
@@ -256,12 +257,10 @@ function Picker:reset_cursor()
 	end
 end
 
+---@param self Nucleo.Picker
 ---@param interval integer
----@param callback function
-function Picker:set_interval(interval, callback)
-	if not self.timer then
-		self.timer = vim.uv.new_timer()
-	elseif self.timer:is_closing() then
+Picker.check_for_updates = function(self, interval)
+	if self.timer:is_closing() then
 		return
 	elseif self.timer:is_active() and interval ~= self.timer:get_repeat() then
 		self.timer:set_repeat(interval)
@@ -270,31 +269,35 @@ function Picker:set_interval(interval, callback)
 		return
 	end
 
-	self.timer:start(interval, interval, function()
-		callback(self)
-	end)
+	self.timer:start(
+		interval,
+		interval,
+		a.void(function()
+			if not self.results or not self.picker then
+				self:shutdown_timer()
+				return
+			end
+
+			await_schedule()
+
+			log.info("Checking for updates...")
+			if not self.results.bufnr or not api.nvim_buf_is_loaded(self.results.bufnr) then
+				self:shutdown_timer()
+				return
+			end
+
+			-- TODO: How do i stop from re-rendering when there's no real changes to the buffer?
+			local status = self.picker:tick(10)
+			if
+				(self.picker:total_items() < self.picker:window_height() and (status.changed or status.running))
+				or self.picker:should_rerender()
+			then
+				self.picker:force_rerender()
+				self.tx.send()
+			end
+		end)
+	)
 end
-
-Picker.check_for_updates = vim.schedule_wrap(a.void(function(self)
-	if not self.results or not self.picker then
-		return
-	end
-
-	log.info("Checking for updates...")
-	if not self.results.bufnr or not api.nvim_buf_is_loaded(self.results.bufnr) then
-		self:shutdown_timer()
-	end
-
-	local status = self.picker:tick(10)
-	if status.changed or status.running or self.picker:should_rerender() then
-		self.picker:force_rerender()
-		self.tx.send()
-	end
-
-	if not (status.running or status.changed or self.picker:should_rerender()) and self.picker:total_items() > 0 then
-		self:shutdown_timer()
-	end
-end))
 
 function Picker:render()
 	self.layout:show()
@@ -302,7 +305,7 @@ function Picker:render()
 	local main_loop = a.void(function()
 		log.info("Starting main loop...")
 
-		self:set_interval(10, self.check_for_updates)
+		self:check_for_updates(100)
 
 		await_schedule()
 
