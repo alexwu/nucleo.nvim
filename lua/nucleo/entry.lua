@@ -1,10 +1,15 @@
----@class Entry
+---@class Entry: Object
+---@field index number
+---@field bufnr number
+---@field selection_caret string
+---@field icon { value: string, color: string }
 local Entry = require("plenary.class"):extend()
 local Line = require("nucleo.line")
 local Text = require("nui.text")
 
 local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
 
+---@param index number Lua index-ed
 function Entry:new(index, entry, bufnr)
 	self.index = index
 	self.entry = entry
@@ -18,24 +23,15 @@ function Entry:new(index, entry, bufnr)
 	}
 end
 
----@param cursor number
----@return string
-function Entry:render(cursor)
-	if self.index == cursor + 1 then
-		self.selection_caret = ""
-	else
-		self.selection_caret = " "
-	end
-
-	-- TODO: Make the separator a part of the Line API
-	local picker_icon = Text(self.selection_caret, "TelescopeSelectionCaret")
+function Entry:render()
+	local picker_icon = Text(self.selection_caret, "Normal")
 	local icon = Text(self.icon.value, self.icon.color)
-	local path = Text(self.entry.path)
+	local path = Text(self.entry.match_value)
 	local line = Line({ picker_icon, icon, path })
 
 	local leading_length = picker_icon:length() + icon:length()
 
-	line:render(self.bufnr, -1, self.index, -1)
+	line:render(self.bufnr, -1, self.index)
 	vim.iter(self.entry.indices):each(function(range)
 		vim.highlight.range(
 			self.bufnr,

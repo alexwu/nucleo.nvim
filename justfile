@@ -14,6 +14,7 @@ fmt:
 
 clean-lua:
     rm -f ./lua/nucleo_nvim.{{ bin_ext_output }}
+    rm -f ./lua/nucleo_rs.{{ bin_ext_output }}
 
 clean-cargo:
     cargo clean
@@ -22,11 +23,11 @@ clean: clean-lua clean-cargo
 
 build: clean-lua
     cargo build
-    cp ./target/debug/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_nvim.{{ bin_ext_output }}
+    cp ./target/debug/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_rs.{{ bin_ext_output }}
 
 release: clean-lua
     cargo build --release
-    cp ./target/release/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_nvim.{{ bin_ext_output }}
+    cp ./target/release/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_rs.{{ bin_ext_output }}
 
 clippy:
     cargo clippy --all --all-targets --all-features
