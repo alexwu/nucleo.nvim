@@ -255,13 +255,13 @@ impl<T: Entry> Picker<T> {
         self.set_window_height(height.try_into().unwrap_or(usize::MAX));
     }
 
-    pub fn update_query(&mut self, query: String) {
+    pub fn update_query(&mut self, query: &str) {
         log::info!("Updating query: {}", &query);
         let previous_query = self.previous_query.clone();
         if query != previous_query {
             self.matcher.pattern().reparse(
                 0,
-                &query,
+                query,
                 CaseMatching::Smart,
                 query.starts_with(&previous_query),
             );
@@ -274,10 +274,6 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn update_config(&mut self, config: Config) {
-        // let cwd = match config.cwd {
-        //     Some(cwd) => cwd,
-        //     None => ;
-
         if let Some(cwd) = config.cwd {
             self.cwd = cwd;
         }
@@ -461,7 +457,7 @@ impl FromLua<'_> for Config {
 impl<T: Entry> UserData for Picker<T> {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
-            this.update_query(params.0);
+            this.update_query(&params.0);
             Ok(())
         });
 
