@@ -5,6 +5,7 @@ local log = require("nucleo.log")
 local channel = require("plenary.async.control").channel
 local Previewer = require("nucleo.previewer")
 local Prompt = require("nucleo.prompt")
+local config = require("nucleo.config")
 local event = require("nui.utils.autocmd").event
 local Results = require("nucleo.results")
 local a = require("plenary.async")
@@ -54,6 +55,7 @@ function Picker:new(opts)
 	self.timer = vim.uv.new_timer()
 	---@type Sender, Receiver
 	self.tx, self.rx = channel.counter()
+	---@type PickerBackend
 	self.picker = nu.Picker(opts)
 	self.results = Results()
 	self.previewer = Previewer()
@@ -107,53 +109,61 @@ function Picker:new(opts)
 		}, { dir = "col" })
 	)
 
-	self.prompt:map("n", "<Esc>", function()
-		self.prompt:unmount()
-	end, { noremap = true })
+	local default_mappings = config.get("mappings")
 
-	self.prompt:map("i", "<Esc>", function()
-		self.prompt:unmount()
-	end, { noremap = true })
+	vim.iter(default_mappings):each(function(mode, mappings)
+		vim.iter(mappings):each(function(key, mapping)
+			self:apply_mapping(mode, key, mapping)
+		end)
+	end)
 
-	self.prompt:map("i", { "<C-n>", "<Down>" }, function()
-		self.picker:move_cursor_down()
-		self.tx.send()
-	end, { noremap = true })
+	-- self.prompt:map("n", "<Esc>", function()
+	-- 	self.prompt:unmount()
+	-- end, { noremap = true })
 
-	self.prompt:map("i", { "<C-p>", "<Up>" }, function()
-		self.picker:move_cursor_up()
-		self.tx.send()
-	end, { noremap = true })
+	-- self.prompt:map("i", "<Esc>", function()
+	-- 	self.prompt:unmount()
+	-- end, { noremap = true })
 
-	self.prompt:map("i", { "<ScrollWheelUp>" }, function()
-		local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
-		self.picker:move_cursor_up(delta)
-		self.tx.send()
-	end, { noremap = true })
+	-- self.prompt:map("i", { "<C-n>", "<Down>" }, function()
+	-- 	self.picker:move_cursor_down()
+	-- 	self.tx.send()
+	-- end, { noremap = true })
+	--
+	-- self.prompt:map("i", { "<C-p>", "<Up>" }, function()
+	-- 	self.picker:move_cursor_up()
+	-- 	self.tx.send()
+	-- end, { noremap = true })
 
-	self.prompt:map("i", { "<ScrollWheelDown>" }, function()
-		local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
-		self.picker:move_cursor_down(delta)
-		self.tx.send()
-	end, { noremap = true })
+	-- self.prompt:map("i", { "<ScrollWheelUp>" }, function()
+	-- 	local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
+	-- 	self.picker:move_cursor_up(delta)
+	-- 	self.tx.send()
+	-- end, { noremap = true })
+	--
+	-- self.prompt:map("i", { "<ScrollWheelDown>" }, function()
+	-- 	local delta = tonumber(vim.split(vim.opt.mousescroll:get()[1], ":")[2])
+	-- 	self.picker:move_cursor_down(delta)
+	-- 	self.tx.send()
+	-- end, { noremap = true })
 
-	self.prompt:map("i", { "<Tab>" }, function()
-		local pos = self.picker:get_cursor_pos()
-		if pos then
-			self.picker:select(pos)
-			self.tx.send()
-		end
-	end, { noremap = true })
+	-- self.prompt:map("i", { "<Tab>" }, function()
+	-- 	local pos = self.picker:get_cursor_pos()
+	-- 	if pos then
+	-- 		self.picker:select(pos)
+	-- 		self.tx.send()
+	-- 	end
+	-- end, { noremap = true })
 
-	self.prompt:map("i", { "<C-b>" }, function()
-		self.picker:move_to_top()
-		self.tx.send()
-	end, { noremap = true })
-
-	self.prompt:map("i", { "<C-f>" }, function()
-		self.picker:move_to_bottom()
-		self.tx.send()
-	end, { noremap = true })
+	-- self.prompt:map("i", { "<C-b>" }, function()
+	-- 	self.picker:move_to_top()
+	-- 	self.tx.send()
+	-- end, { noremap = true })
+	--
+	-- self.prompt:map("i", { "<C-f>" }, function()
+	-- 	self.picker:move_to_bottom()
+	-- 	self.tx.send()
+	-- end, { noremap = true })
 
 	self.prompt:map("i", { "<C-r>" }, function()
 		self.picker:tick(10)
@@ -161,10 +171,10 @@ function Picker:new(opts)
 		self.tx.send()
 	end, { noremap = true })
 
-	self.prompt:map("i", { "<C-s>" }, function()
-		extensions.flash.jump(self.picker, self.results)
-		self.tx.send()
-	end, { noremap = true })
+	-- self.prompt:map("i", { "<C-s>" }, function()
+	-- 	extensions.flash.jump(self.picker, self.results)
+	-- 	self.tx.send()
+	-- end, { noremap = true })
 
 	self.results:on(event.BufWinEnter, function()
 		local height = math.max(api.nvim_win_get_height(self.results.winid), 10)
@@ -181,6 +191,23 @@ function Picker:new(opts)
 	self.prompt:on(event.BufLeave, function()
 		self.layout:unmount()
 	end)
+end
+
+---@param mode 'i'|'n'
+---@param key string
+---@param mapping Nucleo.Keymap
+function Picker:apply_mapping(mode, key, mapping)
+	vim.validate({
+		callback = { mapping[1], "f" },
+	})
+
+	local opts = vim.tbl_extend("force", mapping.opts, { buffer = self.prompt.bufnr })
+	vim.print(opts)
+
+	vim.keymap.set(mode, key, function()
+		mapping[1](self)
+		self.tx:send()
+	end, opts)
 end
 
 ---@param opts Nucleo.FilePicker.Config

@@ -1,8 +1,7 @@
 local M = {}
 
----@param picker Picker
----@param results Results
-function M.jump(picker, results)
+---@param picker Nucleo.Picker
+function M.jump(picker)
 	local has_flash, flash = pcall(require, "flash")
 	if not has_flash then
 		return
@@ -16,15 +15,15 @@ function M.jump(picker, results)
 			multi_window = true,
 			exclude = {
 				function(win)
-					return win ~= results.winid
+					return win ~= picker.results.winid
 				end,
 			},
 		},
 		action = function(match)
-			if picker:sort_direction() == "ascending" then
-				picker:set_cursor(picker:window_height() - match.pos[1])
+			if picker.picker:sort_direction() == "ascending" then
+				picker.picker:set_cursor(picker.picker:window_height() - match.pos[1])
 			else
-				picker:set_cursor(match.pos[1] - 1)
+				picker.picker:set_cursor(match.pos[1] - 1)
 			end
 		end,
 		highlight = { backdrop = false },

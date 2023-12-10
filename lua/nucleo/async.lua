@@ -3,6 +3,8 @@ local api = vim.api
 
 local M = {}
 
+---@type function:qa
+
 M.scheduler = a.util.scheduler
 
 --- @param buf? integer
