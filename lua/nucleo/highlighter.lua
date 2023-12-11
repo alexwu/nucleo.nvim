@@ -63,14 +63,14 @@ local highlight_selection = function(highlighter, picker, results)
 		hl_group = "TelescopeSelection",
 	})
 
-	vim.iter(picker:selection_indices()):each(function(index)
-		api.nvim_buf_set_extmark(results.bufnr, ns_selection, index, 0, {
-			-- id = self.selection_caret_extmark_id,
-			hl_eol = false,
-			virt_text_win_col = 0,
-			virt_text = { { "+", "TelescopeMultiSelection" } },
-		})
-	end)
+	-- vim.iter(picker:selection_indices()):each(function(index)
+	-- 	api.nvim_buf_set_extmark(results.bufnr, ns_selection, index, 0, {
+	-- 		-- id = self.selection_caret_extmark_id,
+	-- 		hl_eol = false,
+	-- 		virt_text_win_col = 0,
+	-- 		virt_text = { { "+", "TelescopeMultiSelection" } },
+	-- 	})
+	-- end)
 end
 
 function Highlighter:highlight_selection()

@@ -1,5 +1,6 @@
 use std::cmp::{max, min};
-use std::collections::BTreeSet;
+use std::collections::HashMap;
+use std::ops::RangeInclusive;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -51,6 +52,10 @@ impl StringMatcher {
     fn as_inner_mut(&mut self) -> &mut nucleo::Matcher {
         &mut self.0
     }
+
+    fn update_config(&mut self, config: nucleo::Config) {
+        self.0.config = config;
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -68,7 +73,17 @@ pub struct FileEntry {
     pub indices: Vec<(u32, u32)>,
 }
 
+impl PartialEq for FileEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path && self.match_value == other.match_value
+    }
+}
+
 impl Entry for FileEntry {
+    fn display(&self) -> String {
+        self.match_value.to_string()
+    }
+
     fn into_utf32(self) -> Utf32String {
         self.match_value.into()
     }
@@ -138,7 +153,7 @@ pub struct Picker<T: Entry> {
     previous_query: String,
     cursor: Cursor,
     window: Window,
-    selections: BTreeSet<u32>,
+    selections: HashMap<String, T>,
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
     sort_direction: SortDirection,
@@ -170,7 +185,7 @@ impl<T: Entry> Picker<T> {
             ignore: true,
             cursor: Cursor::default(),
             previous_query: String::new(),
-            selections: BTreeSet::new(),
+            selections: HashMap::new(),
             window: Window::new(50),
         }
     }
@@ -244,10 +259,6 @@ impl<T: Entry> Picker<T> {
             self.tick(10);
             self.force_rerender();
         }
-    }
-
-    pub fn update_cwd(&mut self, cwd: &str) {
-        self.cwd = cwd.to_string();
     }
 
     pub fn update_config(&mut self, config: Config) {
@@ -330,8 +341,7 @@ impl<T: Entry> Picker<T> {
 
         snapshot
             .matched_items(lower_bound..upper_bound)
-            .enumerate()
-            .map(|(i, item)| {
+            .map(|item| {
                 snapshot.pattern().column_pattern(0).indices(
                     item.matcher_columns[0].slice(..),
                     string_matcher,
@@ -342,10 +352,11 @@ impl<T: Entry> Picker<T> {
 
                 let ranges = range_rover(indices.drain(..))
                     .into_par_iter()
-                    .map(|range| range.into_inner());
-                let selected = self
-                    .selections
-                    .contains(&i.try_into().expect("Selection index out of range"));
+                    .map(RangeInclusive::into_inner);
+                let selected = self.selections.contains_key(&item.data.display());
+                if selected {
+                    log::info!("{:?} is selected", &item.data);
+                }
                 // TODO: Probably a better way to do this
                 item.data
                     .clone()
@@ -370,24 +381,46 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn multiselect(&mut self, index: u32) {
-        self.selections.insert(index);
-        log::info!("selections: {:?}", &self.selections);
+        let snapshot = self.matcher.snapshot();
+        match snapshot.get_matched_item(index) {
+            Some(entry) => {
+                // WARN: This worries me...can these become out of sync?
+                self.selections
+                    .insert(entry.data.display(), entry.data.clone());
+                log::info!("multi-selections: {:?}", &self.selections);
+            }
+            None => {
+                log::info!("Error multi-selecting index: {}", index);
+            }
+        };
     }
 
-    pub fn deselect(&mut self, index: u32) {
-        self.selections.remove(&index);
+    pub fn deselect(&mut self, key: String) {
+        self.selections.remove(&key);
+    }
+
+    pub fn toggle_selection(&mut self, index: u32) {
+        let snapshot = self.matcher.snapshot();
+        match snapshot.get_matched_item(index) {
+            Some(entry) => {
+                // WARN: This worries me...can these become out of sync?
+                if let std::collections::hash_map::Entry::Vacant(e) =
+                    self.selections.entry(entry.data.display())
+                {
+                    e.insert(entry.data.clone());
+                } else {
+                    self.deselect(entry.data.display());
+                }
+                log::info!("multi-selections: {:?}", &self.selections);
+            }
+            None => {
+                log::info!("Error multi-selecting index: {}", index);
+            }
+        };
     }
 
     pub fn selections(&self) -> Vec<T> {
-        self.selections
-            .par_iter()
-            .filter_map(|selection| {
-                self.matcher
-                    .snapshot()
-                    .get_matched_item(*selection)
-                    .map(|item| item.data.clone())
-            })
-            .collect()
+        self.selections.clone().into_values().collect()
     }
 
     pub fn cursor_pos(&self) -> Option<u32> {
@@ -466,11 +499,6 @@ impl<T: Entry> UserData for Picker<T> {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
             this.update_query(&params.0);
-            Ok(())
-        });
-
-        methods.add_method_mut("update_cwd", |_lua, this, params: (String,)| {
-            this.update_cwd(&params.0);
             Ok(())
         });
 
@@ -578,8 +606,13 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(lua.to_value(&this.selections()))
         });
 
-        methods.add_method_mut("select", |_lua, this, params: (usize,)| {
-            this.multiselect(params.0.try_into().expect("Selection index out of bounds"));
+        methods.add_method_mut("multiselect", |_lua, this, params: (u32,)| {
+            this.multiselect(params.0);
+            Ok(())
+        });
+
+        methods.add_method_mut("toggle_selection", |_lua, this, params: (u32,)| {
+            this.toggle_selection(params.0);
             Ok(())
         });
 

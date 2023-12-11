@@ -37,6 +37,7 @@ local api = vim.api
 ---@field populate_files fun(self: PickerBackend)
 ---@field restart fun(self: PickerBackend)
 ---@field multiselect fun(self: PickerBackend, pos: integer)
+---@field toggle_selection fun(self: PickerBackend, pos: integer)
 ---@field selection_indices fun(self: PickerBackend): integer[]
 ---@field selections fun(self: PickerBackend): Nucleo.Picker.Entry[]
 ---@field set_cursor fun(self: PickerBackend, pos: integer)
@@ -46,7 +47,6 @@ local api = vim.api
 ---@field total_items fun(self: PickerBackend): integer
 ---@field total_matches fun(self: PickerBackend): integer
 ---@field update_config fun(self: PickerBackend, config: Nucleo.FilePicker.Config)
----@field update_cwd fun(self: PickerBackend, cwd: string)
 ---@field update_query fun(self: PickerBackend, query: string)
 ---@field update_window fun(self: PickerBackend, height: integer)
 ---@field window_height fun(self: PickerBackend): integer
@@ -178,9 +178,6 @@ end
 ---@param opts Nucleo.FilePicker.Config
 function Picker:find(opts)
 	local options = override(opts)
-	-- if type(options.cwd) == "function" then
-	-- 	options.cwd = options.cwd()
-	-- end
 
 	self.picker:update_config(options)
 	self.picker:populate_files()

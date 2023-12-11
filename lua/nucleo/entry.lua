@@ -6,6 +6,7 @@
 local Entry = require("plenary.class"):extend()
 local Line = require("nucleo.line")
 local Text = require("nui.text")
+local api = vim.api
 
 local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
 
@@ -14,12 +15,13 @@ local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
 ---@field file_type string
 
 ---@param index number Lua index-ed
-function Entry:new(index, entry, bufnr)
+function Entry:new(index, entry, bufnr, ns_multiselection_id)
 	self.index = index
 	self.entry = entry
 	self.bufnr = bufnr
 	self.selection_caret = " "
 	self.selection_caret_extmark_id = nil
+	self.ns_multiselection_id = ns_multiselection_id
 
 	local value, color = require("nvim-web-devicons").get_icon(entry.path, entry.file_type, { default = true })
 	self.icon = {
@@ -47,6 +49,18 @@ function Entry:render()
 			{ inclusive = true }
 		)
 	end)
+
+	if self.entry.selected then
+		self.selection_caret_extmark_id =
+			api.nvim_buf_set_extmark(self.bufnr, self.ns_multiselection_id, self.index - 1, 0, {
+				id = self.selection_caret_extmark_id,
+				hl_eol = false,
+				virt_text_win_col = 0,
+				virt_text = { { "+", "TelescopeMultiSelection" } },
+			})
+	else
+		self.selection_caret_extmark_id = nil
+	end
 end
 
 return Entry

@@ -28,3 +28,9 @@ impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
         Matcher(value)
     }
 }
+
+impl<T: Entry> Matcher<T> {
+    fn update_config(&mut self, config: nucleo::Config) {
+        self.0.update_config(config);
+    }
+}

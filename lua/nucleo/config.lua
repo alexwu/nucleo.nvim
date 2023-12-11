@@ -97,6 +97,12 @@ local defaults = {
 					desc = "Close the picker",
 				},
 			},
+			["<C-v>"] = {
+				actions.open_in_vsplit,
+				opts = {
+					desc = "Open current selection in vertical split",
+				},
+			},
 		},
 		n = {
 			["<Esc>"] = {
