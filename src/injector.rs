@@ -2,10 +2,9 @@ use std::path::Path;
 
 use crossbeam_channel::unbounded;
 use ignore::{types::TypesBuilder, WalkBuilder};
-use nucleo::Utf32String;
 use tokio::{runtime::Runtime, task::JoinHandle};
 
-use crate::picker::Entry;
+use crate::entry::Entry;
 
 pub struct Injector<T: Entry>(nucleo::Injector<T>);
 
@@ -22,18 +21,19 @@ impl<T: Entry> Clone for Injector<T> {
 }
 
 impl<T: Entry> Injector<T> {
-    pub fn push(&self, value: T, fill_columns: impl FnOnce(&mut [Utf32String])) -> u32 {
-        self.0.push(value, fill_columns)
+    pub fn push(&self, value: T) -> u32 {
+        self.0
+            .push(value.clone(), |dst| dst[0] = value.into_utf32())
     }
 
-    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool) {
+    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool, ignore: bool, hidden: bool) {
         log::info!("Populating picker with {}", &cwd);
         let runtime = Runtime::new().expect("Failed to create runtime");
 
         let (tx, rx) = unbounded::<T>();
         let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
             for val in rx.iter() {
-                self.push(val.clone(), |dst| dst[0] = val.into_utf32());
+                self.push(val);
             }
             anyhow::Ok(())
         });
@@ -43,10 +43,10 @@ impl<T: Entry> Injector<T> {
             log::info!("Spawning sorted file searcher...");
             let mut walk_builder = WalkBuilder::new(dir);
             walk_builder
-                .hidden(false)
+                .hidden(hidden)
                 .follow_links(true)
                 .git_ignore(git_ignore)
-                .ignore(true)
+                .ignore(ignore)
                 .sort_by_file_name(std::cmp::Ord::cmp);
 
             let mut type_builder = TypesBuilder::new();

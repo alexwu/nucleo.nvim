@@ -1,8 +1,8 @@
 local Input = require("nui.input")
 local Text = require("nui.text")
-local a = require("plenary.async")
+local a = require("nucleo.async").a
 local log = require("nucleo.log")
-local channel = require("plenary.async.control").channel
+local channel = require("nucleo.async").channel
 local scheduler_if_buf_valid = require("nucleo.async").scheduler_if_buf_valid
 
 local api = vim.api

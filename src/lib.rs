@@ -1,32 +1,28 @@
-use std::env::current_dir;
 use std::fs::File;
 
 use log::LevelFilter;
 use mlua::prelude::*;
-
 use picker::{FileEntry, Picker};
 use simplelog::{Config, WriteLogger};
 
 mod buffer;
+mod entry;
 mod injector;
+mod matcher;
 mod picker;
 mod previewer;
+mod sources;
 
-pub fn init_picker(_: &Lua, params: (Option<picker::Config>,)) -> LuaResult<Picker<FileEntry>> {
+pub fn init_picker(
+    _: &Lua,
+    params: (Option<picker::PartialConfig>,),
+) -> LuaResult<Picker<FileEntry>> {
     let config = match params.0 {
         Some(config) => config,
-        None => picker::Config::default(),
+        None => picker::PartialConfig::default(),
     };
 
-    let cwd = match config.cwd {
-        Some(cwd) => cwd,
-        None => current_dir().unwrap().to_string_lossy().to_string(),
-    };
-    let sort_direction = config.sort_direction.unwrap_or_default();
-
-    let mut picker = Picker::new(cwd, sort_direction);
-
-    picker.populate_files();
+    let picker = Picker::new(config.into());
 
     Ok(picker)
 }

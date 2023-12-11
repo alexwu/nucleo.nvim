@@ -1,8 +1,11 @@
 local Entry = require("nucleo.entry")
 local NuiPopup = require("nui.popup")
 local log = require("nucleo.log")
+local api = vim.api
 
----@class Results: NuiPopup
+local ns_multiselection = vim.api.nvim_create_namespace("nucleo_multiselection")
+
+---@class Nucleo.Results: NuiPopup
 local Results = NuiPopup:extend("Results")
 
 ---@class ResultsOptions
@@ -47,13 +50,13 @@ function Results:render_entries(picker)
 		return
 	end
 
-	-- picker:tick(10)
-
 	if picker:total_matches() == 0 then
 		if vim.api.nvim_buf_is_loaded(self.bufnr) and vim.api.nvim_win_is_valid(self.winid) then
+			api.nvim_buf_clear_namespace(self.bufnr, ns_multiselection, 0, -1)
 			Results.clear_buffer(self)
 		end
 	else
+		api.nvim_buf_clear_namespace(self.bufnr, ns_multiselection, 0, -1)
 		local height = vim.api.nvim_win_get_height(self.winid)
 		Results.clear_buffer(self)
 		local results = picker:current_matches()
@@ -63,7 +66,7 @@ function Results:render_entries(picker)
 				index = height - i + 1
 				log.info("trying to render index", index)
 			end
-			return Entry(index, entry, self.bufnr):render()
+			return Entry(index, entry, self.bufnr, ns_multiselection):render()
 		end)
 	end
 end

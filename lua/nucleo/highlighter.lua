@@ -1,6 +1,6 @@
----@class Highlighter
----@field picker Picker
----@field results Results
+---@class Nucleo.Highlighter: Object
+---@field picker PickerBackend
+---@field results Nucleo.Results
 ---@field bufnr number
 local Highlighter = require("plenary.class"):extend()
 local log = require("nucleo.log")
@@ -21,49 +21,60 @@ function Highlighter:new(opts)
 	self.caret_extmark_id = nil
 end
 
----@param highlighter Highlighter
-local highlight_selection = function(highlighter)
-	api.nvim_buf_clear_namespace(highlighter.results.bufnr, ns_selection, 0, -1)
+---@param highlighter Nucleo.Highlighter
+---@param picker PickerBackend
+---@param results Nucleo.Results
+local highlight_selection = function(highlighter, picker, results)
+	api.nvim_buf_clear_namespace(results.bufnr, ns_selection, 0, -1)
 
-	if highlighter.picker:total_matches() == 0 then
+	if picker:total_matches() == 0 then
 		return
 	end
 
-	local line_nr = highlighter.picker:get_cursor_pos()
+	local line_nr = picker:get_cursor_pos()
 	if not line_nr then
 		return
 	end
 
-	if highlighter.picker:sort_direction() == "ascending" then
-		local height = api.nvim_win_get_height(highlighter.results.winid)
+	if picker:sort_direction() == "ascending" then
+		local height = api.nvim_win_get_height(results.winid)
 		line_nr = height - line_nr - 1
 	end
 
 	log.info("highlight_selection", line_nr)
-	log.info("buf_line_count: ", api.nvim_buf_line_count(highlighter.results.bufnr))
+	log.info("buf_line_count: ", api.nvim_buf_line_count(results.bufnr))
 
-	local selection_line = api.nvim_buf_get_lines(highlighter.results.bufnr, line_nr, line_nr + 1, false)
+	local selection_line = api.nvim_buf_get_lines(results.bufnr, line_nr, line_nr + 1, false)
 
 	if vim.tbl_isempty(selection_line) or #selection_line[1] == 0 then
 		return
 	end
 
-	highlighter.caret_extmark_id = api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 0, {
+	highlighter.caret_extmark_id = api.nvim_buf_set_extmark(results.bufnr, ns_selection, line_nr, 0, {
 		id = highlighter.caret_extmark_id,
 		hl_eol = false,
 		virt_text_win_col = 0,
 		virt_text = { { ">", "TelescopeSelectionCaret" } },
 	})
 
-	api.nvim_buf_set_extmark(highlighter.results.bufnr, ns_selection, line_nr, 1, {
+	api.nvim_buf_set_extmark(results.bufnr, ns_selection, line_nr, 1, {
 		hl_eol = true,
 		end_row = line_nr + 1,
 		hl_group = "TelescopeSelection",
 	})
+
+	-- vim.iter(picker:selection_indices()):each(function(index)
+	-- 	api.nvim_buf_set_extmark(results.bufnr, ns_selection, index, 0, {
+	-- 		-- id = self.selection_caret_extmark_id,
+	-- 		hl_eol = false,
+	-- 		virt_text_win_col = 0,
+	-- 		virt_text = { { "+", "TelescopeMultiSelection" } },
+	-- 	})
+	-- end)
 end
 
 function Highlighter:highlight_selection()
-	highlight_selection(self)
+	highlight_selection(self, self.picker, self.results)
 end
 
 return Highlighter
