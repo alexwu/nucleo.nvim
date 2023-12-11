@@ -26,7 +26,7 @@ impl<T: Entry> Injector<T> {
             .push(value.clone(), |dst| dst[0] = value.into_utf32())
     }
 
-    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool, ignore: bool) {
+    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool, ignore: bool, hidden: bool) {
         log::info!("Populating picker with {}", &cwd);
         let runtime = Runtime::new().expect("Failed to create runtime");
 
@@ -43,7 +43,7 @@ impl<T: Entry> Injector<T> {
             log::info!("Spawning sorted file searcher...");
             let mut walk_builder = WalkBuilder::new(dir);
             walk_builder
-                .hidden(false)
+                .hidden(hidden)
                 .follow_links(true)
                 .git_ignore(git_ignore)
                 .ignore(ignore)

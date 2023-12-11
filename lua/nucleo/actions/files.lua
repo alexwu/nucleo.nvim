@@ -6,7 +6,7 @@ local M = {}
 local OPEN_CMD = {
 	Edit = cmd.edit,
 	Drop = cmd.drop,
-	Vsplit = cmd.vsplit,
+	Vsplit = cmd.vnew,
 }
 
 ---@param	filename string

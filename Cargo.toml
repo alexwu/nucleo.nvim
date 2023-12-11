@@ -33,3 +33,4 @@ range_rover = "0.1"
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
 ropey = "1.6"
+partially = { version = "0.2", features = ["derive"] }

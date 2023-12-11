@@ -1,5 +1,6 @@
 use std::cmp::{max, min};
 use std::collections::HashMap;
+use std::env::current_dir;
 use std::ops::RangeInclusive;
 use std::path::Path;
 use std::str::FromStr;
@@ -14,6 +15,7 @@ use nucleo::pattern::CaseMatching;
 use nucleo::{Nucleo, Utf32String};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -156,14 +158,12 @@ pub struct Picker<T: Entry> {
     selections: HashMap<String, T>,
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
-    sort_direction: SortDirection,
-    cwd: String,
-    git_ignore: bool,
-    ignore: bool,
+    config: Config,
 }
 
 impl<T: Entry> Picker<T> {
-    pub fn new(cwd: String, sort_direction: SortDirection) -> Self {
+    pub fn new(config: Config) -> Self {
+        log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
         // let notifier = sender.clone();
         // TODO: This hammers re-renders when loading lots of files. Is this even necessary?
@@ -177,12 +177,9 @@ impl<T: Entry> Picker<T> {
 
         Self {
             matcher,
-            cwd,
             receiver,
             sender,
-            sort_direction,
-            git_ignore: true,
-            ignore: true,
+            config,
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: HashMap::new(),
@@ -261,22 +258,26 @@ impl<T: Entry> Picker<T> {
         }
     }
 
-    pub fn update_config(&mut self, config: Config) {
+    pub fn update_config(&mut self, config: PartialConfig) {
         log::info!("Updating config to: {:?}", config);
         if let Some(cwd) = config.cwd {
-            self.cwd = cwd;
+            self.config.cwd = cwd;
         }
 
         if let Some(sort_direction) = config.sort_direction {
-            self.sort_direction = sort_direction;
+            self.config.sort_direction = sort_direction;
         }
 
         if let Some(git_ignore) = config.git_ignore {
-            self.git_ignore = git_ignore;
+            self.config.git_ignore = git_ignore;
         }
 
         if let Some(ignore) = config.ignore {
-            self.ignore = ignore;
+            self.config.ignore = ignore;
+        }
+
+        if let Some(hidden) = config.hidden {
+            self.config.hidden = hidden;
         }
     }
 
@@ -308,7 +309,7 @@ impl<T: Entry> Picker<T> {
             let _ = self.sender.try_send(());
         }
 
-        log::info!("Selection index: {}", self.cursor.pos());
+        log::info!("Corsor position: {}", self.cursor.pos());
     }
 
     pub fn move_cursor_to(&mut self, pos: usize) {
@@ -371,12 +372,13 @@ impl<T: Entry> Picker<T> {
     }
 
     pub fn populate_files(&mut self) {
-        let dir = self.cwd.clone();
-        let git_ignore = self.git_ignore;
-        let ignore = self.ignore;
+        let dir = self.config.cwd.clone();
+        let git_ignore = self.config.git_ignore;
+        let ignore = self.config.ignore;
+        let hidden = self.config.hidden;
         let injector = self.matcher.injector();
         rayon::spawn(move || {
-            injector.populate_files_sorted(dir, git_ignore, ignore);
+            injector.populate_files_sorted(dir, git_ignore, ignore, hidden);
         });
     }
 
@@ -434,7 +436,7 @@ impl<T: Entry> Picker<T> {
 
 impl<T: Entry> Default for Picker<T> {
     fn default() -> Self {
-        Self::new(String::new(), SortDirection::Descending)
+        Self::new(Config::default())
     }
 }
 
@@ -466,15 +468,31 @@ impl<T: Entry> BufferContents<T> for Picker<T> {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
+#[derive(Clone, Debug, Deserialize, Serialize, Partial)]
+#[partially(derive(Default, Debug))]
 pub struct Config {
-    pub cwd: Option<String>,
-    pub sort_direction: Option<SortDirection>,
-    pub git_ignore: Option<bool>,
-    pub ignore: Option<bool>,
+    pub cwd: String,
+    pub sort_direction: SortDirection,
+    pub git_ignore: bool,
+    pub ignore: bool,
+    pub hidden: bool,
 }
 
-impl FromLua<'_> for Config {
+impl Default for Config {
+    fn default() -> Self {
+        let cwd = current_dir().unwrap().to_string_lossy().to_string();
+
+        Self {
+            cwd,
+            sort_direction: SortDirection::Ascending,
+            git_ignore: true,
+            ignore: true,
+            hidden: false,
+        }
+    }
+}
+
+impl FromLua<'_> for PartialConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
         let cwd = match table.get::<&str, LuaValue>("cwd") {
@@ -486,12 +504,21 @@ impl FromLua<'_> for Config {
             _ => None,
         };
 
-        Ok(Config {
+        Ok(PartialConfig {
             cwd,
             sort_direction: table.get("sort_direction")?,
             git_ignore: table.get("git_ignore")?,
             ignore: table.get("ignore")?,
+            hidden: table.get("hiddne")?,
         })
+    }
+}
+
+impl From<PartialConfig> for Config {
+    fn from(value: PartialConfig) -> Self {
+        let mut config = Config::default();
+        config.apply_some(value);
+        config
     }
 }
 
@@ -502,16 +529,18 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
-        methods.add_method_mut("update_config", |_lua, this, params: (Config,)| {
+        methods.add_method_mut("update_config", |_lua, this, params: (PartialConfig,)| {
             this.update_config(params.0);
             Ok(())
         });
 
-        methods.add_method("sort_direction", |_lua, this, ()| Ok(this.sort_direction));
+        methods.add_method("sort_direction", |_lua, this, ()| {
+            Ok(this.config.sort_direction)
+        });
 
         methods.add_method_mut("move_cursor_up", |_lua, this, params: (Option<u32>,)| {
             let delta = params.0.unwrap_or(1);
-            match this.sort_direction {
+            match this.config.sort_direction {
                 SortDirection::Descending => {
                     this.move_cursor(Movement::Up, delta);
                 }
@@ -524,7 +553,7 @@ impl<T: Entry> UserData for Picker<T> {
 
         methods.add_method_mut("move_cursor_down", |_lua, this, params: (Option<u32>,)| {
             let delta = params.0.unwrap_or(1);
-            match this.sort_direction {
+            match this.config.sort_direction {
                 SortDirection::Descending => {
                     this.move_cursor(Movement::Down, delta);
                 }
@@ -536,7 +565,7 @@ impl<T: Entry> UserData for Picker<T> {
         });
 
         methods.add_method_mut("move_to_top", |_lua, this, ()| {
-            match this.sort_direction {
+            match this.config.sort_direction {
                 SortDirection::Descending => {
                     this.move_cursor_to(0);
                 }
@@ -548,7 +577,7 @@ impl<T: Entry> UserData for Picker<T> {
         });
 
         methods.add_method_mut("move_to_bottom", |_lua, this, ()| {
-            match this.sort_direction {
+            match this.config.sort_direction {
                 SortDirection::Descending => {
                     this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
                 }
