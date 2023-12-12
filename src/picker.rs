@@ -1,12 +1,13 @@
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::env::current_dir;
+use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crossbeam_channel::bounded;
+use crossbeam_channel::{bounded, Sender};
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, IntoLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
@@ -22,43 +23,9 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
-use crate::entry::{CustomEntry, Entry};
-use crate::matcher::{Matcher, Status};
-
-#[derive(Default)]
-pub struct StringMatcher(pub nucleo::Matcher);
-
-pub static STRING_MATCHER: Lazy<Arc<Mutex<StringMatcher>>> =
-    Lazy::new(|| Arc::new(Mutex::new(StringMatcher::default())));
-
-impl UserData for Status {
-    fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
-        fields.add_field_method_get("changed", |_, this| Ok(this.0.changed));
-        fields.add_field_method_get("running", |_, this| Ok(this.0.running));
-    }
-}
-
-impl From<nucleo::Matcher> for StringMatcher {
-    fn from(value: nucleo::Matcher) -> Self {
-        StringMatcher(value)
-    }
-}
-
-impl From<StringMatcher> for nucleo::Matcher {
-    fn from(val: StringMatcher) -> Self {
-        val.0
-    }
-}
-
-impl StringMatcher {
-    fn as_inner_mut(&mut self) -> &mut nucleo::Matcher {
-        &mut self.0
-    }
-
-    fn update_config(&mut self, config: nucleo::Config) {
-        self.0.config = config;
-    }
-}
+use crate::entry::Entry;
+use crate::matcher::{Matcher, Status, STRING_MATCHER};
+use crate::sources::files::{self, FileConfig};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
@@ -73,12 +40,6 @@ pub struct FileEntry {
     pub file_type: String,
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
-}
-
-impl PartialEq for FileEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.path == other.path && self.match_value == other.match_value
-    }
 }
 
 impl FromLua<'_> for FileEntry {
@@ -180,15 +141,97 @@ impl IntoLua<'_> for SortDirection {
     }
 }
 
-pub struct Picker<T: Entry> {
-    pub matcher: Matcher<T>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Data<T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>> {
+    pub display: String,
+    pub selected: bool,
+    pub indices: Vec<(u32, u32)>,
+    pub value: T,
+}
+
+impl<T> FromLua<'_> for Data<T>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + 'static,
+{
+    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+        let table = LuaTable::from_lua(value, lua)?;
+
+        Ok(Self {
+            display: table.get("display")?,
+            value: table.get("value")?,
+            selected: table.get("selected")?,
+            indices: vec![],
+        })
+    }
+}
+impl<T> Entry for Data<T>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + 'static,
+{
+    fn from_path(path: &std::path::Path, cwd: Option<String>) -> Self {
+        todo!()
+    }
+
+    fn display(&self) -> String {
+        self.display.clone()
+    }
+
+    fn indices(&self) -> Vec<(u32, u32)> {
+        self.indices.clone()
+    }
+
+    fn is_selected(&self) -> bool {
+        self.selected
+    }
+
+    fn into_utf32(self) -> nucleo::Utf32String {
+        self.display.into()
+    }
+
+    fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
+        Self { indices, ..self }
+    }
+
+    fn with_selected(self, selected: bool) -> Self {
+        Self { selected, ..self }
+    }
+}
+
+pub struct Picker<T>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + 'static,
+{
+    pub matcher: Matcher<Data<T>>,
     previous_query: String,
     cursor: Cursor,
     window: Window,
-    selections: HashMap<String, T>,
+    selections: HashMap<String, Data<T>>,
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
+    matches_files: bool,
     config: Config,
+    populator: Arc<dyn Fn(Sender<Data<T>>) + Sync + Send>,
 }
 
 // impl<T: Entry> FromLua<'_> for Picker<T> {
@@ -205,8 +248,21 @@ pub struct Picker<T: Entry> {
 //     }
 // }
 //
-impl<T: Entry> Picker<T> {
-    pub fn new(config: Config) -> Self {
+impl<T> Picker<T>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + 'static,
+{
+    pub fn new<F>(config: Config) -> Self
+    where
+        F:,
+    {
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
         // let notifier = sender.clone();
@@ -216,8 +272,10 @@ impl<T: Entry> Picker<T> {
             //     log::info!("Message sent!")
             // };
         });
-        let matcher: Matcher<T> =
+        let matcher: Matcher<Data<T>> =
             Nucleo::new(nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
+
+        // let populator = files::injector(FileConfig::default());
 
         Self {
             matcher,
@@ -228,6 +286,8 @@ impl<T: Entry> Picker<T> {
             previous_query: String::new(),
             selections: HashMap::new(),
             window: Window::new(50),
+            matches_files: true,
+            populator: Arc::new(|tx| {}),
         }
     }
 
@@ -245,6 +305,13 @@ impl<T: Entry> Picker<T> {
 
     fn try_recv(&self) -> Result<(), crossbeam_channel::TryRecvError> {
         self.receiver.try_recv()
+    }
+
+    pub fn set_populator<F>(&mut self, populator: Arc<F>)
+    where
+        F: Fn(Sender<Data<T>>) + Sync + Send + 'static,
+    {
+        self.populator = populator;
     }
 
     pub fn should_rerender(&self) -> bool {
@@ -373,7 +440,7 @@ impl<T: Entry> Picker<T> {
         log::info!("Selection index: {}", self.cursor.pos());
     }
 
-    pub fn current_matches(&self) -> Vec<T> {
+    pub fn current_matches(&self) -> Vec<Data<T>> {
         let mut indices = Vec::new();
         let snapshot = self.matcher.snapshot();
         log::info!("Item count: {:?}", snapshot.item_count());
@@ -415,21 +482,38 @@ impl<T: Entry> Picker<T> {
         self.matcher.0.restart(true);
     }
 
-    pub fn populate(&mut self, entries: Vec<T>) {
+    pub fn populate(&mut self, entries: Vec<Data<T>>) {
         let injector = self.matcher.injector();
         rayon::spawn(move || {
             injector.populate(entries);
         });
     }
 
+    pub fn populate_with<F>(&mut self, populator: Arc<F>)
+    where
+        F: Fn(Sender<Data<T>>) + Send + Sync + ?Sized + 'static,
+    {
+        let injector = self.matcher.injector();
+        rayon::spawn(move || {
+            injector.populate_with(populator);
+        });
+    }
+
     pub fn populate_files(&mut self) {
-        let dir = self.config.cwd.clone();
+        let cwd = self.config.cwd.clone();
         let git_ignore = self.config.git_ignore;
         let ignore = self.config.ignore;
         let hidden = self.config.hidden;
         let injector = self.matcher.injector();
+        let config = FileConfig {
+            cwd,
+            git_ignore,
+            ignore,
+            hidden,
+        };
+        let populator = self.populator.clone();
         rayon::spawn(move || {
-            injector.populate_files_sorted(dir, git_ignore, ignore, hidden);
+            injector.populate_with(populator);
         });
     }
 
@@ -472,7 +556,7 @@ impl<T: Entry> Picker<T> {
         };
     }
 
-    pub fn selections(&self) -> Vec<T> {
+    pub fn selections(&self) -> Vec<Data<T>> {
         self.selections.clone().into_values().collect()
     }
 
@@ -485,23 +569,49 @@ impl<T: Entry> Picker<T> {
     }
 }
 
-impl<T: Entry> Default for Picker<T> {
+impl<T> Default for Picker<T>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + 'static,
+{
     fn default() -> Self {
-        Self::new(Config::default())
+        Self::new::<T>(Config::default())
     }
 }
 
-impl<T: Entry> Contents for Picker<T> {
+impl<T> Contents for Picker<T>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + 'static,
+{
     fn len(&self) -> usize {
         self.total_matches().try_into().unwrap_or(usize::MAX)
     }
 }
 
-impl<T: Entry> BufferContents<T> for Picker<T> {
-    fn lines(&self) -> Vec<T> {
-        self.current_matches()
-    }
-
+impl<T> BufferContents<T> for Picker<T>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + 'static,
+{
     fn window(&self) -> &crate::buffer::Window {
         &self.window
     }
@@ -573,7 +683,17 @@ impl From<PartialConfig> for Config {
     }
 }
 
-impl<T: Entry> UserData for Picker<T> {
+impl<T> UserData for Picker<T>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + 'static,
+{
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
             this.update_query(&params.0);
@@ -706,7 +826,7 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
-        methods.add_method_mut("populate", |_lua, this, params: (Vec<T>,)| {
+        methods.add_method_mut("populate", |_lua, this, params: (Vec<Data<T>>,)| {
             this.populate(params.0);
             Ok(())
         });

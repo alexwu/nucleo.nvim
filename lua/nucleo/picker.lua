@@ -79,7 +79,7 @@ function Picker:new(opts)
 	self.tx, self.rx = channel.counter()
 	---@type PickerBackend
 	if not opts.source then
-		self.picker = nu.Picker(opts)
+		self.picker = nu.FilePicker(opts)
 	else
 		self.picker = nu.CustomPicker(opts.source)
 	end

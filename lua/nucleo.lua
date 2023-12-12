@@ -5,6 +5,7 @@ local M = {}
 --- @private
 M._rust = {
 	Picker = true,
+	FilePicker = true,
 	CustomPicker = true,
 	Previewer = true,
 }
@@ -38,8 +39,13 @@ function M.source_test(...)
 		source = {
 			name = "Custom List",
 			results = {
-				{ display = "Felipe Handsome", value = "Felipe is really handsome" },
-				{ display = "Felipe Extra Handsome", value = "Felipe is really extra handsome" },
+				{
+					display = "Felipe Handsome",
+					selected = false,
+					indices = {},
+					value = { value = "" },
+				},
+				-- { display = "Felipe Extra Handsome", value = { text = "Felipe is really extra handsome" } },
 			},
 		},
 		on_submit = function(selection)

@@ -1,11 +1,13 @@
-use std::fs::File;
+use std::{fs::File, sync::Arc};
 
 use entry::{CustomEntry, Entry};
 use log::LevelFilter;
 use mlua::prelude::*;
-use picker::{FileEntry, Picker};
+use picker::{Data, FileEntry, Picker};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
+use sources::files::{self, FileConfig};
 
 mod buffer;
 mod entry;
@@ -24,7 +26,7 @@ pub fn init_picker(
         None => picker::PartialConfig::default(),
     };
 
-    let picker = Picker::new(config.into());
+    let picker = Picker::new::<FileEntry>(config.into());
 
     Ok(picker)
 }
@@ -37,7 +39,7 @@ pub enum SourceKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceConfig {
     name: String,
-    results: Vec<CustomEntry>,
+    results: Vec<Data<CustomEntry>>,
 }
 
 impl FromLua<'_> for SourceConfig {
@@ -61,7 +63,33 @@ pub fn init_custom_picker(lua: &Lua, params: (SourceConfig,)) -> LuaResult<Picke
     //     },
     //     _ => Err("Invalid parameter type").into_lua_err(),
     // };
-    let picker: Picker<CustomEntry> = Picker::new(picker::Config::default());
+    // let results = params
+    //     .0
+    //     .results
+    //     .into_par_iter()
+    //     .map(|entry| Data {
+    //         display: entry.display(),
+    //         value: entry,
+    //         selected: false,
+    //         indices: vec![],
+    //     })
+    //     .collect();
+    let mut picker: Picker<CustomEntry> = Picker::new::<CustomEntry>(picker::Config::default());
+
+    // picker.populate(results);
+
+    Ok(picker)
+}
+
+pub fn init_file_picker(lua: &Lua, params: ()) -> LuaResult<Picker<files::Value>> {
+    // pub fn init_file_picker(lua: &Lua, params: (FileConfig,)) -> LuaResult<Picker<files::Value>> {
+    let populator = files::injector(FileConfig::default());
+    let mut picker: Picker<files::Value> = Picker::new::<files::Value>(picker::Config::default());
+
+    picker.set_populator(Arc::new(move |tx| {
+        populator(tx);
+    }));
+    // picker.populate_with(populator);
 
     Ok(picker)
 }
@@ -78,6 +106,7 @@ fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
 
     exports.set("Picker", lua.create_function(init_picker)?)?;
+    exports.set("FilePicker", lua.create_function(init_file_picker)?)?;
     exports.set("CustomPicker", lua.create_function(init_custom_picker)?)?;
     exports.set(
         "Previewer",

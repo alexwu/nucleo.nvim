@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 
+use std::fmt::Debug;
+
 use serde::{Deserialize, Serialize};
+
+use crate::picker::Data;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct Window {
@@ -54,8 +58,7 @@ pub trait Contents {
     }
 }
 
-pub trait BufferContents<T: Clone>: Contents + Sized {
-    fn lines(&self) -> Vec<T>;
+pub trait BufferContents<T: Clone + Debug>: Contents + Sized {
     fn window(&self) -> &Window;
     fn window_mut(&mut self) -> &mut Window;
     fn cursor(&self) -> &Cursor;
@@ -65,13 +68,6 @@ pub trait BufferContents<T: Clone>: Contents + Sized {
     }
     fn set_window_height(&mut self, height: usize) {
         self.window_mut().height = height;
-    }
-
-    fn visible_lines(&self) -> Vec<T> {
-        let start = self.window().start();
-        let end = self.len().min(self.window().end());
-
-        self.lines()[start..end].to_vec()
     }
 
     fn set_window_pos(&mut self, pos: usize) {
