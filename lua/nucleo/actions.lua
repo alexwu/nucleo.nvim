@@ -71,7 +71,7 @@ function M.open_in_vsplit(picker)
 		picker:reset_cursor()
 
 		local selection = picker.picker:get_selection()
-		files.open_file(selection.path, "Vsplit")
+		files.open_file(selection.value.path, "Vsplit")
 
 		picker.prompt:stop()
 		picker.picker:update_query("")

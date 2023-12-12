@@ -25,7 +25,7 @@ function M.find(...)
 
 	Picker({
 		on_submit = function(selection)
-			local path = selection.path
+			local path = selection.value.path
 			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
 		end,
 	}):find(...)
@@ -49,7 +49,7 @@ function M.source_test(...)
 			},
 		},
 		on_submit = function(selection)
-			local path = selection.path
+			local path = selection.value.path
 			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
 		end,
 	}):find(...)
