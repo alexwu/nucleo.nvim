@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
-use crate::entry::Entry;
+use crate::entry::{CustomEntry, Entry};
 use crate::matcher::{Matcher, Status};
 
 #[derive(Default)]
@@ -81,6 +81,28 @@ impl PartialEq for FileEntry {
     }
 }
 
+impl FromLua<'_> for FileEntry {
+    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+        let table = LuaTable::from_lua(value, lua)?;
+
+        Ok(Self {
+            path: table.get("path")?,
+            match_value: table.get("match_value")?,
+            file_type: table.get("file_type")?,
+            selected: table.get("selected")?,
+            indices: vec![],
+        })
+    }
+}
+
+// impl UserData for FileEntry {
+//     fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
+//         fields.add_field_method_get("display", |_, this| Ok(this.display()));
+//         fields.add_field_method_get("value", |_, this| Ok(this.path.to_string()));
+//         fields.add_field_method_get("selected", |_, this| Ok(this.is_selected()));
+//         fields.add_field_method_get("indices", |lua, this| Ok(lua.to_value(&this.indices())));
+//     }
+// }
 impl Entry for FileEntry {
     fn display(&self) -> String {
         self.match_value.to_string()
@@ -118,6 +140,14 @@ impl Entry for FileEntry {
 
     fn with_selected(self, selected: bool) -> Self {
         Self { selected, ..self }
+    }
+
+    fn indices(&self) -> Vec<(u32, u32)> {
+        self.indices.clone()
+    }
+
+    fn is_selected(&self) -> bool {
+        self.selected
     }
 }
 
@@ -161,6 +191,20 @@ pub struct Picker<T: Entry> {
     config: Config,
 }
 
+// impl<T: Entry> FromLua<'_> for Picker<T> {
+//     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+//         let table = LuaTable::from_lua(value, lua)?;
+//
+//         Ok(PartialConfig {
+//             cwd,
+//             sort_direction: table.get("sort_direction")?,
+//             git_ignore: table.get("git_ignore")?,
+//             ignore: table.get("ignore")?,
+//             hidden: table.get("hiddne")?,
+//         })
+//     }
+// }
+//
 impl<T: Entry> Picker<T> {
     pub fn new(config: Config) -> Self {
         log::info!("Creating picker with config: {:?}", &config);
@@ -309,7 +353,7 @@ impl<T: Entry> Picker<T> {
             let _ = self.sender.try_send(());
         }
 
-        log::info!("Corsor position: {}", self.cursor.pos());
+        log::info!("Cursor position: {}", self.cursor.pos());
     }
 
     pub fn move_cursor_to(&mut self, pos: usize) {
@@ -369,6 +413,13 @@ impl<T: Entry> Picker<T> {
 
     pub fn restart(&mut self) {
         self.matcher.0.restart(true);
+    }
+
+    pub fn populate(&mut self, entries: Vec<T>) {
+        let injector = self.matcher.injector();
+        rayon::spawn(move || {
+            injector.populate(entries);
+        });
     }
 
     pub fn populate_files(&mut self) {
@@ -652,6 +703,11 @@ impl<T: Entry> UserData for Picker<T> {
 
         methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
             this.populate_files();
+            Ok(())
+        });
+
+        methods.add_method_mut("populate", |_lua, this, params: (Vec<T>,)| {
+            this.populate(params.0);
             Ok(())
         });
 

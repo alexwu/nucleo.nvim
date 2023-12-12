@@ -25,6 +25,11 @@ local api = vim.api
 ---@field running boolean
 ---@field changed boolean
 
+---@class CustomEntry
+---@field display string
+---@field value string
+---@field selected boolean
+
 ---@class PickerBackend
 ---@field drain_channel fun(self: PickerBackend)
 ---@field force_rerender fun(self: PickerBackend)
@@ -35,6 +40,7 @@ local api = vim.api
 ---@field move_to_bottom fun(self: PickerBackend)
 ---@field move_to_top fun(self: PickerBackend)
 ---@field populate_files fun(self: PickerBackend)
+---@field populate fun(self: PickerBackend, entries: CustomEntry[])
 ---@field restart fun(self: PickerBackend)
 ---@field multiselect fun(self: PickerBackend, pos: integer)
 ---@field toggle_selection fun(self: PickerBackend, pos: integer)
@@ -72,13 +78,19 @@ function Picker:new(opts)
 	---@type Sender, Receiver
 	self.tx, self.rx = channel.counter()
 	---@type PickerBackend
-	self.picker = nu.Picker(opts)
+	if not opts.source then
+		self.picker = nu.Picker(opts)
+	else
+		self.picker = nu.CustomPicker(opts.source)
+	end
+
 	self.results = Results()
 	self.previewer = Previewer()
 	self.highlighter = Highlighter({
 		picker = self.picker,
 		results = self.results,
 	})
+	self.source = opts.source
 
 	self.prompt = Prompt({
 		picker = self.picker,
@@ -180,7 +192,13 @@ function Picker:find(opts)
 	local options = override(opts)
 
 	self.picker:update_config(options)
-	self.picker:populate_files()
+	if not self.source then
+		self.picker:populate_files()
+	else
+		vim.print(self.source)
+		self.picker:populate(self.source.results)
+	end
+
 	self.picker:tick(10)
 
 	self.picker:force_rerender()

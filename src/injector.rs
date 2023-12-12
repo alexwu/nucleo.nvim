@@ -2,6 +2,7 @@ use std::path::Path;
 
 use crossbeam_channel::unbounded;
 use ignore::{types::TypesBuilder, WalkBuilder};
+use rayon::prelude::*;
 use tokio::{runtime::Runtime, task::JoinHandle};
 
 use crate::entry::Entry;
@@ -24,6 +25,24 @@ impl<T: Entry> Injector<T> {
     pub fn push(&self, value: T) -> u32 {
         self.0
             .push(value.clone(), |dst| dst[0] = value.into_utf32())
+    }
+
+    pub fn populate(self, entries: Vec<T>) {
+        log::info!("Populating picker with {} entries", entries.len());
+        let runtime = Runtime::new().expect("Failed to create runtime");
+
+        let (tx, rx) = unbounded::<T>();
+        let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
+            for val in rx.iter() {
+                self.push(val);
+            }
+            anyhow::Ok(())
+        });
+        runtime.spawn(async move {
+            entries.into_par_iter().for_each(|entry| {
+                let _ = tx.send(entry);
+            });
+        });
     }
 
     pub fn populate_files_sorted(self, cwd: String, git_ignore: bool, ignore: bool, hidden: bool) {

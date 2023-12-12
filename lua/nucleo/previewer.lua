@@ -28,7 +28,7 @@ function Previewer:clear()
 end
 
 function Previewer:render(file)
-	if self.winid then
+	if self.winid and file then
 		local height = api.nvim_win_get_height(self.winid)
 		local lines = self.previewer:preview_file(file, 0, height)
 		local content = vim.split(lines, "\n")

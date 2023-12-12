@@ -23,17 +23,24 @@ function Entry:new(index, entry, bufnr, ns_multiselection_id)
 	self.selection_caret_extmark_id = nil
 	self.ns_multiselection_id = ns_multiselection_id
 
-	local value, color = require("nvim-web-devicons").get_icon(entry.path, entry.file_type, { default = true })
-	self.icon = {
-		value = value,
-		color = color,
-	}
+	if entry.file_type then
+		local value, color = require("nvim-web-devicons").get_icon(entry.path, entry.file_type, { default = true })
+		self.icon = {
+			value = value,
+			color = color,
+		}
+	else
+		self.icon = {
+			value = " ",
+			color = nil,
+		}
+	end
 end
 
 function Entry:render()
 	local picker_icon = Text(self.selection_caret, "Normal")
 	local icon = Text(self.icon.value, self.icon.color)
-	local path = Text(self.entry.match_value)
+	local path = Text(self.entry.match_value or self.entry.display)
 	local line = Line({ picker_icon, icon, path })
 
 	local leading_length = picker_icon:length() + icon:length()
