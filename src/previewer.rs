@@ -11,6 +11,11 @@ pub struct Previewer {
     file_cache: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PreviewKind {
+    File,
+}
+
 impl Previewer {
     pub fn new() -> Self {
         Self {

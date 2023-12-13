@@ -1,18 +1,17 @@
-use std::{fs::File};
+use std::{
+    env::current_dir,
+    fs::{self, File},
+};
 
-
-
-use entry::{CustomEntry};
+use directories::ProjectDirs;
+use entry::CustomEntry;
 use log::LevelFilter;
 use mlua::prelude::*;
 use picker::{Blob, Data, FileEntry, Picker};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
-use sources::{
-    files::{self, PartialFileConfig, PreviewOptions},
-};
-use tokio::runtime::Runtime;
+use sources::files::{self, PartialFileConfig, PreviewOptions};
 
 mod buffer;
 mod entry;
@@ -62,21 +61,28 @@ impl FromLua<'_> for SourceConfig {
         })
     }
 }
+
+pub fn call_or_get<T>(lua: &Lua, val: LuaValue, field: &str) -> LuaResult<T>
+where
+    T: for<'a> IntoLua<'a> + for<'a> FromLua<'a> + for<'a> Deserialize<'a>,
+{
+    let table = LuaTable::from_lua(val, lua)?;
+    match table.get(field)? {
+        LuaValue::Function(func) => func.call::<_, T>(()),
+        val => lua.from_value(val),
+    }
+}
+
 pub fn init_lua_picker(
     _lua: &'static Lua,
     params: (LuaValue<'static>,),
 ) -> LuaResult<Picker<CustomEntry, Blob>> {
-    let _rt = Runtime::new()?;
     let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
-    let _local = tokio::task::LocalSet::new();
-    let _results = match params.0.clone() {
+    match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
         LuaValue::Table(_) => todo!(),
         LuaValue::Function(finder) => {
-            // rt.block_on(async {
-            //     let finder = finder.clone();
             picker.populate_with_local(move |tx| {
-                //         local.run_until(async {
                 let results = finder.call::<_, Vec<CustomEntry>>(());
                 log::info!("please {:?}", results);
                 match results {
@@ -85,9 +91,7 @@ pub fn init_lua_picker(
                     }),
                     Err(_) => todo!(),
                 }
-                //         }).await;
             });
-            // });
         }
         LuaValue::Thread(_) => todo!(),
         _ => todo!("Invalid finder"),
@@ -100,26 +104,6 @@ pub fn init_custom_picker(
     _lua: &Lua,
     _params: (SourceConfig,),
 ) -> LuaResult<Picker<CustomEntry, Blob>> {
-    // let results: Result<Vec<CustomEntry>, LuaError> = match table.get::<&str, LuaValue>("results") {
-    //     Ok(val) => match val {
-    //         // LuaValue::Function(func) => func.call::<_, Vec<CustomEntry>>(()),
-    //         LuaValue::Function(func) => todo!(),
-    //         // LuaValue::Table(_) => Ok(lua.from_value(val)),
-    //         _ => Err("Invalid parameter type inside").into_lua_err(),
-    //     },
-    //     _ => Err("Invalid parameter type").into_lua_err(),
-    // };
-    // let results = params
-    //     .0
-    //     .results
-    //     .into_par_iter()
-    //     .map(|entry| Data {
-    //         display: entry.display(),
-    //         value: entry,
-    //         selected: false,
-    //         indices: vec![],
-    //     })
-    //     .collect();
     let picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
 
     // picker.populate(results);
@@ -127,7 +111,6 @@ pub fn init_custom_picker(
     Ok(picker)
 }
 
-// pub fn init_file_picker(lua: &Lua, params: ()) -> LuaResult<Picker<files::Value>> {
 pub fn init_file_picker(
     _lua: &Lua,
     params: (Option<PartialFileConfig>,),
@@ -137,12 +120,18 @@ pub fn init_file_picker(
 
 #[mlua::lua_module]
 fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
+    let proj_dirs = ProjectDirs::from("", "bombeelu-labs", "nucleo")
+        .expect("Unable to determine project directory");
+    fs::create_dir_all(proj_dirs.cache_dir())?;
     let _ = WriteLogger::init(
         LevelFilter::Info,
         Config::default(),
-        File::create("nucleo.log").unwrap(),
+        File::create(proj_dirs.cache_dir().join("nucleo.log")).unwrap(),
     );
-    log::info!("Initialized logger");
+    log::info!(
+        "Initialized logger at: {}",
+        current_dir().expect("Unable get current dir").display()
+    );
 
     let exports = lua.create_table()?;
 

@@ -1,6 +1,5 @@
 use std::cmp::{max, min};
 use std::collections::HashMap;
-
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
@@ -84,8 +83,8 @@ pub trait Previewable:
 {
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Blob(serde_json::Value);
+#[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display)]
+pub struct Blob(pub serde_json::Value);
 impl<'a> FromLua<'a> for Blob {
     fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
         Ok(Self(lua.from_value(value).into_lua_err()?))
@@ -110,12 +109,14 @@ where
     pub preview_options: Option<U>,
 }
 
+#[buildstructor::buildstructor]
 impl<T, U> Data<T, U>
 where
     T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>,
     U: Previewable + for<'a> FromLua<'a>,
 {
-    pub fn new(display: impl Into<String>, value: T, preview_options: Option<U>) -> Self {
+    #[builder]
+    pub fn new<V: Into<String>>(display: V, value: T, preview_options: Option<U>) -> Self {
         Self {
             value,
             preview_options,

@@ -30,7 +30,11 @@ function M.find(...)
 	Picker({
 		on_submit = function(selection)
 			local path = selection.value.path
-			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
+			if path then
+				vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
+			else
+				vim.print(selection.value)
+			end
 		end,
 	}):find(...)
 end
@@ -75,16 +79,18 @@ function M.lua_test(...)
 		source = function()
 			return vim.iter(vim.diagnostic.get(nil))
 				:map(function(diagnostic)
+					local message = vim.split(diagnostic.message, "\n")[1]
+
+					local display = table.concat({ diagnostic.code, message }, " ")
 					return {
-						display = vim.split(diagnostic.message, "\n")[1],
+						display = display,
 						value = diagnostic,
 					}
 				end)
 				:totable()
 		end,
 		on_submit = function(selection)
-			local path = selection.value.path
-			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
+			vim.print(selection.value)
 		end,
 	}):find(...)
 end

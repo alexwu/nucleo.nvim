@@ -7,6 +7,8 @@ use mlua::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::picker::Blob;
+
 pub trait Entry:
     for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Debug + Serialize + Clone + Sync + Send + 'static
 {
@@ -23,7 +25,7 @@ pub trait Entry:
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CustomEntry {
     pub display: Option<String>,
-    pub value: serde_json::Value,
+    pub value: Blob,
 }
 
 impl FromLua<'_> for CustomEntry {
@@ -34,7 +36,7 @@ impl FromLua<'_> for CustomEntry {
 
         Ok(Self {
             display: table.get("display")?,
-            value: json_str,
+            value: Blob(json_str),
         })
     }
 }
