@@ -9,7 +9,10 @@ use picker::{Data, FileEntry, Picker};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
-use sources::files::{self, FileConfig, PartialFileConfig};
+use sources::{
+    files::{self, FileConfig, PartialFileConfig},
+    lsp::Diagnostic,
+};
 use tokio::runtime::Runtime;
 
 mod buffer;
@@ -63,9 +66,9 @@ impl FromLua<'_> for SourceConfig {
 pub fn init_lua_picker(
     lua: &'static Lua,
     params: (LuaValue<'static>,),
-) -> LuaResult<Picker<CustomEntry>> {
+) -> LuaResult<Picker<Diagnostic>> {
     let rt = Runtime::new()?;
-    let mut picker: Picker<CustomEntry> = Picker::new(picker::Config::default());
+    let mut picker: Picker<Diagnostic> = Picker::new(picker::Config::default());
     let local = tokio::task::LocalSet::new();
     let results = match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
@@ -75,11 +78,11 @@ pub fn init_lua_picker(
             //     let finder = finder.clone();
             picker.populate_with_local(move |tx| {
                 //         local.run_until(async {
-                let results = finder.call::<_, Vec<CustomEntry>>(());
+                let results = finder.call::<_, Vec<Diagnostic>>(());
                 log::info!("please {:?}", results);
                 match results {
                     Ok(entries) => entries.par_iter().for_each(|entry| {
-                        let _ = tx.send(Data::new(entry.value.to_string(), entry.clone()));
+                        let _ = tx.send(Diagnostic::from_diagnostic(entry.clone()));
                     }),
                     Err(_) => todo!(),
                 }

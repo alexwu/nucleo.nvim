@@ -28,10 +28,10 @@ impl<T: Entry> Injector<T> {
 
     pub fn populate(self, entries: Vec<T>) {
         log::info!("Populating picker with {} entries", entries.len());
-        let runtime = Runtime::new().expect("Failed to create runtime");
+        let rt = Runtime::new().expect("Failed to create runtime");
 
         let (tx, rx) = unbounded::<T>();
-        let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
+        let _add_to_injector_thread: JoinHandle<Result<(), _>> = tokio::spawn(async move {
             for val in rx.iter() {
                 self.push(val);
             }
@@ -39,7 +39,7 @@ impl<T: Entry> Injector<T> {
         });
 
         let sender = tx.clone();
-        runtime.spawn(async move {
+        tokio::spawn(async move {
             entries.into_par_iter().for_each(|entry| {
                 let _ = sender.send(entry);
             });
@@ -50,39 +50,21 @@ impl<T: Entry> Injector<T> {
     where
         F: Fn(Sender<T>) + Sync + Send + ?Sized + 'static,
     {
-        let runtime = Runtime::new().expect("Failed to create runtime");
+        let rt = Runtime::new().expect("Failed to create runtime");
 
         let (tx, rx) = unbounded::<T>();
-        let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
-            for val in rx.iter() {
-                self.push(val);
-            }
-            anyhow::Ok(())
-        });
 
         log::info!("injector::populate_with");
-        rayon::spawn(move || func(tx));
-    }
+        rt.block_on(async {
+            let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
+                for val in rx.iter() {
+                    self.push(val);
+                }
+                anyhow::Ok(())
+            });
 
-    pub async fn populate_with_async<F>(self, func: Arc<F>)
-    where
-        F: Fn(Sender<T>) + Sync + Send + ?Sized + 'static,
-    {
-        let runtime = Runtime::new().expect("Failed to create runtime");
-
-        let (tx, rx) = unbounded::<T>();
-        let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
-            for val in rx.iter() {
-                self.push(val);
-            }
-            anyhow::Ok(())
+            func(tx)
         });
-
-        log::info!("injector::populate_with_async");
-        match runtime.spawn(async move { func(tx) }).await {
-            Ok(_) => log::info!("populate_with_async worked!"),
-            Err(_) => log::info!("populate_with_async did not work"),
-        };
     }
 
     pub fn populate_with_local<F>(self, func: F)

@@ -65,11 +65,7 @@ function M.lua_test(...)
 	Picker({
 		-- Builtin: source = "builtin.files",
 		source = function()
-			return {
-				{ value = "test" },
-				{ value = "test2" },
-				{ value = "test3" },
-			}
+			return vim.diagnostic.get(nil)
 		end,
 		on_submit = function(selection)
 			local path = selection.value.path

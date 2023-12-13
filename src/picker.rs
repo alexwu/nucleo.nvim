@@ -406,17 +406,9 @@ where
         F: Fn(Sender<Data<T>>) + Send + Sync + ?Sized + 'static,
     {
         let injector = self.matcher.injector();
-        // rayon::spawn(move || {
-        injector.populate_with(populator);
-        // });
-    }
-
-    pub async fn populate_with_async<F>(&mut self, populator: Arc<F>)
-    where
-        F: Fn(Sender<Data<T>>) + Send + Sync + ?Sized + 'static,
-    {
-        let injector = self.matcher.injector();
-        injector.populate_with_async(populator).await;
+        rayon::spawn(move || {
+            injector.populate_with(populator);
+        });
     }
 
     pub fn populate_with_local<F>(&mut self, populator: F)
@@ -556,8 +548,6 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        let cwd = current_dir().unwrap().to_string_lossy().to_string();
-
         Self {
             sort_direction: SortDirection::Ascending,
         }
@@ -718,12 +708,6 @@ where
         methods.add_method_mut("tick", |_lua, this, ms: u64| {
             let status = this.tick(ms);
             Ok(status)
-        });
-
-        methods.add_async_method_mut("populate_files_async", |_lua, this, _params: ()| async {
-            let populator = this.populator.clone();
-            this.populate_with_async(populator).await;
-            Ok(())
         });
 
         methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
