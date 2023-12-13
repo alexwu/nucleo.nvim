@@ -1,8 +1,8 @@
-use std::{fs::File, sync::Arc};
+use std::{fs::File};
 
-use anyhow::bail;
-use crossbeam_channel::Sender;
-use entry::{CustomEntry, Entry};
+
+
+use entry::{CustomEntry};
 use log::LevelFilter;
 use mlua::prelude::*;
 use picker::{Blob, Data, FileEntry, Picker};
@@ -10,8 +10,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
 use sources::{
-    files::{self, FileConfig, PartialFileConfig, PreviewOptions},
-    lsp::Diagnostic,
+    files::{self, PartialFileConfig, PreviewOptions},
 };
 use tokio::runtime::Runtime;
 
@@ -64,13 +63,13 @@ impl FromLua<'_> for SourceConfig {
     }
 }
 pub fn init_lua_picker(
-    lua: &'static Lua,
+    _lua: &'static Lua,
     params: (LuaValue<'static>,),
 ) -> LuaResult<Picker<CustomEntry, Blob>> {
-    let rt = Runtime::new()?;
+    let _rt = Runtime::new()?;
     let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
-    let local = tokio::task::LocalSet::new();
-    let results = match params.0.clone() {
+    let _local = tokio::task::LocalSet::new();
+    let _results = match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
         LuaValue::Table(_) => todo!(),
         LuaValue::Function(finder) => {
@@ -98,8 +97,8 @@ pub fn init_lua_picker(
 }
 
 pub fn init_custom_picker(
-    lua: &Lua,
-    params: (SourceConfig,),
+    _lua: &Lua,
+    _params: (SourceConfig,),
 ) -> LuaResult<Picker<CustomEntry, Blob>> {
     // let results: Result<Vec<CustomEntry>, LuaError> = match table.get::<&str, LuaValue>("results") {
     //     Ok(val) => match val {
@@ -121,7 +120,7 @@ pub fn init_custom_picker(
     //         indices: vec![],
     //     })
     //     .collect();
-    let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
+    let picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
 
     // picker.populate(results);
 
@@ -130,7 +129,7 @@ pub fn init_custom_picker(
 
 // pub fn init_file_picker(lua: &Lua, params: ()) -> LuaResult<Picker<files::Value>> {
 pub fn init_file_picker(
-    lua: &Lua,
+    _lua: &Lua,
     params: (Option<PartialFileConfig>,),
 ) -> LuaResult<Picker<files::Value, PreviewOptions>> {
     files::create_picker(params.0).into_lua_err()

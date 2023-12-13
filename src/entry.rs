@@ -2,9 +2,9 @@ use std::fmt::Debug;
 
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
-    ExternalResult, FromLua, IntoLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
+    ExternalResult, FromLua, IntoLua, LuaSerdeExt,
 };
-use nucleo::Utf32String;
+
 use serde::{Deserialize, Serialize};
 
 pub trait Entry:

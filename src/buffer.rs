@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-use crate::picker::Data;
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct Window {

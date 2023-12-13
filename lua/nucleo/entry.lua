@@ -25,7 +25,8 @@ function Entry:new(index, entry, bufnr, ns_multiselection_id)
 	self.ns_multiselection_id = ns_multiselection_id
 
 	if entry.value.file_type then
-		local value, color = require("nvim-web-devicons").get_icon(entry.value.path, entry.value.file_type, { default = true })
+		local value, color =
+			require("nvim-web-devicons").get_icon(entry.value.path, entry.value.file_type, { default = true })
 		self.icon = {
 			value = value,
 			color = color,
