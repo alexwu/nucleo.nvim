@@ -9,7 +9,7 @@ use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 
-use crate::picker::Data;
+use crate::picker::{self, Data, Picker};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -101,7 +101,17 @@ impl FromLua<'_> for PartialFileConfig {
     }
 }
 
-pub fn injector(config: FileConfig) -> Arc<dyn Fn(Sender<Data<Value>>) + Sync + Send + 'static> {
+impl From<PartialFileConfig> for FileConfig {
+    fn from(value: PartialFileConfig) -> Self {
+        let mut config = FileConfig::default();
+        config.apply_some(value);
+        config
+    }
+}
+
+pub type FinderFn<T> = Arc<dyn Fn(Sender<Data<T>>) + Sync + Send + 'static>;
+
+pub fn injector(config: FileConfig) -> FinderFn<Value> {
     let FileConfig {
         cwd,
         hidden,
@@ -148,4 +158,18 @@ pub fn injector(config: FileConfig) -> Arc<dyn Fn(Sender<Data<Value>>) + Sync + 
             };
         }
     })
+}
+
+pub fn create_picker(file_options: Option<PartialFileConfig>) -> anyhow::Result<Picker<Value>> {
+    let config = match file_options {
+        Some(config) => config,
+        None => PartialFileConfig::default(),
+    };
+    let populator = injector(config.into());
+    let picker: Picker<Value> =
+        Picker::new(picker::Config::default()).with_populator(Arc::new(move |tx| {
+            populator(tx);
+        }));
+
+    anyhow::Ok(picker)
 }

@@ -80,6 +80,8 @@ function Picker:new(opts)
 	---@type PickerBackend
 	if not opts.source then
 		self.picker = nu.FilePicker(opts)
+	elseif type(opts.source) == "function" then
+		self.picker = nu.LuaPicker(opts.source)
 	else
 		self.picker = nu.CustomPicker(opts.source)
 	end
@@ -194,6 +196,8 @@ function Picker:find(opts)
 	self.picker:update_config(options)
 	if not self.source then
 		self.picker:populate_files()
+	elseif type(self.source) == "function" then
+		-- self.picker:populate(self.source)
 	else
 		vim.print(self.source)
 		self.picker:populate(self.source.results)
@@ -254,7 +258,7 @@ end
 
 function Picker:update_preview()
 	if self.picker:total_matches() > 0 then
-		self.previewer:render(self.picker:get_selection().path)
+		self.previewer:render(self.picker:get_selection().value.path)
 	else
 		self.previewer:clear()
 	end

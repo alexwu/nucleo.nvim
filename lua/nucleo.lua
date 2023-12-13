@@ -8,6 +8,7 @@ M._rust = {
 	FilePicker = true,
 	CustomPicker = true,
 	Previewer = true,
+	LuaPicker = true,
 }
 
 function M.setup(...)
@@ -17,6 +18,9 @@ function M.setup(...)
 	end, {})
 	api.nvim_create_user_command("CustomPicker", function()
 		M.source_test()
+	end, {})
+	api.nvim_create_user_command("LuaPicker", function()
+		M.lua_test()
 	end, {})
 end
 
@@ -48,6 +52,25 @@ function M.source_test(...)
 				-- { display = "Felipe Extra Handsome", value = { text = "Felipe is really extra handsome" } },
 			},
 		},
+		on_submit = function(selection)
+			local path = selection.value.path
+			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
+		end,
+	}):find(...)
+end
+
+function M.lua_test(...)
+	local Picker = require("nucleo.picker")
+
+	Picker({
+		-- Builtin: source = "builtin.files",
+		source = function()
+			return {
+				{ value = "test" },
+				{ value = "test2" },
+				{ value = "test3" },
+			}
+		end,
 		on_submit = function(selection)
 			local path = selection.value.path
 			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))

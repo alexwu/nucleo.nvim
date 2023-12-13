@@ -1,5 +1,7 @@
 use std::{fs::File, sync::Arc};
 
+use anyhow::bail;
+use crossbeam_channel::Sender;
 use entry::{CustomEntry, Entry};
 use log::LevelFilter;
 use mlua::prelude::*;
@@ -7,7 +9,8 @@ use picker::{Data, FileEntry, Picker};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
-use sources::files::{self, FileConfig};
+use sources::files::{self, FileConfig, PartialFileConfig};
+use tokio::runtime::Runtime;
 
 mod buffer;
 mod entry;
@@ -26,7 +29,7 @@ pub fn init_picker(
         None => picker::PartialConfig::default(),
     };
 
-    let picker = Picker::new::<FileEntry>(config.into());
+    let picker = Picker::new(config.into());
 
     Ok(picker)
 }
@@ -34,6 +37,11 @@ pub fn init_picker(
 pub enum SourceKind {
     Builtin,
     Lua(SourceConfig),
+}
+
+pub enum LuaFinder {
+    Table(LuaTable<'static>),
+    Function(LuaFunction<'static>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,6 +59,39 @@ impl FromLua<'_> for SourceConfig {
             results: table.get("results")?,
         })
     }
+}
+pub fn init_lua_picker(
+    lua: &'static Lua,
+    params: (LuaValue<'static>,),
+) -> LuaResult<Picker<CustomEntry>> {
+    let rt = Runtime::new()?;
+    let mut picker: Picker<CustomEntry> = Picker::new(picker::Config::default());
+    let local = tokio::task::LocalSet::new();
+    let results = match params.0.clone() {
+        LuaValue::LightUserData(_) => todo!(),
+        LuaValue::Table(_) => todo!(),
+        LuaValue::Function(finder) => {
+            // rt.block_on(async {
+            //     let finder = finder.clone();
+            picker.populate_with_local(move |tx| {
+                //         local.run_until(async {
+                let results = finder.call::<_, Vec<CustomEntry>>(());
+                log::info!("please {:?}", results);
+                match results {
+                    Ok(entries) => entries.par_iter().for_each(|entry| {
+                        let _ = tx.send(Data::new(entry.value.to_string(), entry.clone()));
+                    }),
+                    Err(_) => todo!(),
+                }
+                //         }).await;
+            });
+            // });
+        }
+        LuaValue::Thread(_) => todo!(),
+        _ => todo!("Invalid finder"),
+    };
+
+    Ok(picker)
 }
 
 pub fn init_custom_picker(lua: &Lua, params: (SourceConfig,)) -> LuaResult<Picker<CustomEntry>> {
@@ -74,28 +115,23 @@ pub fn init_custom_picker(lua: &Lua, params: (SourceConfig,)) -> LuaResult<Picke
     //         indices: vec![],
     //     })
     //     .collect();
-    let mut picker: Picker<CustomEntry> = Picker::new::<CustomEntry>(picker::Config::default());
+    let mut picker: Picker<CustomEntry> = Picker::new(picker::Config::default());
 
     // picker.populate(results);
 
     Ok(picker)
 }
 
-pub fn init_file_picker(lua: &Lua, params: ()) -> LuaResult<Picker<files::Value>> {
-    // pub fn init_file_picker(lua: &Lua, params: (FileConfig,)) -> LuaResult<Picker<files::Value>> {
-    let populator = files::injector(FileConfig::default());
-    let mut picker: Picker<files::Value> = Picker::new::<files::Value>(picker::Config::default());
-
-    picker.set_populator(Arc::new(move |tx| {
-        populator(tx);
-    }));
-    // picker.populate_with(populator);
-
-    Ok(picker)
+// pub fn init_file_picker(lua: &Lua, params: ()) -> LuaResult<Picker<files::Value>> {
+pub fn init_file_picker(
+    lua: &Lua,
+    params: (Option<PartialFileConfig>,),
+) -> LuaResult<Picker<files::Value>> {
+    files::create_picker(params.0).into_lua_err()
 }
 
 #[mlua::lua_module]
-fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
+fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
     let _ = WriteLogger::init(
         LevelFilter::Info,
         Config::default(),
@@ -108,6 +144,7 @@ fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
     exports.set("Picker", lua.create_function(init_picker)?)?;
     exports.set("FilePicker", lua.create_function(init_file_picker)?)?;
     exports.set("CustomPicker", lua.create_function(init_custom_picker)?)?;
+    exports.set("LuaPicker", lua.create_function(init_lua_picker)?)?;
     exports.set(
         "Previewer",
         LuaFunction::wrap(|_, ()| Ok(previewer::Previewer::new())),

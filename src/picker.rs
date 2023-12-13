@@ -3,19 +3,16 @@ use std::collections::HashMap;
 use std::env::current_dir;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
-use std::path::Path;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use crossbeam_channel::{bounded, Sender};
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
-    FromLua, IntoLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
+    FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
 };
 use nucleo::pattern::CaseMatching;
-use nucleo::{Nucleo, Utf32String};
-use once_cell::sync::Lazy;
-use parking_lot::Mutex;
+use nucleo::Nucleo;
 use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
@@ -25,7 +22,7 @@ use strum::{Display, EnumString};
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::entry::Entry;
 use crate::matcher::{Matcher, Status, STRING_MATCHER};
-use crate::sources::files::{self, FileConfig};
+use crate::sources::files::FinderFn;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
@@ -38,8 +35,6 @@ pub struct FileEntry {
     pub path: String,
     pub match_value: String,
     pub file_type: String,
-    pub selected: bool,
-    pub indices: Vec<(u32, u32)>,
 }
 
 impl FromLua<'_> for FileEntry {
@@ -50,65 +45,7 @@ impl FromLua<'_> for FileEntry {
             path: table.get("path")?,
             match_value: table.get("match_value")?,
             file_type: table.get("file_type")?,
-            selected: table.get("selected")?,
-            indices: vec![],
         })
-    }
-}
-
-// impl UserData for FileEntry {
-//     fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
-//         fields.add_field_method_get("display", |_, this| Ok(this.display()));
-//         fields.add_field_method_get("value", |_, this| Ok(this.path.to_string()));
-//         fields.add_field_method_get("selected", |_, this| Ok(this.is_selected()));
-//         fields.add_field_method_get("indices", |lua, this| Ok(lua.to_value(&this.indices())));
-//     }
-// }
-impl Entry for FileEntry {
-    fn display(&self) -> String {
-        self.match_value.to_string()
-    }
-
-    fn into_utf32(self) -> Utf32String {
-        self.match_value.into()
-    }
-
-    fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
-        Self { indices, ..self }
-    }
-
-    fn from_path(path: &Path, cwd: Option<String>) -> FileEntry {
-        let full_path = path.to_str().expect("Failed to convert path to string");
-        let match_value = path
-            .strip_prefix(&cwd.unwrap_or_default())
-            .expect("Failed to strip prefix")
-            .to_str()
-            .expect("Failed to convert path to string")
-            .to_string();
-
-        Self {
-            selected: false,
-            match_value,
-            path: full_path.to_string(),
-            indices: Vec::new(),
-            file_type: path
-                .extension()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string(),
-        }
-    }
-
-    fn with_selected(self, selected: bool) -> Self {
-        Self { selected, ..self }
-    }
-
-    fn indices(&self) -> Vec<(u32, u32)> {
-        self.indices.clone()
-    }
-
-    fn is_selected(&self) -> bool {
-        self.selected
     }
 }
 
@@ -149,6 +86,23 @@ pub struct Data<T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>> {
     pub value: T,
 }
 
+impl<T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>> Data<T> {
+    pub fn new(display: impl Into<String>, value: T) -> Self {
+        Self {
+            value,
+            display: display.into(),
+            selected: false,
+            indices: vec![],
+        }
+    }
+}
+
+impl From<String> for Data<String> {
+    fn from(value: String) -> Self {
+        Self::new(value.clone(), value)
+    }
+}
+
 impl<T> FromLua<'_> for Data<T>
 where
     T: Clone
@@ -182,10 +136,6 @@ where
         + for<'a> FromLua<'a>
         + 'static,
 {
-    fn from_path(path: &std::path::Path, cwd: Option<String>) -> Self {
-        todo!()
-    }
-
     fn display(&self) -> String {
         self.display.clone()
     }
@@ -196,10 +146,6 @@ where
 
     fn is_selected(&self) -> bool {
         self.selected
-    }
-
-    fn into_utf32(self) -> nucleo::Utf32String {
-        self.display.into()
     }
 
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
@@ -231,23 +177,9 @@ where
     receiver: crossbeam_channel::Receiver<()>,
     matches_files: bool,
     config: Config,
-    populator: Arc<dyn Fn(Sender<Data<T>>) + Sync + Send>,
+    populator: FinderFn<T>,
 }
 
-// impl<T: Entry> FromLua<'_> for Picker<T> {
-//     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-//         let table = LuaTable::from_lua(value, lua)?;
-//
-//         Ok(PartialConfig {
-//             cwd,
-//             sort_direction: table.get("sort_direction")?,
-//             git_ignore: table.get("git_ignore")?,
-//             ignore: table.get("ignore")?,
-//             hidden: table.get("hiddne")?,
-//         })
-//     }
-// }
-//
 impl<T> Picker<T>
 where
     T: Clone
@@ -259,10 +191,7 @@ where
         + for<'a> FromLua<'a>
         + 'static,
 {
-    pub fn new<F>(config: Config) -> Self
-    where
-        F:,
-    {
+    pub fn new(config: Config) -> Self {
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
         // let notifier = sender.clone();
@@ -275,8 +204,6 @@ where
         let matcher: Matcher<Data<T>> =
             Nucleo::new(nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
 
-        // let populator = files::injector(FileConfig::default());
-
         Self {
             matcher,
             receiver,
@@ -287,7 +214,7 @@ where
             selections: HashMap::new(),
             window: Window::new(50),
             matches_files: true,
-            populator: Arc::new(|tx| {}),
+            populator: Arc::new(|_| {}),
         }
     }
 
@@ -307,11 +234,11 @@ where
         self.receiver.try_recv()
     }
 
-    pub fn set_populator<F>(&mut self, populator: Arc<F>)
+    pub fn with_populator<F>(self, populator: Arc<F>) -> Self
     where
         F: Fn(Sender<Data<T>>) + Sync + Send + 'static,
     {
-        self.populator = populator;
+        Self { populator, ..self }
     }
 
     pub fn should_rerender(&self) -> bool {
@@ -371,24 +298,9 @@ where
 
     pub fn update_config(&mut self, config: PartialConfig) {
         log::info!("Updating config to: {:?}", config);
-        if let Some(cwd) = config.cwd {
-            self.config.cwd = cwd;
-        }
 
         if let Some(sort_direction) = config.sort_direction {
             self.config.sort_direction = sort_direction;
-        }
-
-        if let Some(git_ignore) = config.git_ignore {
-            self.config.git_ignore = git_ignore;
-        }
-
-        if let Some(ignore) = config.ignore {
-            self.config.ignore = ignore;
-        }
-
-        if let Some(hidden) = config.hidden {
-            self.config.hidden = hidden;
         }
     }
 
@@ -494,23 +406,30 @@ where
         F: Fn(Sender<Data<T>>) + Send + Sync + ?Sized + 'static,
     {
         let injector = self.matcher.injector();
-        rayon::spawn(move || {
-            injector.populate_with(populator);
-        });
+        // rayon::spawn(move || {
+        injector.populate_with(populator);
+        // });
+    }
+
+    pub async fn populate_with_async<F>(&mut self, populator: Arc<F>)
+    where
+        F: Fn(Sender<Data<T>>) + Send + Sync + ?Sized + 'static,
+    {
+        let injector = self.matcher.injector();
+        injector.populate_with_async(populator).await;
+    }
+
+    pub fn populate_with_local<F>(&mut self, populator: F)
+    where
+        F: Fn(Sender<Data<T>>) + 'static,
+    {
+        let injector = self.matcher.injector();
+
+        injector.populate_with_local(populator);
     }
 
     pub fn populate_files(&mut self) {
-        let cwd = self.config.cwd.clone();
-        let git_ignore = self.config.git_ignore;
-        let ignore = self.config.ignore;
-        let hidden = self.config.hidden;
         let injector = self.matcher.injector();
-        let config = FileConfig {
-            cwd,
-            git_ignore,
-            ignore,
-            hidden,
-        };
         let populator = self.populator.clone();
         rayon::spawn(move || {
             injector.populate_with(populator);
@@ -581,7 +500,7 @@ where
         + 'static,
 {
     fn default() -> Self {
-        Self::new::<T>(Config::default())
+        Self::new(Config::default())
     }
 }
 
@@ -632,11 +551,7 @@ where
 #[derive(Clone, Debug, Deserialize, Serialize, Partial)]
 #[partially(derive(Default, Debug))]
 pub struct Config {
-    pub cwd: String,
     pub sort_direction: SortDirection,
-    pub git_ignore: bool,
-    pub ignore: bool,
-    pub hidden: bool,
 }
 
 impl Default for Config {
@@ -644,11 +559,7 @@ impl Default for Config {
         let cwd = current_dir().unwrap().to_string_lossy().to_string();
 
         Self {
-            cwd,
             sort_direction: SortDirection::Ascending,
-            git_ignore: true,
-            ignore: true,
-            hidden: false,
         }
     }
 }
@@ -656,21 +567,9 @@ impl Default for Config {
 impl FromLua<'_> for PartialConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
-        let cwd = match table.get::<&str, LuaValue>("cwd") {
-            Ok(val) => match val {
-                LuaValue::String(cwd) => Some(cwd.to_string_lossy().to_string()),
-                LuaValue::Function(thunk) => Some(thunk.call::<_, String>(())?),
-                _ => None,
-            },
-            _ => None,
-        };
 
         Ok(PartialConfig {
-            cwd,
             sort_direction: table.get("sort_direction")?,
-            git_ignore: table.get("git_ignore")?,
-            ignore: table.get("ignore")?,
-            hidden: table.get("hiddne")?,
         })
     }
 }
@@ -819,6 +718,12 @@ where
         methods.add_method_mut("tick", |_lua, this, ms: u64| {
             let status = this.tick(ms);
             Ok(status)
+        });
+
+        methods.add_async_method_mut("populate_files_async", |_lua, this, _params: ()| async {
+            let populator = this.populator.clone();
+            this.populate_with_async(populator).await;
+            Ok(())
         });
 
         methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
