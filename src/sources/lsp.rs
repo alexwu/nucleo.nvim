@@ -1,7 +1,7 @@
 use mlua::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::picker::Data;
+use crate::picker::{Data, Blob};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Diagnostic {
@@ -11,9 +11,9 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn from_diagnostic(data: Diagnostic) -> Data<Diagnostic> {
+    pub fn from_diagnostic(data: Diagnostic) -> Data<Diagnostic, Blob> {
         let message = data.message.replace('\n', " ");
-        Data::new(message, data)
+        Data::new(message, data, None)
     }
 }
 

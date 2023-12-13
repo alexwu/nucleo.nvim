@@ -9,7 +9,7 @@ use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 
-use crate::picker::{self, Data, Picker};
+use crate::picker::{self, Data, Picker, Previewable};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -18,7 +18,7 @@ pub struct Value {
 }
 
 impl Value {
-    fn from_path(path: &Path, cwd: Option<String>) -> Data<Value> {
+    fn from_path(path: &Path, cwd: Option<String>) -> Data<Value, PreviewOptions> {
         let full_path = path.to_str().expect("Failed to convert path to string");
         let match_value = path
             .strip_prefix(&cwd.unwrap_or_default())
@@ -40,6 +40,7 @@ impl Value {
             selected: false,
             indices: Vec::new(),
             value,
+            preview_options: Some(PreviewOptions::default()),
             display: match_value,
         }
     }
@@ -62,6 +63,32 @@ pub struct FileConfig {
     pub git_ignore: bool,
     pub ignore: bool,
     pub hidden: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PreviewOptions {
+    line_start: usize,
+    line_end: Option<usize>,
+    col_start: usize,
+    col_end: Option<usize>,
+}
+
+impl<'a> FromLua<'a> for PreviewOptions {
+    fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
+        lua.from_value(value)
+    }
+}
+impl Previewable for PreviewOptions {}
+
+impl Default for PreviewOptions {
+    fn default() -> Self {
+        Self {
+            line_start: 0,
+            line_end: None,
+            col_start: 0,
+            col_end: None,
+        }
+    }
 }
 
 impl Default for FileConfig {
@@ -109,9 +136,9 @@ impl From<PartialFileConfig> for FileConfig {
     }
 }
 
-pub type FinderFn<T> = Arc<dyn Fn(Sender<Data<T>>) + Sync + Send + 'static>;
+pub type FinderFn<T, U> = Arc<dyn Fn(Sender<Data<T, U>>) + Sync + Send + 'static>;
 
-pub fn injector(config: FileConfig) -> FinderFn<Value> {
+pub fn injector(config: FileConfig) -> FinderFn<Value, PreviewOptions> {
     let FileConfig {
         cwd,
         hidden,
@@ -160,13 +187,15 @@ pub fn injector(config: FileConfig) -> FinderFn<Value> {
     })
 }
 
-pub fn create_picker(file_options: Option<PartialFileConfig>) -> anyhow::Result<Picker<Value>> {
+pub fn create_picker(
+    file_options: Option<PartialFileConfig>,
+) -> anyhow::Result<Picker<Value, PreviewOptions>> {
     let config = match file_options {
         Some(config) => config,
         None => PartialFileConfig::default(),
     };
     let populator = injector(config.into());
-    let picker: Picker<Value> =
+    let picker: Picker<Value, PreviewOptions> =
         Picker::new(picker::Config::default()).with_populator(Arc::new(move |tx| {
             populator(tx);
         }));

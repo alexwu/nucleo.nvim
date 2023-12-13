@@ -258,7 +258,7 @@ end
 
 function Picker:update_preview()
 	if self.picker:total_matches() > 0 then
-		self.previewer:render(self.picker:get_selection().value.path)
+		self.previewer:render(self.picker:get_selection())
 	else
 		self.previewer:clear()
 	end

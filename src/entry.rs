@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
-    FromLua, IntoLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
+    ExternalResult, FromLua, IntoLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
 };
 use nucleo::Utf32String;
 use serde::{Deserialize, Serialize};
@@ -22,15 +22,31 @@ pub trait Entry:
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct CustomEntry {
-    pub value: String,
+    pub display: Option<String>,
+    pub value: serde_json::Value,
 }
 
 impl FromLua<'_> for CustomEntry {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
+        let val: LuaValue = table.get("value")?;
+        let json_str = serde_json::to_value(&val).into_lua_err()?;
 
         Ok(Self {
-            value: table.get("value")?,
+            display: table.get("display")?,
+            value: json_str,
         })
+    }
+}
+
+impl IntoLua<'_> for CustomEntry {
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+        let table = lua.create_table()?;
+        let value: LuaValue = lua.to_value(&self.value)?;
+        let display = self.display;
+
+        table.set("display", display)?;
+        table.set("value", value)?;
+        lua.to_value(&table)
     }
 }

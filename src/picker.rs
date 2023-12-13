@@ -7,6 +7,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crossbeam_channel::{bounded, Sender};
+use mlua::ExternalResult;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
@@ -20,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
-use crate::entry::Entry;
+use crate::entry::{CustomEntry, Entry};
 use crate::matcher::{Matcher, Status, STRING_MATCHER};
 use crate::sources::files::FinderFn;
 
@@ -78,18 +79,46 @@ impl IntoLua<'_> for SortDirection {
     }
 }
 
+pub trait Previewable:
+    Serialize + for<'a> FromLua<'a> + for<'a> Deserialize<'a> + Clone + Debug + Send + Sync + 'static
+{
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Data<T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>> {
+pub struct Blob(serde_json::Value);
+impl<'a> FromLua<'a> for Blob {
+    fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
+        Ok(Self(lua.from_value(value).into_lua_err()?))
+    }
+}
+impl Previewable for Blob {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Data<T, U>
+where
+    T: Clone + Debug + Sync + Send + for<'a> FromLua<'a> + 'static,
+    U: Previewable + for<'a> FromLua<'a>,
+{
     pub display: String,
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
+    #[serde(
+        bound = "T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + 'static"
+    )]
     pub value: T,
+    #[serde(bound = "U: Previewable")]
+    pub preview_options: Option<U>,
 }
 
-impl<T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>> Data<T> {
-    pub fn new(display: impl Into<String>, value: T) -> Self {
+impl<T, U> Data<T, U>
+where
+    T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>,
+    U: Previewable + for<'a> FromLua<'a>,
+{
+    pub fn new(display: impl Into<String>, value: T, preview_options: Option<U>) -> Self {
         Self {
             value,
+            preview_options,
             display: display.into(),
             selected: false,
             indices: vec![],
@@ -97,13 +126,23 @@ impl<T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>> Data<T> {
     }
 }
 
-impl From<String> for Data<String> {
+impl From<String> for Data<String, Blob> {
     fn from(value: String) -> Self {
-        Self::new(value.clone(), value)
+        Self::new(value.clone(), value, None)
     }
 }
 
-impl<T> FromLua<'_> for Data<T>
+impl From<CustomEntry> for Data<CustomEntry, Blob> {
+    fn from(value: CustomEntry) -> Self {
+        let display = match value.display.clone() {
+            Some(display) => display,
+            None => value.value.to_string(),
+        };
+        Self::new(display, value, None)
+    }
+}
+
+impl<T, U> FromLua<'_> for Data<T, U>
 where
     T: Clone
         + Debug
@@ -113,6 +152,7 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
+    U: Previewable + for<'a> FromLua<'a>,
 {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
@@ -122,10 +162,11 @@ where
             value: table.get("value")?,
             selected: table.get("selected")?,
             indices: vec![],
+            preview_options: table.get("preview_options")?,
         })
     }
 }
-impl<T> Entry for Data<T>
+impl<T, U> Entry for Data<T, U>
 where
     T: Clone
         + Debug
@@ -135,6 +176,7 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
+    U: Previewable + for<'a> FromLua<'a>,
 {
     fn display(&self) -> String {
         self.display.clone()
@@ -157,7 +199,7 @@ where
     }
 }
 
-pub struct Picker<T>
+pub struct Picker<T, U>
 where
     T: Clone
         + Debug
@@ -167,20 +209,21 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
+    U: Previewable + for<'a> mlua::FromLua<'a>,
 {
-    pub matcher: Matcher<Data<T>>,
+    pub matcher: Matcher<Data<T, U>>,
     previous_query: String,
     cursor: Cursor,
     window: Window,
-    selections: HashMap<String, Data<T>>,
+    selections: HashMap<String, Data<T, U>>,
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
     matches_files: bool,
     config: Config,
-    populator: FinderFn<T>,
+    populator: FinderFn<T, U>,
 }
 
-impl<T> Picker<T>
+impl<T, U> Picker<T, U>
 where
     T: Clone
         + Debug
@@ -190,6 +233,7 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
+    U: Previewable,
 {
     pub fn new(config: Config) -> Self {
         log::info!("Creating picker with config: {:?}", &config);
@@ -201,7 +245,7 @@ where
             //     log::info!("Message sent!")
             // };
         });
-        let matcher: Matcher<Data<T>> =
+        let matcher: Matcher<Data<T, U>> =
             Nucleo::new(nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
 
         Self {
@@ -236,7 +280,7 @@ where
 
     pub fn with_populator<F>(self, populator: Arc<F>) -> Self
     where
-        F: Fn(Sender<Data<T>>) + Sync + Send + 'static,
+        F: Fn(Sender<Data<T, U>>) + Sync + Send + 'static,
     {
         Self { populator, ..self }
     }
@@ -352,7 +396,7 @@ where
         log::info!("Selection index: {}", self.cursor.pos());
     }
 
-    pub fn current_matches(&self) -> Vec<Data<T>> {
+    pub fn current_matches(&self) -> Vec<Data<T, U>> {
         let mut indices = Vec::new();
         let snapshot = self.matcher.snapshot();
         log::info!("Item count: {:?}", snapshot.item_count());
@@ -394,7 +438,7 @@ where
         self.matcher.0.restart(true);
     }
 
-    pub fn populate(&mut self, entries: Vec<Data<T>>) {
+    pub fn populate(&mut self, entries: Vec<Data<T, U>>) {
         let injector = self.matcher.injector();
         rayon::spawn(move || {
             injector.populate(entries);
@@ -403,7 +447,7 @@ where
 
     pub fn populate_with<F>(&mut self, populator: Arc<F>)
     where
-        F: Fn(Sender<Data<T>>) + Send + Sync + ?Sized + 'static,
+        F: Fn(Sender<Data<T, U>>) + Send + Sync + ?Sized + 'static,
     {
         let injector = self.matcher.injector();
         rayon::spawn(move || {
@@ -413,7 +457,7 @@ where
 
     pub fn populate_with_local<F>(&mut self, populator: F)
     where
-        F: Fn(Sender<Data<T>>) + 'static,
+        F: Fn(Sender<Data<T, U>>) + 'static,
     {
         let injector = self.matcher.injector();
 
@@ -467,7 +511,7 @@ where
         };
     }
 
-    pub fn selections(&self) -> Vec<Data<T>> {
+    pub fn selections(&self) -> Vec<Data<T, U>> {
         self.selections.clone().into_values().collect()
     }
 
@@ -480,7 +524,7 @@ where
     }
 }
 
-impl<T> Default for Picker<T>
+impl<T, U> Default for Picker<T, U>
 where
     T: Clone
         + Debug
@@ -490,13 +534,14 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
+    U: Previewable,
 {
     fn default() -> Self {
         Self::new(Config::default())
     }
 }
 
-impl<T> Contents for Picker<T>
+impl<T, U: Previewable> Contents for Picker<T, U>
 where
     T: Clone
         + Debug
@@ -512,7 +557,7 @@ where
     }
 }
 
-impl<T> BufferContents<T> for Picker<T>
+impl<T, U> BufferContents<T> for Picker<T, U>
 where
     T: Clone
         + Debug
@@ -522,6 +567,7 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
+    U: Previewable,
 {
     fn window(&self) -> &crate::buffer::Window {
         &self.window
@@ -572,7 +618,7 @@ impl From<PartialConfig> for Config {
     }
 }
 
-impl<T> UserData for Picker<T>
+impl<T, U> UserData for Picker<T, U>
 where
     T: Clone
         + Debug
@@ -582,6 +628,7 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
+    U: Previewable,
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
@@ -715,7 +762,7 @@ where
             Ok(())
         });
 
-        methods.add_method_mut("populate", |_lua, this, params: (Vec<Data<T>>,)| {
+        methods.add_method_mut("populate", |_lua, this, params: (Vec<Data<T, U>>,)| {
             this.populate(params.0);
             Ok(())
         });

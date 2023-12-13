@@ -47,7 +47,15 @@ function M.source_test(...)
 					display = "Felipe Handsome",
 					selected = false,
 					indices = {},
-					value = { value = "" },
+					value = {
+						display = "Custom Lua",
+						value = {
+							line = 1,
+							col = 12,
+							wtf = "",
+							hello = {},
+						},
+					},
 				},
 				-- { display = "Felipe Extra Handsome", value = { text = "Felipe is really extra handsome" } },
 			},
@@ -65,7 +73,14 @@ function M.lua_test(...)
 	Picker({
 		-- Builtin: source = "builtin.files",
 		source = function()
-			return vim.diagnostic.get(nil)
+			return vim.iter(vim.diagnostic.get(nil))
+				:map(function(diagnostic)
+					return {
+						display = vim.split(diagnostic.message, "\n")[1],
+						value = diagnostic,
+					}
+				end)
+				:totable()
 		end,
 		on_submit = function(selection)
 			local path = selection.value.path

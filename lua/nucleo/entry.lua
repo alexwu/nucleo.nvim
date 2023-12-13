@@ -18,6 +18,7 @@ local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
 function Entry:new(index, entry, bufnr, ns_multiselection_id)
 	self.index = index
 	self.entry = entry
+	-- vim.print(self.entry)
 	self.bufnr = bufnr
 	self.selection_caret = " "
 	self.selection_caret_extmark_id = nil

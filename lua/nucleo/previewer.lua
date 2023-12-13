@@ -27,31 +27,33 @@ function Previewer:clear()
 	api.nvim_buf_set_lines(self.bufnr, 0, -1, false, {})
 end
 
-function Previewer:render(file)
-	if self.winid and file then
-		local height = api.nvim_win_get_height(self.winid)
-		local lines = self.previewer:preview_file(file, 0, height)
-		local content = vim.split(lines, "\n")
-		api.nvim_buf_set_lines(self.bufnr, 0, -1, false, content)
+function Previewer:render(entry)
+	if not self.winid or not entry or not entry.value.path then
+		return
+	end
 
-		local line_count = api.nvim_buf_line_count(self.bufnr)
-		if line_count == 0 then
+	local height = api.nvim_win_get_height(self.winid)
+	local lines = self.previewer:preview_file(entry.value.path, 0, height)
+	local content = vim.split(lines, "\n")
+	api.nvim_buf_set_lines(self.bufnr, 0, -1, false, content)
+
+	local line_count = api.nvim_buf_line_count(self.bufnr)
+	if line_count == 0 then
+		return
+	end
+
+	vim.schedule(function()
+		local name = vim.fs.basename(entry.value.path)
+		local ft = vim.filetype.match({ filename = name, content = content })
+		if not ft or ft == "" then
 			return
 		end
 
-		vim.schedule(function()
-			local name = vim.fs.basename(file)
-			local ft = vim.filetype.match({ filename = name, content = content })
-			if not ft or ft == "" then
-				return
-			end
-
-			local lang = vim.treesitter.language.get_lang(ft)
-			if lang and has_ts_parser(lang) then
-				return vim.treesitter.start(self.bufnr, lang)
-			end
-		end)
-	end
+		local lang = vim.treesitter.language.get_lang(ft)
+		if lang and has_ts_parser(lang) then
+			return vim.treesitter.start(self.bufnr, lang)
+		end
+	end)
 end
 
 return Previewer

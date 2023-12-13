@@ -31,15 +31,16 @@ impl<T: Entry> Injector<T> {
         let rt = Runtime::new().expect("Failed to create runtime");
 
         let (tx, rx) = unbounded::<T>();
-        let _add_to_injector_thread: JoinHandle<Result<(), _>> = tokio::spawn(async move {
-            for val in rx.iter() {
-                self.push(val);
-            }
-            anyhow::Ok(())
-        });
 
         let sender = tx.clone();
-        tokio::spawn(async move {
+        rt.block_on(async {
+            let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
+                for val in rx.iter() {
+                    self.push(val);
+                }
+                anyhow::Ok(())
+            });
+
             entries.into_par_iter().for_each(|entry| {
                 let _ = sender.send(entry);
             });

@@ -5,12 +5,12 @@ use crossbeam_channel::Sender;
 use entry::{CustomEntry, Entry};
 use log::LevelFilter;
 use mlua::prelude::*;
-use picker::{Data, FileEntry, Picker};
+use picker::{Blob, Data, FileEntry, Picker};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
 use sources::{
-    files::{self, FileConfig, PartialFileConfig},
+    files::{self, FileConfig, PartialFileConfig, PreviewOptions},
     lsp::Diagnostic,
 };
 use tokio::runtime::Runtime;
@@ -26,7 +26,7 @@ mod sources;
 pub fn init_picker(
     _: &Lua,
     params: (Option<picker::PartialConfig>,),
-) -> LuaResult<Picker<FileEntry>> {
+) -> LuaResult<Picker<FileEntry, PreviewOptions>> {
     let config = match params.0 {
         Some(config) => config,
         None => picker::PartialConfig::default(),
@@ -50,7 +50,7 @@ pub enum LuaFinder {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceConfig {
     name: String,
-    results: Vec<Data<CustomEntry>>,
+    results: Vec<Data<CustomEntry, Blob>>,
 }
 
 impl FromLua<'_> for SourceConfig {
@@ -66,9 +66,9 @@ impl FromLua<'_> for SourceConfig {
 pub fn init_lua_picker(
     lua: &'static Lua,
     params: (LuaValue<'static>,),
-) -> LuaResult<Picker<Diagnostic>> {
+) -> LuaResult<Picker<CustomEntry, Blob>> {
     let rt = Runtime::new()?;
-    let mut picker: Picker<Diagnostic> = Picker::new(picker::Config::default());
+    let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
     let local = tokio::task::LocalSet::new();
     let results = match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
@@ -78,11 +78,11 @@ pub fn init_lua_picker(
             //     let finder = finder.clone();
             picker.populate_with_local(move |tx| {
                 //         local.run_until(async {
-                let results = finder.call::<_, Vec<Diagnostic>>(());
+                let results = finder.call::<_, Vec<CustomEntry>>(());
                 log::info!("please {:?}", results);
                 match results {
                     Ok(entries) => entries.par_iter().for_each(|entry| {
-                        let _ = tx.send(Diagnostic::from_diagnostic(entry.clone()));
+                        let _ = tx.send(entry.clone().into());
                     }),
                     Err(_) => todo!(),
                 }
@@ -97,7 +97,10 @@ pub fn init_lua_picker(
     Ok(picker)
 }
 
-pub fn init_custom_picker(lua: &Lua, params: (SourceConfig,)) -> LuaResult<Picker<CustomEntry>> {
+pub fn init_custom_picker(
+    lua: &Lua,
+    params: (SourceConfig,),
+) -> LuaResult<Picker<CustomEntry, Blob>> {
     // let results: Result<Vec<CustomEntry>, LuaError> = match table.get::<&str, LuaValue>("results") {
     //     Ok(val) => match val {
     //         // LuaValue::Function(func) => func.call::<_, Vec<CustomEntry>>(()),
@@ -118,7 +121,7 @@ pub fn init_custom_picker(lua: &Lua, params: (SourceConfig,)) -> LuaResult<Picke
     //         indices: vec![],
     //     })
     //     .collect();
-    let mut picker: Picker<CustomEntry> = Picker::new(picker::Config::default());
+    let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
 
     // picker.populate(results);
 
@@ -129,7 +132,7 @@ pub fn init_custom_picker(lua: &Lua, params: (SourceConfig,)) -> LuaResult<Picke
 pub fn init_file_picker(
     lua: &Lua,
     params: (Option<PartialFileConfig>,),
-) -> LuaResult<Picker<files::Value>> {
+) -> LuaResult<Picker<files::Value, PreviewOptions>> {
     files::create_picker(params.0).into_lua_err()
 }
 
