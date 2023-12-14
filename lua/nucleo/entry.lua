@@ -5,7 +5,7 @@
 ---@field icon { value: string, color: string }
 local Entry = require("plenary.class"):extend()
 local Line = require("nucleo.line")
-local Text = require("nui.text")
+local Text = require("nucleo.text")
 local devicons = require("nvim-web-devicons")
 local api = vim.api
 
@@ -26,8 +26,7 @@ function Entry:new(index, entry, bufnr, ns_multiselection_id)
 	self.ns_multiselection_id = ns_multiselection_id
 
 	if entry.value.file_type then
-		local value, color =
-			devicons.get_icon(entry.value.path, entry.value.file_type, { default = true })
+		local value, color = devicons.get_icon(entry.value.path, entry.value.file_type, { default = true })
 		self.icon = {
 			value = value,
 			color = color,
@@ -48,6 +47,7 @@ end
 -- end
 
 function Entry:render()
+	local width = vim.api.nvim_win_get_width(0)
 	local picker_icon = Text(self.selection_caret, "Normal")
 	local icon = Text(self.icon.value, self.icon.color)
 	local path = Text(self.entry.match_value or self.entry.display)
