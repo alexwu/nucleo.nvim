@@ -37,7 +37,7 @@ impl Previewer {
             Ok(rope) => rope,
             Err(_) => return String::new(),
         };
-        let end_line = text.len_lines().min(end_line);
+        let end_line = text.len_lines().min(end_line.max(start_line));
         let start_idx = text.line_to_char(start_line);
         let end_idx = text.line_to_char(end_line);
 
@@ -53,8 +53,15 @@ impl UserData for Previewer {
         methods.add_method_mut(
             "preview_file",
             |_lua, this, params: (Option<String>, usize, usize)| match params.0 {
-                Some(path) => Ok(this.preview_file(&path, params.1, params.2)),
-                None => Ok(String::new()),
+                Some(path) => {
+                    let preview: Vec<String> = this
+                        .preview_file(&path, params.1, params.2)
+                        .split('\n')
+                        .map(Into::into)
+                        .collect();
+                    Ok(preview.to_owned())
+                }
+                None => Ok(Vec::new()),
             },
         );
 

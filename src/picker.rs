@@ -22,6 +22,7 @@ use strum::{Display, EnumString};
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::entry::{CustomEntry, Entry};
 use crate::matcher::{Matcher, Status, STRING_MATCHER};
+use crate::sources::diagnostics::Diagnostic;
 use crate::sources::files::FinderFn;
 
 #[derive(Debug, Clone, Copy)]
@@ -87,7 +88,15 @@ pub trait Previewable:
 pub struct Blob(pub serde_json::Value);
 impl<'a> FromLua<'a> for Blob {
     fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
-        Ok(Self(lua.from_value(value).into_lua_err()?))
+        let ty = value.type_name();
+        Ok(Blob(serde_json::to_value(value).map_err(|e| {
+            mlua::Error::FromLuaConversionError {
+                from: ty,
+                to: "Blob",
+                message: Some(format!("{}", e)),
+            }
+        })?))
+        // Ok(Self(lua.from_value(value).into_lua_err()?))
     }
 }
 impl Previewable for Blob {}
@@ -105,6 +114,7 @@ where
         bound = "T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + 'static"
     )]
     pub value: T,
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(bound = "U: Previewable")]
     pub preview_options: Option<U>,
 }
@@ -143,6 +153,12 @@ impl From<CustomEntry> for Data<CustomEntry, Blob> {
     }
 }
 
+impl From<Diagnostic> for Data<Diagnostic, Blob> {
+    fn from(value: Diagnostic) -> Self {
+        let message = value.message.clone().replace('\n', " ");
+        Data::new(message, value, None)
+    }
+}
 impl<T, U> FromLua<'_> for Data<T, U>
 where
     T: Clone

@@ -11,7 +11,10 @@ use picker::{Blob, Data, FileEntry, Picker};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
-use sources::files::{self, PartialFileConfig, PreviewOptions};
+use sources::{
+    diagnostics::{self, Diagnostic},
+    files::{self, PartialFileConfig, PreviewOptions},
+};
 
 mod buffer;
 mod entry;
@@ -76,20 +79,22 @@ where
 pub fn init_lua_picker(
     _lua: &'static Lua,
     params: (LuaValue<'static>,),
-) -> LuaResult<Picker<CustomEntry, Blob>> {
-    let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
+) -> LuaResult<Picker<Diagnostic, PreviewOptions>> {
+    let mut picker = diagnostics::create_picker().into_lua_err()?;
     match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
-        LuaValue::Table(_) => todo!(),
+        LuaValue::Table(_) => todo!("Table not yet implemented"),
         LuaValue::Function(finder) => {
             picker.populate_with_local(move |tx| {
-                let results = finder.call::<_, Vec<CustomEntry>>(());
+                let results = finder.call::<_, Vec<Diagnostic>>(());
                 log::info!("please {:?}", results);
                 match results {
                     Ok(entries) => entries.par_iter().for_each(|entry| {
                         let _ = tx.send(entry.clone().into());
                     }),
-                    Err(_) => todo!(),
+                    Err(error) => {
+                        log::error!("Errored calling finder fn: {}", error);
+                    },
                 }
             });
         }

@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::{env::current_dir, path::Path};
 
+use buildstructor::Builder;
 use crossbeam_channel::Sender;
 use ignore::types::TypesBuilder;
 use ignore::WalkBuilder;
@@ -65,19 +66,46 @@ pub struct FileConfig {
     pub hidden: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+#[serde(default)]
 pub struct PreviewOptions {
-    line_start: usize,
-    line_end: Option<usize>,
-    col_start: usize,
-    col_end: Option<usize>,
+    pub line_start: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_end: Option<usize>,
+    pub col_start: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub col_end: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bufnr: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uri: Option<String>,
 }
 
 impl<'a> FromLua<'a> for PreviewOptions {
     fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
+        // let ty = value.type_name();
+        // serde_json::to_value(value)
+        //     .map_err(|e| mlua::Error::FromLuaConversionError {
+        //         from: ty,
+        //         to: "serde_json::Value",
+        //         message: Some(format!("{}", e)),
+        //     })
+        //     .into_lua_err()?
         lua.from_value(value)
     }
 }
+
+impl<'a> IntoLua<'a> for PreviewOptions {
+    fn into_lua(self, lua: &'a Lua) -> LuaResult<LuaValue<'a>> {
+        lua.to_value_with(
+            &self,
+            LuaSerializeOptions::default().serialize_none_to_null(false),
+        )
+    }
+}
+
 impl Previewable for PreviewOptions {}
 
 impl Default for PreviewOptions {
@@ -87,6 +115,9 @@ impl Default for PreviewOptions {
             line_end: None,
             col_start: 0,
             col_end: None,
+            bufnr: None,
+            path: None,
+            uri: None,
         }
     }
 }
@@ -195,8 +226,8 @@ pub fn create_picker(
         None => PartialFileConfig::default(),
     };
     let populator = injector(config.into());
-    let picker: Picker<Value, PreviewOptions> =
-        Picker::new(picker::Config::default()).with_populator(Arc::new(move |tx| {
+    let picker: Picker<Value, PreviewOptions> = Picker::new(picker::Config::default())
+        .with_populator(Arc::new(move |tx| {
             populator(tx);
         }));
 

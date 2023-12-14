@@ -219,6 +219,7 @@ function Picker:submit()
 		self._on_submit(selection)
 	end
 
+	self.previewer:reset()
 	self.prompt:stop()
 	-- TODO: Figure out what to actually do here
 	self.picker:update_query("")
@@ -232,6 +233,7 @@ function Picker:close()
 		self._on_close()
 	end
 
+	self.previewer:reset()
 	self.prompt:stop()
 	self.picker:update_query("")
 	self.picker:restart()

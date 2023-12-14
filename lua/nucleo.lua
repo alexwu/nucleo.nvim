@@ -77,20 +77,20 @@ function M.lua_test(...)
 	Picker({
 		-- Builtin: source = "builtin.files",
 		source = function()
-			return vim.iter(vim.diagnostic.get(nil))
-				:map(function(diagnostic)
-					local message = vim.split(diagnostic.message, "\n")[1]
-
-					local display = table.concat({ diagnostic.code, message }, " ")
-					return {
-						display = display,
-						value = diagnostic,
-					}
-				end)
-				:totable()
+			-- return vim.iter(pairs(vim.diagnostic.get(nil)))
+			-- 	:map(function(diagnostic)
+			-- 		local message = vim.split(diagnostic.message, "\n")[1]
+			--
+			-- 		local display = table.concat({ diagnostic.code, message }, " ")
+			-- 		return {
+			-- 			display = display,
+			-- 			value = diagnostic,
+			-- 		}
+			-- 	end):totable()
+			return vim.diagnostic.get(nil)
 		end,
 		on_submit = function(selection)
-			vim.print(selection.value)
+			vim.print(selection)
 		end,
 	}):find(...)
 end
