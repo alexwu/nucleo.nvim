@@ -66,7 +66,7 @@ function Results:render_entries(picker)
 				index = height - i + 1
 				log.info("trying to render index", index)
 			end
-			return Entry(index, entry, self.bufnr, ns_multiselection):render()
+			return Entry(index, entry, self.bufnr, ns_multiselection, self.winid):render()
 		end)
 	end
 end

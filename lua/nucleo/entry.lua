@@ -7,6 +7,7 @@ local Entry = require("plenary.class"):extend()
 local Line = require("nucleo.line")
 local Text = require("nucleo.text")
 local devicons = require("nvim-web-devicons")
+local strings = require("plenary.strings")
 local api = vim.api
 
 local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
@@ -16,7 +17,7 @@ local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
 ---@field file_type string
 
 ---@param index number Lua index-ed
-function Entry:new(index, entry, bufnr, ns_multiselection_id)
+function Entry:new(index, entry, bufnr, ns_multiselection_id, winid)
 	self.index = index
 	self.entry = entry
 	-- vim.print(self.entry)
@@ -24,6 +25,7 @@ function Entry:new(index, entry, bufnr, ns_multiselection_id)
 	self.selection_caret = " "
 	self.selection_caret_extmark_id = nil
 	self.ns_multiselection_id = ns_multiselection_id
+	self.winid = winid
 
 	if entry.value.file_type then
 		local value, color = devicons.get_icon(entry.value.path, entry.value.file_type, { default = true })
@@ -47,24 +49,32 @@ end
 -- end
 
 function Entry:render()
-	local width = vim.api.nvim_win_get_width(0)
 	local picker_icon = Text(self.selection_caret, "Normal")
 	local icon = Text(self.icon.value, self.icon.color)
-	local path = Text(self.entry.match_value or self.entry.display)
-	local line = Line({ picker_icon, icon, path })
-
 	local leading_length = picker_icon:length() + icon:length()
 
+	local width = vim.api.nvim_win_get_width(self.winid) - leading_length
+	local truncated_text = strings.truncate(self.entry.display, width, nil, -1)
+	local path = Text(truncated_text)
+
+	local line = Line({ picker_icon, icon, path })
+
+	local truncation_offset = vim.fn.strlen(self.entry.display) - vim.fn.strlen(truncated_text)
 	line:render(self.bufnr, -1, self.index)
 	vim.iter(self.entry.indices):each(function(range)
-		vim.highlight.range(
-			self.bufnr,
-			ns_matching,
-			"TelescopeMatching",
-			{ self.index - 1, leading_length + 1 + range[1] + 1 },
-			{ self.index - 1, leading_length + 1 + range[2] + 1 },
-			{ inclusive = true }
-		)
+		local start_col = leading_length + 1 + range[1] + 1 - truncation_offset
+		local end_col = leading_length + 1 + range[2] + 1 - truncation_offset
+
+		if start_col > 0 and end_col > 0 then
+			vim.highlight.range(
+				self.bufnr,
+				ns_matching,
+				"TelescopeMatching",
+				{ self.index - 1, start_col },
+				{ self.index - 1, end_col },
+				{ inclusive = true }
+			)
+		end
 	end)
 
 	if self.entry.selected then
