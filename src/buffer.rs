@@ -4,8 +4,6 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-
-
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct Window {
     /// The buffer line number of the top of the window
@@ -98,7 +96,8 @@ pub trait BufferContents<T: Clone + Debug>: Contents + Sized {
     fn set_cursor_pos_in_window(&mut self, pos: usize) {
         let max_pos = self.window().end().min(self.len()).saturating_sub(1);
         log::info!("window max_pos: {}", max_pos);
-        self.cursor_mut().pos = pos.clamp(self.window().start(), max_pos);
+        let new_pos = pos.saturating_add(self.window().start());
+        self.cursor_mut().pos = new_pos.clamp(self.window().start(), max_pos);
     }
 
     fn get_cursor_pos(&self, rel: Relative) -> usize {
