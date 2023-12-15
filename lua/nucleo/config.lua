@@ -86,7 +86,7 @@ local defaults = {
 				},
 			},
 			["<Tab>"] = {
-				actions.multiselect,
+				actions.toggle_selection,
 				opts = {
 					desc = "Multi-select the current selection",
 				},
