@@ -4,7 +4,6 @@ use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     ExternalResult, FromLua, IntoLua, LuaSerdeExt,
 };
-
 use serde::{Deserialize, Serialize};
 
 use crate::picker::Blob;

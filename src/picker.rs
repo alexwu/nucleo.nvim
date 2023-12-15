@@ -17,7 +17,6 @@ use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
@@ -88,7 +87,7 @@ pub trait Previewable:
 #[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display)]
 pub struct Blob(pub serde_json::Value);
 impl<'a> FromLua<'a> for Blob {
-    fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
+    fn from_lua(value: LuaValue<'a>, _lua: &'a Lua) -> LuaResult<Self> {
         let ty = value.type_name();
         Ok(Blob(serde_json::to_value(value).map_err(|e| {
             mlua::Error::FromLuaConversionError {
@@ -199,7 +198,7 @@ impl From<CustomEntry> for Data<CustomEntry, Blob> {
         };
         Self::new(
             DataKind::Custom(String::from("custom_entry")),
-            &display,
+            display,
             value,
             None,
         )
@@ -209,7 +208,7 @@ impl From<CustomEntry> for Data<CustomEntry, Blob> {
 impl From<Diagnostic> for Data<Diagnostic, Blob> {
     fn from(value: Diagnostic) -> Self {
         let message = value.message.clone().replace('\n', " ");
-        Data::new(DataKind::File, &message, value, None)
+        Data::new(DataKind::File, message, value, None)
     }
 }
 impl<T, U> FromLua<'_> for Data<T, U>
@@ -308,7 +307,7 @@ where
 {
     pub fn new(config: Config) -> Self {
         log::info!("Creating picker with config: {:?}", &config);
-        let (window_sender, window_receiver) = bounded::<()>(1);
+        let (_window_sender, _window_receiver) = bounded::<()>(1);
         let (sender, receiver) = bounded::<()>(1);
         // let notifier = sender.clone();
         // TODO: This hammers re-renders when loading lots of files. Is this even necessary?

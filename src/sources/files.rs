@@ -71,6 +71,7 @@ pub struct FileConfig {
 #[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[serde(default)]
+#[derive(Default)]
 pub struct PreviewOptions {
     pub line_start: usize,
     pub line_end: Option<usize>,
@@ -105,20 +106,6 @@ impl<'a> IntoLua<'a> for PreviewOptions {
 }
 
 impl Previewable for PreviewOptions {}
-
-impl Default for PreviewOptions {
-    fn default() -> Self {
-        Self {
-            line_start: 0,
-            line_end: None,
-            col_start: 0,
-            col_end: None,
-            bufnr: None,
-            path: None,
-            uri: None,
-        }
-    }
-}
 
 impl Default for FileConfig {
     fn default() -> Self {
