@@ -25,4 +25,12 @@ function Line:content()
 	)
 end
 
+-- TODO: Make this take a line number
+-- Perhaps a line will always correspond to a specific line number for the existence of the picker?
+-- Then we push new strings + indices into the line?
+-- Only rerender if the content is different? Will need to account for the icon somehow though
+-- Not sure what will happen when the number of lines change
+-- Also perhaps i will make it so this follows the NoiceChunk stuff?
+-- Perhaps I can do partial edits too idk
+
 return Line
