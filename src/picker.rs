@@ -6,7 +6,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crossbeam_channel::{bounded, Sender};
-use mlua::ExternalResult;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
@@ -254,6 +253,7 @@ where
 {
     pub fn new(config: Config) -> Self {
         log::info!("Creating picker with config: {:?}", &config);
+        let (window_sender, window_receiver) = bounded::<()>(1);
         let (sender, receiver) = bounded::<()>(1);
         // let notifier = sender.clone();
         // TODO: This hammers re-renders when loading lots of files. Is this even necessary?
@@ -273,7 +273,7 @@ where
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: HashMap::new(),
-            window: Window::new(50),
+            window: Window::new(50, 50),
             matches_files: true,
             populator: Arc::new(|_| {}),
         }
@@ -330,13 +330,17 @@ where
         self.set_cursor_pos(self.cursor.pos());
     }
 
+    pub fn window_width(&self) -> usize {
+        self.window.width()
+    }
+
     pub fn window_height(&self) -> usize {
         self.window.height()
     }
 
-    pub fn update_window(&mut self, height: u32) {
-        log::info!("Setting upper bound to {}", &height);
-        self.set_window_height(height.try_into().unwrap_or(usize::MAX));
+    pub fn update_window(&mut self, x: usize, y: usize) {
+        self.set_window_width(x);
+        self.set_window_height(y);
     }
 
     pub fn update_query(&mut self, query: &str) {
@@ -717,8 +721,8 @@ where
             Ok(())
         });
 
-        methods.add_method_mut("update_window", |_lua, this, params: (usize,)| {
-            this.update_window(params.0 as u32);
+        methods.add_method_mut("update_window", |_lua, this, params: (usize, usize)| {
+            this.update_window(params.0, params.1);
             Ok(())
         });
 

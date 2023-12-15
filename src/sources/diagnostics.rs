@@ -1,10 +1,12 @@
 use mlua::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 
 use crate::picker::{self, Blob, Data, Picker, Previewable};
 
 use super::files::PreviewOptions;
 
+#[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Diagnostic {
     pub lnum: usize,

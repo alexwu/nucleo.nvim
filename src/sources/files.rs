@@ -9,6 +9,7 @@ use ignore::WalkBuilder;
 use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
 
 use crate::picker::{self, Data, Picker, Previewable};
 
@@ -66,20 +67,16 @@ pub struct FileConfig {
     pub hidden: bool,
 }
 
+#[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[serde(default)]
 pub struct PreviewOptions {
     pub line_start: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub line_end: Option<usize>,
     pub col_start: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub col_end: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub bufnr: Option<usize>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
 }
 

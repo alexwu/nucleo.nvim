@@ -54,7 +54,7 @@ local api = vim.api
 ---@field total_matches fun(self: PickerBackend): integer
 ---@field update_config fun(self: PickerBackend, config: Nucleo.FilePicker.Config)
 ---@field update_query fun(self: PickerBackend, query: string)
----@field update_window fun(self: PickerBackend, height: integer)
+---@field update_window fun(self: PickerBackend, width: integer, height: integer)
 ---@field window_height fun(self: PickerBackend): integer
 
 ---@class Nucleo.FilePicker.Config
@@ -148,15 +148,17 @@ function Picker:new(opts)
 	end)
 
 	self.results:on(event.BufWinEnter, function()
+		local width = math.max(api.nvim_win_get_width(self.results.winid), 10)
 		local height = math.max(api.nvim_win_get_height(self.results.winid), 10)
 
-		self.picker:update_window(height)
+		self.picker:update_window(width, height)
 	end)
 
 	self.prompt:on("VimResized", function()
+		local width = math.max(api.nvim_win_get_width(self.results.winid), 10)
 		local height = math.max(api.nvim_win_get_height(self.results.winid), 10)
 
-		self.picker:update_window(height)
+		self.picker:update_window(width, height)
 	end)
 
 	self.prompt:on(event.BufLeave, function()
