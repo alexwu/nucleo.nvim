@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
+use std::string::ToString;
 use std::sync::Arc;
 
 use crossbeam_channel::{bounded, Sender};
@@ -15,7 +16,8 @@ use nucleo::Nucleo;
 use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
@@ -100,6 +102,46 @@ impl<'a> FromLua<'a> for Blob {
 }
 impl Previewable for Blob {}
 
+#[derive(Debug, Clone, EnumString, Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum DataKind {
+    File,
+    String,
+    #[strum(default)]
+    Custom(String),
+}
+
+impl Serialize for DataKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for DataKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(DataKind::from_str(&s).expect("Strum should be defaulting here"))
+    }
+}
+
+impl FromLua<'_> for DataKind {
+    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+        lua.from_value(value)
+    }
+}
+
+impl IntoLua<'_> for DataKind {
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+        self.to_string().into_lua(lua)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Data<T, U>
 where
@@ -107,6 +149,7 @@ where
     U: Previewable + for<'a> FromLua<'a>,
 {
     pub display: String,
+    pub kind: DataKind,
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
     #[serde(
@@ -125,8 +168,14 @@ where
     U: Previewable + for<'a> FromLua<'a>,
 {
     #[builder]
-    pub fn new<V: Into<String>>(display: V, value: T, preview_options: Option<U>) -> Self {
+    pub fn new<V: Into<String>>(
+        kind: DataKind,
+        display: V,
+        value: T,
+        preview_options: Option<U>,
+    ) -> Self {
         Self {
+            kind,
             value,
             preview_options,
             display: display.into(),
@@ -138,7 +187,7 @@ where
 
 impl From<String> for Data<String, Blob> {
     fn from(value: String) -> Self {
-        Self::new(value.clone(), value, None)
+        Self::new(DataKind::String, &value, value.clone(), None)
     }
 }
 
@@ -148,14 +197,19 @@ impl From<CustomEntry> for Data<CustomEntry, Blob> {
             Some(display) => display,
             None => value.value.to_string(),
         };
-        Self::new(display, value, None)
+        Self::new(
+            DataKind::Custom(String::from("custom_entry")),
+            &display,
+            value,
+            None,
+        )
     }
 }
 
 impl From<Diagnostic> for Data<Diagnostic, Blob> {
     fn from(value: Diagnostic) -> Self {
         let message = value.message.clone().replace('\n', " ");
-        Data::new(message, value, None)
+        Data::new(DataKind::File, &message, value, None)
     }
 }
 impl<T, U> FromLua<'_> for Data<T, U>
@@ -174,6 +228,7 @@ where
         let table = LuaTable::from_lua(value, lua)?;
 
         Ok(Self {
+            kind: table.get("kind")?,
             display: table.get("display")?,
             value: table.get("value")?,
             selected: table.get("selected")?,

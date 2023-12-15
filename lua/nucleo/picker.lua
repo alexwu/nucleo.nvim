@@ -201,8 +201,8 @@ function Picker:find(opts)
 	elseif type(self.source) == "function" then
 		-- self.picker:populate(self.source)
 	else
-		vim.print(self.source)
-		self.picker:populate(self.source.results)
+		-- vim.print(self.source)
+		-- self.picker:populate(self.source.results)
 	end
 
 	self.picker:tick(10)

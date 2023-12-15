@@ -11,7 +11,7 @@ use partially::Partial;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
-use crate::picker::{self, Data, Picker, Previewable};
+use crate::picker::{self, Data, DataKind, Picker, Previewable};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -39,6 +39,7 @@ impl Value {
         };
 
         Data {
+            kind: DataKind::File,
             selected: false,
             indices: Vec::new(),
             value,

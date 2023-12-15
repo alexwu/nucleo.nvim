@@ -47,26 +47,11 @@ function M.source_test(...)
 		source = {
 			name = "Custom List",
 			results = {
-				{
-					display = "Felipe Handsome",
-					selected = false,
-					indices = {},
-					value = {
-						display = "Custom Lua",
-						value = {
-							line = 1,
-							col = 12,
-							wtf = "",
-							hello = {},
-						},
-					},
-				},
-				-- { display = "Felipe Extra Handsome", value = { text = "Felipe is really extra handsome" } },
+				{ display = "Felipe Very Handsome", value = "Felipe Extra Handsome" },
 			},
 		},
 		on_submit = function(selection)
-			local path = selection.value.path
-			vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
+			vim.print(selection)
 		end,
 	}):find(...)
 end

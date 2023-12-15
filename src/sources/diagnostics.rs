@@ -2,7 +2,7 @@ use mlua::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
-use crate::picker::{self, Blob, Data, Picker, Previewable};
+use crate::picker::{self, Blob, Data, DataKind, Picker, Previewable};
 
 use super::files::PreviewOptions;
 
@@ -22,7 +22,7 @@ pub struct Diagnostic {
 impl Diagnostic {
     pub fn from_diagnostic(data: Diagnostic) -> Data<Diagnostic, Blob> {
         let message = data.message.clone().replace('\n', " ");
-        Data::new(message, data, None)
+        Data::new(DataKind::File, &message, data, None)
     }
 }
 
@@ -72,7 +72,7 @@ impl From<Diagnostic> for Data<Diagnostic, PreviewOptions> {
             .and_col_end(value.end_col)
             .and_bufnr(value.bufnr)
             .build();
-        Data::new(message, value, Some(preview_options))
+        Data::new(DataKind::File, &message, value, Some(preview_options))
     }
 }
 

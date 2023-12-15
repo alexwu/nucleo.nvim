@@ -30,12 +30,12 @@ impl<T: Entry> Injector<T> {
         log::info!("Populating picker with {} entries", entries.len());
         let rt = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, rx) = unbounded::<T>();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
         let sender = tx.clone();
         rt.block_on(async {
             let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
-                for val in rx.iter() {
+                while let Some(val) = rx.recv().await {
                     self.push(val);
                 }
                 anyhow::Ok(())

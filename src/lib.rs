@@ -51,7 +51,7 @@ pub enum LuaFinder {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceConfig {
     name: String,
-    results: Vec<Data<CustomEntry, Blob>>,
+    results: Vec<CustomEntry>,
 }
 
 impl FromLua<'_> for SourceConfig {
@@ -94,7 +94,7 @@ pub fn init_lua_picker(
                     }),
                     Err(error) => {
                         log::error!("Errored calling finder fn: {}", error);
-                    },
+                    }
                 }
             });
         }
@@ -107,11 +107,12 @@ pub fn init_lua_picker(
 
 pub fn init_custom_picker(
     _lua: &Lua,
-    _params: (SourceConfig,),
+    params: (SourceConfig,),
 ) -> LuaResult<Picker<CustomEntry, Blob>> {
-    let picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
+    let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
 
-    // picker.populate(results);
+    let results = params.0.results.into_par_iter().map(Data::from).collect();
+    picker.populate(results);
 
     Ok(picker)
 }
