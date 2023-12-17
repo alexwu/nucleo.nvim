@@ -66,11 +66,16 @@ function Entry:render()
 	local truncated_text = strings.truncate(self.entry.display, width, nil, -1)
 	local path = Text(truncated_text)
 
+	local last_line_content = self.line:content()
+
 	self.line:set({ picker_icon, icon, path })
 
 	local truncation_offset = vim.fn.strlen(self.entry.display) - vim.fn.strlen(truncated_text)
-	self.line:render(self.bufnr, -1, self.index)
+	if last_line_content ~= self.line:content() then
+		self.line:render(self.bufnr, -1, self.index)
+	end
 
+	api.nvim_buf_clear_namespace(self.bufnr, ns_matching, self.index - 1, self.index)
 	vim.iter(self.entry.indices):each(function(range)
 		local start_col = leading_length + 1 + range[1] + 1 - truncation_offset
 		local end_col = leading_length + 1 + range[2] + 1 - truncation_offset
