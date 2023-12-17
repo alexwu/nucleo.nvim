@@ -25,6 +25,11 @@ function Line:content()
 	)
 end
 
+---@param texts string|NuiText[]
+function Line:set(texts)
+	self._texts = texts
+end
+
 -- TODO: Make this take a line number
 -- Perhaps a line will always correspond to a specific line number for the existence of the picker?
 -- Then we push new strings + indices into the line?

@@ -20,15 +20,19 @@ local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
 function Entry:new(index, entry, bufnr, ns_multiselection_id, winid)
 	self.index = index
 	self.entry = entry
-	-- vim.print(self.entry)
 	self.bufnr = bufnr
 	self.selection_caret = " "
 	self.selection_caret_extmark_id = nil
 	self.ns_multiselection_id = ns_multiselection_id
 	self.winid = winid
+	self.line = Line({})
 
-	if entry.value.file_type then
-		local value, color = devicons.get_icon(entry.value.path, entry.value.file_type, { default = true })
+	self:update_icon()
+end
+
+function Entry:update_icon()
+	if self.entry and self.entry.value.file_type then
+		local value, color = devicons.get_icon(self.entry.value.path, self.entry.value.file_type, { default = true })
 		self.icon = {
 			value = value,
 			color = color,
@@ -41,26 +45,32 @@ function Entry:new(index, entry, bufnr, ns_multiselection_id, winid)
 	end
 end
 
--- function file_entry(icon, entry)
--- 	local picker_icon = Text(selection_caret, "Normal")
--- 	local icon = Text(icon.value, icon.color)
--- 	local path = Text(self.entry.match_value or self.entry.display)
--- 	local line = Line({ picker_icon, icon, path })
--- end
+function Entry:update(entry)
+	self.entry = entry
+	self:update_icon()
+end
 
 function Entry:render()
+	if not self.entry then
+		self.line:set({})
+		self.line:render(self.bufnr, -1, self.index)
+
+		return
+	end
+
 	local picker_icon = Text(self.selection_caret, "Normal")
 	local icon = Text(self.icon.value, self.icon.color)
 	local leading_length = picker_icon:length() + icon:length()
 
-	local width = vim.api.nvim_win_get_width(self.winid) - leading_length
+	local width = api.nvim_win_get_width(self.winid) - leading_length
 	local truncated_text = strings.truncate(self.entry.display, width, nil, -1)
 	local path = Text(truncated_text)
 
-	local line = Line({ picker_icon, icon, path })
+	self.line:set({ picker_icon, icon, path })
 
 	local truncation_offset = vim.fn.strlen(self.entry.display) - vim.fn.strlen(truncated_text)
-	line:render(self.bufnr, -1, self.index)
+	self.line:render(self.bufnr, -1, self.index)
+
 	vim.iter(self.entry.indices):each(function(range)
 		local start_col = leading_length + 1 + range[1] + 1 - truncation_offset
 		local end_col = leading_length + 1 + range[2] + 1 - truncation_offset
