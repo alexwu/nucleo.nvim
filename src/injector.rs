@@ -1,8 +1,9 @@
-use std::{path::Path, sync::mpsc};
+use std::path::Path;
 
-use ignore::{types::TypesBuilder, DirEntry, WalkBuilder, WalkState};
+use crossbeam_channel::unbounded;
+use ignore::{types::TypesBuilder, WalkBuilder};
 use nucleo::Utf32String;
-use tokio::runtime::Runtime;
+use tokio::{runtime::Runtime, task::JoinHandle};
 
 use crate::picker::Entry;
 
@@ -25,28 +26,29 @@ impl<T: Entry> Injector<T> {
         self.0.push(value, fill_columns)
     }
 
-    pub fn populate_files(self, cwd: String, git_ignore: bool) {
+    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool) {
         log::info!("Populating picker with {}", &cwd);
         let runtime = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, rx) = mpsc::channel::<T>();
-        let _add_to_injector_thread = std::thread::spawn(move || -> anyhow::Result<()> {
+        let (tx, rx) = unbounded::<T>();
+        let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
             for val in rx.iter() {
                 self.push(val.clone(), |dst| dst[0] = val.into_utf32());
             }
-            Ok(())
+            anyhow::Ok(())
         });
 
         runtime.spawn(async move {
             let dir = Path::new(&cwd);
-            log::info!("Spawning file searcher...");
-            let mut walk_builder = WalkBuilder::new(dir.clone());
+            log::info!("Spawning sorted file searcher...");
+            let mut walk_builder = WalkBuilder::new(dir);
             walk_builder
                 .hidden(false)
                 .follow_links(true)
                 .git_ignore(git_ignore)
                 .ignore(true)
-                .sort_by_file_name(|name1, name2| name1.cmp(name2));
+                .sort_by_file_name(std::cmp::Ord::cmp);
+
             let mut type_builder = TypesBuilder::new();
             type_builder
                 .add(
@@ -59,23 +61,21 @@ impl<T: Entry> Injector<T> {
                 .build()
                 .expect("failed to build excluded_types");
             walk_builder.types(excluded_types);
-            walk_builder.build_parallel().run(|| {
+            let tx = tx.clone();
+            for path in walk_builder.build() {
                 let cwd = cwd.clone();
-                let tx = tx.clone();
-                Box::new(move |path: Result<DirEntry, ignore::Error>| -> WalkState {
-                    match path {
-                        Ok(file) if file.path().is_file() => {
-                            // let entry: FileEntry = ;
-                            match tx.send(Entry::from_path(file.path(), Some(cwd.clone()))) {
-                                Ok(_) => WalkState::Continue,
-                                Err(_) => WalkState::Skip,
-                            }
+                match path {
+                    Ok(file) if file.path().is_file() => {
+                        if tx
+                            .send(Entry::from_path(file.path(), Some(cwd.clone())))
+                            .is_ok()
+                        {
+                            // log::info!("Sending {:?}", file.path());
                         }
-                        Ok(_) => WalkState::Continue,
-                        Err(_) => WalkState::Skip,
                     }
-                })
-            });
+                    _ => (),
+                }
+            }
         });
 
         log::info!("After spawning file searcher...");
