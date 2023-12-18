@@ -96,7 +96,6 @@ impl<'a> FromLua<'a> for Blob {
                 message: Some(format!("{}", e)),
             }
         })?))
-        // Ok(Self(lua.from_value(value).into_lua_err()?))
     }
 }
 impl Previewable for Blob {}
@@ -307,7 +306,6 @@ where
 {
     pub fn new(config: Config) -> Self {
         log::info!("Creating picker with config: {:?}", &config);
-        let (_window_sender, _window_receiver) = bounded::<()>(1);
         let (sender, receiver) = bounded::<()>(1);
         // let notifier = sender.clone();
         // TODO: This hammers re-renders when loading lots of files. Is this even necessary?
