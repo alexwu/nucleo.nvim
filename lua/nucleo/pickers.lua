@@ -88,7 +88,7 @@ end, 50)
 
 ---@param opts? Nucleo.FilePicker.Config
 M.initialize = function(opts)
-	opts = opts or { cwd = vim.uv.cwd(), sort_direction = "ascending" }
+	opts = opts or { cwd = vim.uv.cwd() }
 	M.main_timer = vim.uv.new_timer()
 	---@type Sender, Receiver
 	M.tx, M.rx = channel.counter()
