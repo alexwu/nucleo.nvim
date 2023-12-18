@@ -1,11 +1,14 @@
 #![allow(dead_code)]
 
+use std::fmt::Debug;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
 pub struct Window {
     /// The buffer line number of the top of the window
     pos: usize,
+    width: usize,
     height: usize,
 }
 
@@ -13,21 +16,27 @@ impl Default for Window {
     fn default() -> Self {
         Self {
             pos: Default::default(),
+            width: 10,
             height: 10,
         }
     }
 }
 
 impl Window {
-    pub fn new(height: usize) -> Self {
+    pub fn new(x: usize, y: usize) -> Self {
         Self {
-            height,
+            width: x,
+            height: y,
             ..Default::default()
         }
     }
 
     fn set_pos(&mut self, pos: usize) {
         self.pos = pos;
+    }
+
+    fn set_width(&mut self, width: usize) {
+        self.height = width;
     }
 
     fn set_height(&mut self, height: usize) {
@@ -42,6 +51,10 @@ impl Window {
         self.pos + self.height
     }
 
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
     pub fn height(&self) -> usize {
         self.height
     }
@@ -54,24 +67,24 @@ pub trait Contents {
     }
 }
 
-pub trait BufferContents<T: Clone>: Contents + Sized {
-    fn lines(&self) -> Vec<T>;
+pub trait BufferContents<T: Clone + Debug>: Contents + Sized {
     fn window(&self) -> &Window;
     fn window_mut(&mut self) -> &mut Window;
     fn cursor(&self) -> &Cursor;
     fn cursor_mut(&mut self) -> &mut Cursor;
-    fn window_height(&self) -> usize {
-        self.window().height
+    fn window_width(&self) -> usize {
+        self.window().width()
     }
+    fn window_height(&self) -> usize {
+        self.window().height()
+    }
+
+    fn set_window_width(&mut self, width: usize) {
+        self.window_mut().width = width;
+    }
+
     fn set_window_height(&mut self, height: usize) {
         self.window_mut().height = height;
-    }
-
-    fn visible_lines(&self) -> Vec<T> {
-        let start = self.window().start();
-        let end = self.len().min(self.window().end());
-
-        self.lines()[start..end].to_vec()
     }
 
     fn set_window_pos(&mut self, pos: usize) {
@@ -102,7 +115,8 @@ pub trait BufferContents<T: Clone>: Contents + Sized {
     fn set_cursor_pos_in_window(&mut self, pos: usize) {
         let max_pos = self.window().end().min(self.len()).saturating_sub(1);
         log::info!("window max_pos: {}", max_pos);
-        self.cursor_mut().pos = pos.clamp(self.window().start(), max_pos);
+        let new_pos = pos.saturating_add(self.window().start());
+        self.cursor_mut().pos = new_pos.clamp(self.window().start(), max_pos);
     }
 
     fn get_cursor_pos(&self, rel: Relative) -> usize {

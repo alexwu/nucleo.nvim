@@ -1,4 +1,5 @@
 local Popup = require("nui.popup")
+local a = require("nucleo.async").a
 local api = vim.api
 
 local Previewer = Popup:extend("Previewer")
@@ -23,35 +24,57 @@ local function has_ts_parser(lang)
 	return pcall(vim.treesitter.language.add, lang)
 end
 
+function Previewer:reset()
+	self.previewer:reset()
+end
+
 function Previewer:clear()
 	api.nvim_buf_set_lines(self.bufnr, 0, -1, false, {})
 end
 
-function Previewer:render(file)
-	if self.winid then
-		local height = api.nvim_win_get_height(self.winid)
-		local lines = self.previewer:preview_file(file, 0, height)
-		local content = vim.split(lines, "\n")
-		api.nvim_buf_set_lines(self.bufnr, 0, -1, false, content)
+Previewer.render = a.void(function(self, entry)
+	if not self.winid or not entry or not entry.value then
+		return
+	end
 
-		local line_count = api.nvim_buf_line_count(self.bufnr)
-		if line_count == 0 then
+	local preview_options = entry.preview_options or {}
+	local start = preview_options.line_start or 0
+	local height = api.nvim_win_get_height(self.winid)
+	local path
+	if preview_options.bufnr then
+		local uri = vim.uri_from_bufnr(entry.preview_options.bufnr)
+		local fname = vim.uri_to_fname(uri)
+		if fname then
+			path = fname
+		end
+	else
+		path = entry.value.path
+	end
+
+	if not path then
+		return
+	end
+
+	local content = self.previewer:preview_file(path, start, start + height)
+	api.nvim_buf_set_lines(self.bufnr, 0, -1, false, content)
+
+	local line_count = api.nvim_buf_line_count(self.bufnr)
+	if line_count == 0 then
+		return
+	end
+
+	vim.schedule(function()
+		local name = vim.fs.basename(path)
+		local ft = vim.filetype.match({ filename = name, content = content })
+		if not ft or ft == "" then
 			return
 		end
 
-		vim.schedule(function()
-			local name = vim.fs.basename(file)
-			local ft = vim.filetype.match({ filename = name, content = content })
-			if not ft or ft == "" then
-				return
-			end
-
-			local lang = vim.treesitter.language.get_lang(ft)
-			if lang and has_ts_parser(lang) then
-				return vim.treesitter.start(self.bufnr, lang)
-			end
-		end)
-	end
-end
+		local lang = vim.treesitter.language.get_lang(ft)
+		if lang and has_ts_parser(lang) then
+			return vim.treesitter.start(self.bufnr, lang)
+		end
+	end)
+end)
 
 return Previewer
