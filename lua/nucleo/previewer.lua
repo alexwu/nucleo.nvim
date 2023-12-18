@@ -1,4 +1,5 @@
 local Popup = require("nui.popup")
+local a = require("nucleo.async").a
 local api = vim.api
 
 local Previewer = Popup:extend("Previewer")
@@ -31,7 +32,7 @@ function Previewer:clear()
 	api.nvim_buf_set_lines(self.bufnr, 0, -1, false, {})
 end
 
-function Previewer:render(entry)
+Previewer.render = a.void(function(self, entry)
 	if not self.winid or not entry or not entry.value then
 		return
 	end
@@ -55,7 +56,6 @@ function Previewer:render(entry)
 	end
 
 	local content = self.previewer:preview_file(path, start, start + height)
-	-- local content = vim.split(lines, "\n")
 	api.nvim_buf_set_lines(self.bufnr, 0, -1, false, content)
 
 	local line_count = api.nvim_buf_line_count(self.bufnr)
@@ -75,6 +75,6 @@ function Previewer:render(entry)
 			return vim.treesitter.start(self.bufnr, lang)
 		end
 	end)
-end
+end)
 
 return Previewer
