@@ -83,6 +83,10 @@ pub trait BufferContents<T: Clone + Debug>: Contents + Sized {
         self.window_mut().width = width;
     }
 
+    fn set_window_height(&mut self, height: usize) {
+        self.window_mut().height = height;
+    }
+
     fn set_window_pos(&mut self, pos: usize) {
         if self.window_height() > self.len() {
             self.window_mut().set_pos(0);
