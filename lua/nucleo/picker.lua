@@ -64,6 +64,7 @@ local api = vim.api
 ---@field ignore boolean
 
 ---@class Nucleo.Picker: Object
+---@field picker PickerBackend
 local Picker = require("plenary.class"):extend()
 
 function Picker:new(opts)
