@@ -64,7 +64,7 @@ impl<T: Entry> Injector<T> {
                 anyhow::Ok(())
             });
 
-            func(tx)
+            func(tx);
         });
     }
 

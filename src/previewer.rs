@@ -59,7 +59,7 @@ impl UserData for Previewer {
                         .split('\n')
                         .map(Into::into)
                         .collect();
-                    Ok(preview.to_owned())
+                    Ok(preview.clone())
                 }
                 None => Ok(Vec::new()),
             },
