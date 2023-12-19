@@ -2,7 +2,7 @@
 ---@field index number
 ---@field bufnr number
 ---@field selection_caret string
----@field icon { value: string, color: string }
+---@field icon { value: string, color?: string }
 local Entry = require("plenary.class"):extend()
 local Line = require("nucleo.line")
 local Text = require("nucleo.text")
@@ -13,9 +13,8 @@ local api = vim.api
 local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
 
 ---@class Nucleo.Picker.Entry
----@field path string
----@field file_type string
----@field icon { value: string, color: string|nil }
+---@field value table
+---@field preview_options? table
 
 ---@param index number Lua index-ed
 function Entry:new(index, entry, bufnr, ns_multiselection_id, winid)
