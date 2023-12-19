@@ -38,16 +38,6 @@ pub fn init_picker(
     Ok(picker)
 }
 
-pub enum SourceKind {
-    Builtin,
-    Lua(SourceConfig),
-}
-
-pub enum LuaFinder {
-    Table(LuaTable<'static>),
-    Function(LuaFunction<'static>),
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceConfig {
     name: String,

@@ -27,17 +27,6 @@ impl Diagnostic {
 
 impl FromLua<'_> for Diagnostic {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        // let table = LuaTable::from_lua(value, lua)?;
-        // Ok(Self {
-        //     lnum: table.get("lnum")?,
-        //     col: table.get("col")?,
-        //     message: table.get("message")?,
-        //     end_col: table.get("end_col")?,
-        //     end_lnum: table.get("end_lnum")?,
-        //     source: table.get("source")?,
-        //     code: table.get("code")?,
-        //     bufnr: table.get("bufnr")?,
-        // })
         lua.from_value(value)
     }
 }
