@@ -14,6 +14,7 @@ use simplelog::{Config, WriteLogger};
 use sources::{
     diagnostics::{self, Diagnostic},
     files::{self, PartialFileConfig, PreviewOptions},
+    git::{self, PartialStatusConfig},
 };
 
 mod buffer;
@@ -114,6 +115,13 @@ pub fn init_file_picker(
     files::create_picker(params.0).into_lua_err()
 }
 
+pub fn init_git_status_picker(
+    _: &Lua,
+    params: (Option<PartialStatusConfig>,),
+) -> LuaResult<Picker<git::StatusEntry, PreviewOptions>> {
+    git::create_picker(params.0).into_lua_err()
+}
+
 #[mlua::lua_module]
 fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
     let proj_dirs = ProjectDirs::from("", "bombeelu-labs", "nucleo")
@@ -135,6 +143,10 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
     exports.set("FilePicker", lua.create_function(init_file_picker)?)?;
     exports.set("CustomPicker", lua.create_function(init_custom_picker)?)?;
     exports.set("LuaPicker", lua.create_function(init_lua_picker)?)?;
+    exports.set(
+        "GitStatusPicker",
+        lua.create_function(init_git_status_picker)?,
+    )?;
     exports.set(
         "Previewer",
         LuaFunction::wrap(|_, ()| Ok(previewer::Previewer::new())),

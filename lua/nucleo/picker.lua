@@ -79,8 +79,10 @@ function Picker:new(opts)
 	---@type Sender, Receiver
 	self.tx, self.rx = channel.counter()
 	---@type PickerBackend
-	if not opts.source then
+	if opts.source == "builtin.files" then
 		self.picker = nu.FilePicker(opts)
+	elseif opts.source == "builtin.git_status" then
+		self.picker = nu.GitStatusPicker(opts)
 	elseif type(opts.source) == "function" then
 		self.picker = nu.LuaPicker(opts.source)
 	else
@@ -197,7 +199,10 @@ function Picker:find(opts)
 	local options = override(opts)
 
 	self.picker:update_config(options)
-	if not self.source then
+
+	if self.source == "builtin.files" then
+		self.picker:populate_files()
+	elseif self.source == "builtin.git_status" then
 		self.picker:populate_files()
 	elseif type(self.source) == "function" then
 		-- self.picker:populate(self.source)

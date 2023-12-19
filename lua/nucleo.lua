@@ -6,6 +6,7 @@ local M = {}
 M._rust = {
 	Picker = true,
 	FilePicker = true,
+	GitStatusPicker = true,
 	Previewer = true,
 }
 
@@ -14,12 +15,16 @@ function M.setup(...)
 	api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})
+	api.nvim_create_user_command("NucleoGitStatus", function()
+		M.find_git()
+	end, {})
 end
 
 function M.find(...)
 	local Picker = require("nucleo.picker")
 
 	Picker({
+		source = "builtin.files",
 		on_submit = function(selection)
 			local path = selection.value.path
 			if path then
@@ -31,6 +36,21 @@ function M.find(...)
 	}):find(...)
 end
 
+function M.find_git(...)
+	local Picker = require("nucleo.picker")
+
+	Picker({
+		source = "builtin.git_status",
+		on_submit = function(selection)
+			local path = selection.value.path
+			if path then
+				vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
+			else
+				vim.print(selection.value)
+			end
+		end,
+	}):find(...)
+end
 return setmetatable(M, {
 	__index = function(t, key)
 		if M._rust[key] then
