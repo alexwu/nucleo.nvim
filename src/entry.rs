@@ -16,9 +16,6 @@ pub trait Entry:
     fn is_selected(&self) -> bool;
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
     fn with_selected(self, selected: bool) -> Self;
-    fn data(&self) -> LuaValue {
-        LuaValue::Nil
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
