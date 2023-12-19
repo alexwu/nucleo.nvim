@@ -31,20 +31,7 @@ function Results:init(opts)
 	Results.super.init(self, popup_options)
 end
 
----@param bufnr number
----@param height number
-local function clear_buffer(bufnr, height)
-	local empty_lines = {}
-	for _ = 1, height do
-		table.insert(empty_lines, #empty_lines + 1, "")
-	end
-
-	vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, empty_lines)
-end
-
 function Results:clear_buffer()
-	local height = math.max(vim.api.nvim_win_get_height(self.winid), 10)
-	-- clear_buffer(self.bufnr, height)
 	vim.iter(self._entries):each(function(entry)
 		entry:update(nil)
 		entry:render()
@@ -56,20 +43,16 @@ function Results:render_entries(picker)
 		return
 	end
 
+	api.nvim_buf_clear_namespace(self.bufnr, ns_multiselection, 0, -1)
 	if picker:total_matches() == 0 then
 		if vim.api.nvim_buf_is_loaded(self.bufnr) and vim.api.nvim_win_is_valid(self.winid) then
-			api.nvim_buf_clear_namespace(self.bufnr, ns_multiselection, 0, -1)
 			Results.clear_buffer(self)
 		end
 	else
-		api.nvim_buf_clear_namespace(self.bufnr, ns_multiselection, 0, -1)
 		local height = vim.api.nvim_win_get_height(self.winid)
-		-- Results.clear_buffer(self)
-
 		local results = picker:current_matches()
 
 		for i = 1, height do
-			-- vim.iter(ipairs(self._entries)):each(function(i, entry)
 			local index = i
 			if picker:sort_direction() == "ascending" then
 				index = height - i + 1
@@ -88,14 +71,6 @@ function Results:render_entries(picker)
 			end
 
 			self._entries[index]:render()
-
-			-- TODO: Need to clear out entries when the window gets smaller
-			-- self._entries[index] = Entry(index, entry, self.bufnr, ns_multiselection, self.winid)
-
-			-- entry:render()
-			-- return self._entries[index]:render()
-			-- return Entry(index, entry, self.bufnr, ns_multiselection, self.winid):render()
-			-- end)
 		end
 	end
 end

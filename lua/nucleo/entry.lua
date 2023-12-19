@@ -77,7 +77,6 @@ function Entry:render()
 		self.line:render(self.bufnr, -1, self.index)
 	end
 
-	api.nvim_buf_clear_namespace(self.bufnr, ns_matching, self.index - 1, self.index)
 	vim.iter(ipairs(self.entry.indices)):each(function(i, range)
 		local start_col = leading_length + 1 + range[1] + 1 - truncation_offset
 		local end_col = leading_length + 1 + range[2] + 1 - truncation_offset
