@@ -51,16 +51,10 @@ local api = vim.api
 ---@field tick fun(self: PickerBackend, timeout: integer): PickerStatus
 ---@field total_items fun(self: PickerBackend): integer
 ---@field total_matches fun(self: PickerBackend): integer
----@field update_config fun(self: PickerBackend, config: Nucleo.FilePicker.Config)
+---@field update_config fun(self: PickerBackend, config: Nucleo.Config.Files)
 ---@field update_query fun(self: PickerBackend, query: string)
 ---@field update_window fun(self: PickerBackend, width: integer, height: integer)
 ---@field window_height fun(self: PickerBackend): integer
-
----@class Nucleo.FilePicker.Config
----@field git_ignore boolean
----@field cwd fun()|string
----@field sort_direction "descending"|"ascending"
----@field ignore boolean
 
 ---@class Nucleo.Picker: Object
 ---@field picker PickerBackend
@@ -169,8 +163,8 @@ function Picker:new(opts)
 end
 
 ---@param source_name string
----@param opts? Nucleo.FilePicker.Config
----@return Nucleo.FilePicker.Config
+---@param opts? Nucleo.Config.Files
+---@return Nucleo.Config.Files
 local function override(source_name, opts)
 	opts = opts or {}
 
@@ -195,7 +189,7 @@ function Picker:apply_mapping(mode, key, mapping)
 	end, opts)
 end
 
----@param opts Nucleo.FilePicker.Config
+---@param opts Nucleo.Config.Files
 function Picker:find(opts)
 	local source_name = ""
 	if type(self.source) == "string" then

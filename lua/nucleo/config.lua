@@ -9,12 +9,18 @@ local M = {}
 ---@field opts? table
 
 ---@class Nucleo.Config.Values
+---@field sort_direction "descending"|"ascending"
+---@field selection_strategy "reset"|"follow"
 local defaults = {
+	---@class Nucleo.Config.Defaults
 	defaults = {
 		sort_direction = "descending",
+		selection_strategy = "reset",
 	},
 	sources = {
-		---@type Nucleo.FilePicker.Config
+		---@class Nucleo.Config.Files: Nucleo.Config.Defaults
+		---@field cwd fun()|string
+		---@field ignore boolean
 		["builtin.files"] = {
 			cwd = vim.uv.cwd,
 			git_ignore = true,
