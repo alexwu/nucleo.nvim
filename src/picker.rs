@@ -17,7 +17,7 @@ use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
-use strum::{Display, EnumString};
+use strum::{Display, EnumIs, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::entry::{CustomEntry, Entry};
@@ -58,6 +58,30 @@ pub enum SortDirection {
     Descending,
 }
 
+#[derive(
+    Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display, EnumIs,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum SelectionStrategy {
+    #[default]
+    Reset,
+    Follow,
+}
+
+impl FromLua<'_> for SelectionStrategy {
+    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
+        match value {
+            mlua::Value::String(str) => {
+                let direction = match SelectionStrategy::from_str(str.to_str()?) {
+                    Ok(direction) => direction,
+                    Err(_) => SelectionStrategy::default(),
+                };
+                Ok(direction)
+            }
+            _ => Ok(SelectionStrategy::default()),
+        }
+    }
+}
 impl FromLua<'_> for SortDirection {
     fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
         match value {
@@ -409,6 +433,9 @@ where
             // TODO: Debounce this tick? This whole function?
             // TODO: I feel like this can make this hitch scenarios where there's lots of matches...
             self.tick(10);
+            if self.config.selection_strategy.is_reset() {
+                self.move_cursor_to(0);
+            }
             self.force_rerender();
         }
     }
@@ -649,18 +676,11 @@ where
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Partial)]
+#[derive(Clone, Debug, Deserialize, Serialize, Partial, Default)]
 #[partially(derive(Default, Debug))]
 pub struct Config {
     pub sort_direction: SortDirection,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            sort_direction: SortDirection::Ascending,
-        }
-    }
+    pub selection_strategy: SelectionStrategy,
 }
 
 impl FromLua<'_> for PartialConfig {
@@ -669,6 +689,7 @@ impl FromLua<'_> for PartialConfig {
 
         Ok(PartialConfig {
             sort_direction: table.get("sort_direction")?,
+            selection_strategy: table.get("selection_strategy")?,
         })
     }
 }
