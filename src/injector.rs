@@ -23,7 +23,7 @@ impl<T: Entry> Clone for Injector<T> {
 impl<T: Entry> Injector<T> {
     pub fn push(&self, value: T) -> u32 {
         self.0
-            .push(value.clone(), |dst| dst[0] = value.display().into())
+            .push(value.clone(), |dst| dst[0] = value.ordinal().into())
     }
 
     pub fn populate(self, entries: Vec<T>) {

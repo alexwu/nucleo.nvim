@@ -171,6 +171,7 @@ where
     U: Previewable + for<'a> FromLua<'a>,
 {
     pub display: String,
+    pub ordinal: String,
     pub kind: DataKind,
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
@@ -193,6 +194,7 @@ where
     pub fn new<V: Into<String>>(
         kind: DataKind,
         display: V,
+        ordinal: V,
         value: T,
         preview_options: Option<U>,
     ) -> Self {
@@ -201,6 +203,7 @@ where
             value,
             preview_options,
             display: display.into(),
+            ordinal: ordinal.into(),
             selected: false,
             indices: vec![],
         }
@@ -209,7 +212,7 @@ where
 
 impl From<String> for Data<String, Blob> {
     fn from(value: String) -> Self {
-        Self::new(DataKind::String, &value, value.clone(), None)
+        Self::new(DataKind::String, &value, &value, value.clone(), None)
     }
 }
 
@@ -221,6 +224,7 @@ impl From<CustomEntry> for Data<CustomEntry, Blob> {
         };
         Self::new(
             DataKind::Custom(String::from("custom_entry")),
+            display.clone(),
             display,
             value,
             None,
@@ -231,7 +235,7 @@ impl From<CustomEntry> for Data<CustomEntry, Blob> {
 impl From<Diagnostic> for Data<Diagnostic, Blob> {
     fn from(value: Diagnostic) -> Self {
         let message = value.message.clone().replace('\n', " ");
-        Data::new(DataKind::File, message, value, None)
+        Data::new(DataKind::File, message.clone(), message, value, None)
     }
 }
 impl<T, U> FromLua<'_> for Data<T, U>
@@ -252,6 +256,7 @@ where
         Ok(Self {
             kind: table.get("kind")?,
             display: table.get("display")?,
+            ordinal: table.get("ordinal")?,
             value: table.get("value")?,
             selected: table.get("selected")?,
             indices: vec![],
@@ -273,6 +278,10 @@ where
 {
     fn display(&self) -> String {
         self.display.clone()
+    }
+
+    fn ordinal(&self) -> String {
+        self.ordinal.clone()
     }
 
     fn indices(&self) -> Vec<(u32, u32)> {

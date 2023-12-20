@@ -52,7 +52,8 @@ impl Value {
             indices: Vec::new(),
             value,
             preview_options: Some(preview_options),
-            display: match_value,
+            display: match_value.clone(),
+            ordinal: match_value,
         }
     }
 }

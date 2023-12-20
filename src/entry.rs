@@ -12,6 +12,7 @@ pub trait Entry:
     for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Debug + Serialize + Clone + Sync + Send + 'static
 {
     fn display(&self) -> String;
+    fn ordinal(&self) -> String;
     fn indices(&self) -> Vec<(u32, u32)>;
     fn is_selected(&self) -> bool;
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
