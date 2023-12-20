@@ -1,12 +1,14 @@
 local NuiLine = require("nui.line")
 
 ---@class Line: NuiLine
+---@field super NuiLine
+---@field _texts string[]|NuiText[]
 local Line = NuiLine:extend("Line")
 
 ---@class LineOptions
 ---@field separator? string
 
----@param texts string|NuiText[]
+---@param texts string[]|NuiText[]
 ---@param options? LineOptions
 function Line:init(texts, options)
 	local opts = options or {}
@@ -25,17 +27,9 @@ function Line:content()
 	)
 end
 
----@param texts string|NuiText[]
+---@param texts string[]|NuiText[]
 function Line:set(texts)
 	self._texts = texts
 end
-
--- TODO: Make this take a line number
--- Perhaps a line will always correspond to a specific line number for the existence of the picker?
--- Then we push new strings + indices into the line?
--- Only rerender if the content is different? Will need to account for the icon somehow though
--- Not sure what will happen when the number of lines change
--- Also perhaps i will make it so this follows the NoiceChunk stuff?
--- Perhaps I can do partial edits too idk
 
 return Line

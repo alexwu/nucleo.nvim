@@ -869,7 +869,7 @@ where
             Ok(status)
         });
 
-        methods.add_method_mut("populate", |lua, this, params: (Option<V>,)| {
+        methods.add_method_mut("populate", |_lua, this, params: (Option<V>,)| {
             this.populate(params.0);
             Ok(())
         });
