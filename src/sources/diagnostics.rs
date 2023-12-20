@@ -70,6 +70,6 @@ impl From<Diagnostic> for Data<Diagnostic, PreviewOptions> {
     }
 }
 
-pub fn create_picker() -> anyhow::Result<Picker<Diagnostic, PreviewOptions>> {
+pub fn create_picker() -> anyhow::Result<Picker<Diagnostic, PreviewOptions, Blob>> {
     anyhow::Ok(Picker::new(picker::Config::default()))
 }

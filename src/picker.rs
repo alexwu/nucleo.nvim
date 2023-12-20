@@ -23,7 +23,7 @@ use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::entry::{CustomEntry, Entry};
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::sources::diagnostics::Diagnostic;
-use crate::sources::files::FinderFn;
+use crate::sources::files::{FileConfig, FinderFn, InjectorFn};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
@@ -123,6 +123,7 @@ impl<'a> FromLua<'a> for Blob {
     }
 }
 impl Previewable for Blob {}
+impl InjectorConfig for Blob {}
 
 #[derive(Debug, Clone, EnumString, Display)]
 #[strum(serialize_all = "snake_case")]
@@ -301,7 +302,9 @@ where
     }
 }
 
-pub struct Picker<T, U>
+pub trait InjectorConfig: Clone + for<'a> FromLua<'a> + Sync + Send + 'static {}
+
+pub struct Picker<T, U, V>
 where
     T: Clone
         + Debug
@@ -312,6 +315,7 @@ where
         + for<'a> FromLua<'a>
         + 'static,
     U: Previewable + for<'a> mlua::FromLua<'a>,
+    V: InjectorConfig,
 {
     pub matcher: Matcher<Data<T, U>>,
     previous_query: String,
@@ -322,10 +326,11 @@ where
     receiver: crossbeam_channel::Receiver<()>,
     matches_files: bool,
     config: Config,
+    injector_fn: Option<InjectorFn<T, U, V>>,
     populator: FinderFn<T, U>,
 }
 
-impl<T, U> Picker<T, U>
+impl<T, U, V> Picker<T, U, V>
 where
     T: Clone
         + Debug
@@ -336,6 +341,7 @@ where
         + for<'a> FromLua<'a>
         + 'static,
     U: Previewable,
+    V: InjectorConfig,
 {
     pub fn new(config: Config) -> Self {
         log::info!("Creating picker with config: {:?}", &config);
@@ -356,6 +362,7 @@ where
             receiver,
             sender,
             config,
+            injector_fn: None,
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: HashMap::new(),
@@ -378,6 +385,13 @@ where
 
     fn try_recv(&self) -> Result<(), crossbeam_channel::TryRecvError> {
         self.receiver.try_recv()
+    }
+
+    pub fn with_injector(self, injector: InjectorFn<T, U, V>) -> Self {
+        Self {
+            injector_fn: Some(injector),
+            ..self
+        }
     }
 
     pub fn with_populator<F>(self, populator: Arc<F>) -> Self
@@ -563,9 +577,15 @@ where
         injector.populate_with_local(populator);
     }
 
-    pub fn populate(&mut self) {
+    pub fn populate<R: Into<V>>(&mut self, config: Option<R>) {
         let injector = self.matcher.injector();
-        let populator = self.populator.clone();
+        // let populator = self.populator.clone();
+        let populator = self
+            .injector_fn
+            .clone()
+            .expect("Trying to call picker with no injector fn")(
+            config.map(|c| c.into())
+        );
         rayon::spawn(move || {
             injector.populate_with(populator);
         });
@@ -623,7 +643,7 @@ where
     }
 }
 
-impl<T, U> Default for Picker<T, U>
+impl<T, U, V> Default for Picker<T, U, V>
 where
     T: Clone
         + Debug
@@ -634,13 +654,14 @@ where
         + for<'a> FromLua<'a>
         + 'static,
     U: Previewable,
+    V: InjectorConfig,
 {
     fn default() -> Self {
         Self::new(Config::default())
     }
 }
 
-impl<T, U: Previewable> Contents for Picker<T, U>
+impl<T, U: Previewable, V: InjectorConfig> Contents for Picker<T, U, V>
 where
     T: Clone
         + Debug
@@ -656,7 +677,7 @@ where
     }
 }
 
-impl<T, U> BufferContents<T> for Picker<T, U>
+impl<T, U, V> BufferContents<T> for Picker<T, U, V>
 where
     T: Clone
         + Debug
@@ -667,6 +688,7 @@ where
         + for<'a> FromLua<'a>
         + 'static,
     U: Previewable,
+    V: InjectorConfig,
 {
     fn window(&self) -> &crate::buffer::Window {
         &self.window
@@ -711,7 +733,7 @@ impl From<PartialConfig> for Config {
     }
 }
 
-impl<T, U> UserData for Picker<T, U>
+impl<T, U, V> UserData for Picker<T, U, V>
 where
     T: Clone
         + Debug
@@ -722,6 +744,7 @@ where
         + for<'a> FromLua<'a>
         + 'static,
     U: Previewable,
+    V: InjectorConfig,
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
@@ -846,8 +869,8 @@ where
             Ok(status)
         });
 
-        methods.add_method_mut("populate", |_lua, this, _params: ()| {
-            this.populate();
+        methods.add_method_mut("populate", |lua, this, params: (Option<V>,)| {
+            this.populate(params.0);
             Ok(())
         });
 

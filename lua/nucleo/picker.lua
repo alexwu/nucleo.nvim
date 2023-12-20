@@ -203,9 +203,9 @@ function Picker:find(opts)
 	self.picker:update_config(options)
 
 	if self.source == "builtin.files" then
-		self.picker:populate()
+		self.picker:populate(options)
 	elseif self.source == "builtin.git_status" then
-		self.picker:populate()
+		self.picker:populate(options)
 	elseif type(self.source) == "function" then
 		-- self.picker:populate(self.source)
 	else

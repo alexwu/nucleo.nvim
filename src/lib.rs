@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
 use sources::{
     diagnostics::{self, Diagnostic},
-    files::{self, PartialFileConfig, PreviewOptions},
-    git::{self, PartialStatusConfig},
+    files::{self, FileConfig, PartialFileConfig, PreviewOptions},
+    git::{self, PartialStatusConfig, StatusConfig},
 };
 
 mod buffer;
@@ -28,7 +28,7 @@ mod sources;
 pub fn init_picker(
     _: &Lua,
     params: (Option<picker::PartialConfig>,),
-) -> LuaResult<Picker<FileEntry, PreviewOptions>> {
+) -> LuaResult<Picker<FileEntry, PreviewOptions, Blob>> {
     let config = match params.0 {
         Some(config) => config,
         None => picker::PartialConfig::default(),
@@ -59,7 +59,7 @@ impl FromLua<'_> for SourceConfig {
 pub fn init_lua_picker(
     _lua: &'static Lua,
     params: (LuaValue<'static>,),
-) -> LuaResult<Picker<Diagnostic, PreviewOptions>> {
+) -> LuaResult<Picker<Diagnostic, PreviewOptions, Blob>> {
     let mut picker = diagnostics::create_picker().into_lua_err()?;
     match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
@@ -88,8 +88,8 @@ pub fn init_lua_picker(
 pub fn init_custom_picker(
     _lua: &Lua,
     params: (SourceConfig,),
-) -> LuaResult<Picker<CustomEntry, Blob>> {
-    let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
+) -> LuaResult<Picker<CustomEntry, Blob, Blob>> {
+    let mut picker: Picker<CustomEntry, Blob, Blob> = Picker::new(picker::Config::default());
 
     let results = params.0.results.into_par_iter().map(Data::from).collect();
     picker.populate_with(results);
@@ -100,14 +100,14 @@ pub fn init_custom_picker(
 pub fn init_file_picker(
     _lua: &Lua,
     params: (Option<PartialFileConfig>,),
-) -> LuaResult<Picker<files::Value, PreviewOptions>> {
+) -> LuaResult<Picker<files::Value, PreviewOptions, FileConfig>> {
     files::create_picker(params.0).into_lua_err()
 }
 
 pub fn init_git_status_picker(
     _: &Lua,
     params: (Option<PartialStatusConfig>,),
-) -> LuaResult<Picker<git::StatusEntry, PreviewOptions>> {
+) -> LuaResult<Picker<git::StatusEntry, PreviewOptions, StatusConfig>> {
     git::create_picker(params.0).into_lua_err()
 }
 

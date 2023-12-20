@@ -11,7 +11,7 @@ use partially::Partial;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
-use crate::picker::{self, Data, DataKind, Picker, Previewable};
+use crate::picker::{self, Blob, Data, DataKind, InjectorConfig, Picker, Previewable};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -76,6 +76,15 @@ pub struct FileConfig {
     pub ignore: bool,
     pub hidden: bool,
 }
+
+impl<'a> FromLua<'a> for FileConfig {
+    fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
+        let val: PartialFileConfig = FromLua::from_lua(value, lua)?;
+        Ok(val.into())
+    }
+}
+
+impl InjectorConfig for FileConfig {}
 
 #[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
@@ -155,16 +164,18 @@ impl From<PartialFileConfig> for FileConfig {
 }
 
 pub type FinderFn<T, U> = Arc<dyn Fn(Sender<Data<T, U>>) + Sync + Send + 'static>;
+pub type InjectorFn<T, U, V> = Arc<dyn Fn(Option<V>) -> FinderFn<T, U> + Sync + Send>;
 
-pub fn injector(config: FileConfig) -> FinderFn<Value, PreviewOptions> {
+pub fn injector(config: Option<FileConfig>) -> FinderFn<Value, PreviewOptions> {
     let FileConfig {
         cwd,
         hidden,
         git_ignore,
         ignore,
-    } = config;
+    } = config.unwrap_or_default();
+
     let dir = Path::new(&cwd);
-    log::info!("Spawning sorted file searcher...");
+    log::info!("Spawning sorted file searcher at: {:?}", &dir);
     let mut walk_builder = WalkBuilder::new(dir);
     walk_builder
         .hidden(hidden)
@@ -207,16 +218,17 @@ pub fn injector(config: FileConfig) -> FinderFn<Value, PreviewOptions> {
 
 pub fn create_picker(
     file_options: Option<PartialFileConfig>,
-) -> anyhow::Result<Picker<Value, PreviewOptions>> {
+) -> anyhow::Result<Picker<Value, PreviewOptions, FileConfig>> {
     let config = match file_options {
         Some(config) => config,
         None => PartialFileConfig::default(),
     };
-    let populator = injector(config.into());
-    let picker: Picker<Value, PreviewOptions> = Picker::new(picker::Config::default())
+    let populator = injector(Some(config.into()));
+    let picker: Picker<Value, PreviewOptions, FileConfig> = Picker::new(picker::Config::default())
         .with_populator(Arc::new(move |tx| {
             populator(tx);
-        }));
+        }))
+        .with_injector(Arc::new(injector));
 
     anyhow::Ok(picker)
 }
