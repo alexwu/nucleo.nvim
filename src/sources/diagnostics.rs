@@ -60,6 +60,7 @@ impl From<Diagnostic> for Data<Diagnostic, PreviewOptions> {
             .and_col_end(value.end_col)
             .and_bufnr(value.bufnr)
             .build();
+
         Data::new(
             DataKind::File,
             message.clone(),

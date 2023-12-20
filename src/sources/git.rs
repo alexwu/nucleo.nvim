@@ -1,6 +1,6 @@
 use std::{env::current_dir, path::Path, sync::Arc};
 
-use crate::picker::{self, Data, DataKind, InjectorConfig, Picker, Blob};
+use crate::picker::{self, Blob, Data, DataKind, InjectorConfig, Picker};
 use anyhow::bail;
 use git2::Statuses;
 use mlua::prelude::*;
@@ -149,7 +149,8 @@ impl From<PartialStatusConfig> for StatusConfig {
 impl InjectorConfig for StatusConfig {}
 impl FromLua<'_> for StatusConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        lua.from_value(value)
+        let config: PartialStatusConfig = FromLua::from_lua(value, lua)?;
+        Ok(config.into())
     }
 }
 
@@ -210,8 +211,8 @@ impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
     }
 }
 
-pub fn injector(config: StatusConfig) -> FinderFn<StatusEntry, PreviewOptions> {
-    let repo = Repository::open(config.cwd).expect("Unable to open repository");
+pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOptions> {
+    let repo = Repository::open(config.unwrap_or_default().cwd).expect("Unable to open repository");
 
     Arc::new(move |tx| {
         let status_options = &mut git2::StatusOptions::new();
@@ -237,11 +238,13 @@ pub fn create_picker(
         Some(config) => config,
         None => PartialStatusConfig::default(),
     };
-    let populator = injector(config.into());
+    let populator = injector(Some(config.into()));
     let picker: Picker<StatusEntry, PreviewOptions, StatusConfig> =
-        Picker::new(picker::Config::default()).with_populator(Arc::new(move |tx| {
-            populator(tx);
-        }));
+        Picker::new(picker::Config::default())
+            .with_populator(Arc::new(move |tx| {
+                populator(tx);
+            }))
+            .with_injector(Arc::new(injector));
 
     anyhow::Ok(picker)
 }

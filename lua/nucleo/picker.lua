@@ -39,7 +39,7 @@ local api = vim.api
 ---@field move_cursor_up fun(self: PickerBackend, delta?: integer)
 ---@field move_to_bottom fun(self: PickerBackend)
 ---@field move_to_top fun(self: PickerBackend)
----@field populate fun(self: PickerBackend)
+---@field populate fun(self: PickerBackend, options?: Nucleo.Config.Files)
 ---@field populate_with fun(self: PickerBackend, entries: CustomEntry[])
 ---@field restart fun(self: PickerBackend)
 ---@field multiselect fun(self: PickerBackend, pos: integer)
@@ -202,9 +202,7 @@ function Picker:find(opts)
 
 	self.picker:update_config(options)
 
-	if self.source == "builtin.files" then
-		self.picker:populate(options)
-	elseif self.source == "builtin.git_status" then
+	if type(self.source) == "string" then
 		self.picker:populate(options)
 	elseif type(self.source) == "function" then
 		-- self.picker:populate(self.source)

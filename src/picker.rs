@@ -23,7 +23,7 @@ use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::entry::{CustomEntry, Entry};
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::sources::diagnostics::Diagnostic;
-use crate::sources::files::{FileConfig, FinderFn, InjectorFn};
+use crate::sources::files::{FinderFn, InjectorFn};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
