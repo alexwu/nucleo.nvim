@@ -8,7 +8,7 @@ local api = vim.api
 
 local ns_selection = vim.api.nvim_create_namespace("nucleo_selection")
 
----@param opts HighlighterConfig
+---@param opts Nucleo.Config.Highlighter
 function Highlighter:new(opts)
 	opts = vim.F.if_nil(opts, {})
 	vim.validate({

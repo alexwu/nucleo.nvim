@@ -198,7 +198,6 @@ pub fn injector(config: Option<FileConfig>) -> FinderFn<Value, PreviewOptions> {
     walk_builder.types(excluded_types);
 
     Arc::new(move |tx| {
-        log::info!("Inside this!!");
         for path in walk_builder.build() {
             let cwd = cwd.clone();
             match path {
@@ -223,12 +222,8 @@ pub fn create_picker(
         Some(config) => config,
         None => PartialFileConfig::default(),
     };
-    let populator = injector(Some(config.into()));
-    let picker: Picker<Value, PreviewOptions, FileConfig> = Picker::new(picker::Config::default())
-        .with_populator(Arc::new(move |tx| {
-            populator(tx);
-        }))
-        .with_injector(Arc::new(injector));
+    let picker: Picker<Value, PreviewOptions, FileConfig> =
+        Picker::new(picker::Config::default()).with_injector(Arc::new(injector));
 
     anyhow::Ok(picker)
 }

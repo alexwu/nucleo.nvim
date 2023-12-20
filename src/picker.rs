@@ -23,7 +23,7 @@ use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::entry::{CustomEntry, Entry};
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::sources::diagnostics::Diagnostic;
-use crate::sources::files::{FinderFn, InjectorFn};
+use crate::sources::files::InjectorFn;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
@@ -327,7 +327,6 @@ where
     matches_files: bool,
     config: Config,
     injector_fn: Option<InjectorFn<T, U, V>>,
-    populator: FinderFn<T, U>,
 }
 
 impl<T, U, V> Picker<T, U, V>
@@ -368,7 +367,6 @@ where
             selections: HashMap::new(),
             window: Window::new(50, 50),
             matches_files: true,
-            populator: Arc::new(|_| {}),
         }
     }
 
@@ -392,13 +390,6 @@ where
             injector_fn: Some(injector),
             ..self
         }
-    }
-
-    pub fn with_populator<F>(self, populator: Arc<F>) -> Self
-    where
-        F: Fn(Sender<Data<T, U>>) + Sync + Send + 'static,
-    {
-        Self { populator, ..self }
     }
 
     pub fn should_rerender(&self) -> bool {
@@ -579,7 +570,6 @@ where
 
     pub fn populate<R: Into<V>>(&mut self, config: Option<R>) {
         let injector = self.matcher.injector();
-        // let populator = self.populator.clone();
         let populator = self
             .injector_fn
             .clone()

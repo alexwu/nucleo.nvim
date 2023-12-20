@@ -1,9 +1,18 @@
-use std::io::BufReader;
 use std::{collections::HashMap, fs::File};
+use std::{fmt::Debug, io::BufReader};
 
-use mlua::{UserData, UserDataMethods};
+use buildstructor::Builder;
+use mlua::prelude::*;
+use mlua::UserData;
+use mlua::UserDataMethods;
 use ropey::Rope;
 use serde::{Deserialize, Serialize};
+use serde_with::skip_serializing_none;
+
+pub trait Previewable:
+    Serialize + for<'a> FromLua<'a> + for<'a> Deserialize<'a> + Clone + Debug + Send + Sync + 'static
+{
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Previewer {
@@ -15,6 +24,38 @@ pub struct Previewer {
 pub enum PreviewKind {
     File,
 }
+
+#[skip_serializing_none]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+#[serde(default)]
+#[derive(Default)]
+pub struct PreviewOptions {
+    pub line_start: usize,
+    pub line_end: Option<usize>,
+    pub col_start: usize,
+    pub col_end: Option<usize>,
+    pub bufnr: Option<usize>,
+    pub path: Option<String>,
+    pub uri: Option<String>,
+    pub file_type: Option<String>,
+}
+
+impl<'a> FromLua<'a> for PreviewOptions {
+    fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
+        lua.from_value(value)
+    }
+}
+
+impl<'a> IntoLua<'a> for PreviewOptions {
+    fn into_lua(self, lua: &'a Lua) -> LuaResult<LuaValue<'a>> {
+        lua.to_value_with(
+            &self,
+            LuaSerializeOptions::default().serialize_none_to_null(false),
+        )
+    }
+}
+
+impl Previewable for PreviewOptions {}
 
 impl Previewer {
     pub fn new() -> Self {

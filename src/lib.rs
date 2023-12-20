@@ -8,12 +8,13 @@ use entry::CustomEntry;
 use log::LevelFilter;
 use mlua::prelude::*;
 use picker::{Blob, Data, FileEntry, Picker};
+use previewer::PreviewOptions;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
 use sources::{
     diagnostics::{self, Diagnostic},
-    files::{self, FileConfig, PartialFileConfig, PreviewOptions},
+    files::{self, FileConfig, PartialFileConfig},
     git::{self, PartialStatusConfig, StatusConfig},
 };
 

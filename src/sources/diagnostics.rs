@@ -2,8 +2,10 @@ use mlua::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 
-use super::files::PreviewOptions;
-use crate::picker::{self, Blob, Data, DataKind, Picker, Previewable};
+use crate::{
+    picker::{self, Blob, Data, DataKind, Picker},
+    previewer::{PreviewOptions, Previewable},
+};
 
 #[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize)]

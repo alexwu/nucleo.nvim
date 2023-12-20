@@ -37,6 +37,11 @@ Previewer.render = a.void(function(self, entry)
 		return
 	end
 
+	if not entry.kind == "file" then
+		vim.print(entry.kind)
+		return
+	end
+
 	local preview_options = entry.preview_options or {}
 	local start = preview_options.line_start or 0
 	local ft = preview_options.file_type
@@ -76,6 +81,9 @@ Previewer.render = a.void(function(self, entry)
 		local lang = vim.treesitter.language.get_lang(ft)
 		if lang and has_ts_parser(lang) then
 			return vim.treesitter.start(self.bufnr, lang)
+		else
+			vim.bo[self.bufnr].syntax = ft
+			-- pcall(vim.api.nvim_buf_set_option, self.bufnr, "syntax", ft)
 		end
 	end)
 end)

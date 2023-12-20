@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Sender};
 use rayon::prelude::*;
-use tokio::{runtime::Runtime, task::JoinHandle};
+use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
 
-use crate::entry::Entry;
+use crate::{entry::Entry, picker::Data};
+
+pub type FinderFn<T, U> = Arc<dyn Fn(UnboundedSender<Data<T, U>>) + Sync + Send + 'static>;
+pub type InjectorFn<T, U, V> = Arc<dyn Fn(Option<V>) -> FinderFn<T, U> + Sync + Send>;
 
 pub struct Injector<T: Entry>(nucleo::Injector<T>);
 
@@ -49,16 +52,19 @@ impl<T: Entry> Injector<T> {
 
     pub fn populate_with<F>(self, func: Arc<F>)
     where
-        F: Fn(Sender<T>) + Sync + Send + ?Sized + 'static,
+        // F: Fn(Sender<T>) + Sync + Send + ?Sized + 'static,
+        F: Fn(UnboundedSender<T>) + Sync + Send + ?Sized + 'static,
     {
         let rt = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, rx) = unbounded::<T>();
+        // let (tx, rx) = unbounded::<T>();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
         log::info!("injector::populate_with");
         rt.block_on(async {
             let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
-                for val in rx.iter() {
+                // for val in rx.iter() {
+                while let Some(val) = rx.recv().await {
                     self.push(val);
                 }
                 anyhow::Ok(())

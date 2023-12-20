@@ -1,15 +1,16 @@
 use std::{env::current_dir, path::Path, sync::Arc};
 
-use crate::picker::{self, Blob, Data, DataKind, InjectorConfig, Picker};
+use crate::{
+    injector::FinderFn,
+    picker::{self, Data, DataKind, InjectorConfig, Picker},
+    previewer::PreviewOptions,
+};
 use anyhow::bail;
 use git2::Statuses;
 use mlua::prelude::*;
 
 use partially::Partial;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-
-use super::files::{FinderFn, PreviewOptions};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Partial)]
 #[partially(derive(Default, Debug))]
@@ -31,7 +32,7 @@ impl Repository {
     }
 
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
-        match git2::Repository::open(path) {
+        match git2::Repository::discover(path) {
             Ok(repo) => Ok(Self(repo)),
             Err(err) => bail!(err),
         }
@@ -217,17 +218,19 @@ pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOp
     Arc::new(move |tx| {
         let status_options = &mut git2::StatusOptions::new();
         status_options
+            .update_index(true)
             .include_ignored(false)
             .include_untracked(true);
-        let statuses = repo
-            .statuses(Some(status_options))
-            .expect("Unable to get statuses");
-        statuses.iter().for_each(|entry| {
-            let entry: StatusEntry = entry.into();
-            let data = Data::from(entry);
-            log::info!("{:?}", &data);
-            let _ = tx.send(data);
-        });
+
+        repo.statuses(Some(status_options))
+            .expect("Unable to get statuses")
+            .iter()
+            .for_each(|entry| {
+                let entry: StatusEntry = entry.into();
+                let data = Data::from(entry);
+                log::info!("{:?}", &data);
+                let _ = tx.send(data);
+            });
     })
 }
 
@@ -238,13 +241,11 @@ pub fn create_picker(
         Some(config) => config,
         None => PartialStatusConfig::default(),
     };
-    let populator = injector(Some(config.into()));
-    let picker: Picker<StatusEntry, PreviewOptions, StatusConfig> =
-        Picker::new(picker::Config::default())
-            .with_populator(Arc::new(move |tx| {
-                populator(tx);
-            }))
-            .with_injector(Arc::new(injector));
+    let mut picker: Picker<StatusEntry, PreviewOptions, StatusConfig> =
+        Picker::new(picker::Config::default()).with_injector(Arc::new(injector));
+
+    // picker.populate(config.into());
+
 
     anyhow::Ok(picker)
 }
