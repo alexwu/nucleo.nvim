@@ -1,10 +1,10 @@
 use std::{env::current_dir, path::Path, sync::Arc};
 
-use crate::picker::{self, Blob, Data, DataKind, Picker};
+use crate::picker::{self, Data, DataKind, Picker};
 use anyhow::bail;
 use git2::Statuses;
 use mlua::prelude::*;
-use parking_lot::Mutex;
+
 use partially::Partial;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
