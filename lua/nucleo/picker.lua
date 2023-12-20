@@ -30,7 +30,7 @@ local api = vim.api
 ---@field value string
 ---@field selected boolean
 
----@class PickerBackend
+---@class PickerBackend: userdata
 ---@field drain_channel fun(self: PickerBackend)
 ---@field force_rerender fun(self: PickerBackend)
 ---@field get_cursor_pos fun(self: PickerBackend): integer|nil
@@ -164,7 +164,7 @@ end
 
 ---@param source_name string
 ---@param opts? Nucleo.Config.Files
----@return Nucleo.Config.Files
+---@return Nucleo.Config.Files|Nucleo.Config.GitStatus
 local function override(source_name, opts)
 	opts = opts or {}
 
