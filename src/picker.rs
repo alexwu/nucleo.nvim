@@ -21,9 +21,10 @@ use strum::{Display, EnumIs, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::entry::{CustomEntry, Entry};
+use crate::injector::InjectorFn;
 use crate::matcher::{Matcher, Status, MATCHER};
+use crate::previewer::Previewable;
 use crate::sources::diagnostics::Diagnostic;
-use crate::sources::files::InjectorFn;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
@@ -101,11 +102,6 @@ impl IntoLua<'_> for SortDirection {
     fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
         self.to_string().into_lua(lua)
     }
-}
-
-pub trait Previewable:
-    Serialize + for<'a> FromLua<'a> + for<'a> Deserialize<'a> + Clone + Debug + Send + Sync + 'static
-{
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display)]

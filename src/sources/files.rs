@@ -10,8 +10,11 @@ use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
+use tokio::sync::mpsc::UnboundedSender;
 
-use crate::picker::{self, Blob, Data, DataKind, InjectorConfig, Picker, Previewable};
+use crate::injector::FinderFn;
+use crate::picker::{self, Data, DataKind, InjectorConfig, Picker};
+use crate::previewer::PreviewOptions;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -86,38 +89,6 @@ impl<'a> FromLua<'a> for FileConfig {
 
 impl InjectorConfig for FileConfig {}
 
-#[skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
-#[serde(default)]
-#[derive(Default)]
-pub struct PreviewOptions {
-    pub line_start: usize,
-    pub line_end: Option<usize>,
-    pub col_start: usize,
-    pub col_end: Option<usize>,
-    pub bufnr: Option<usize>,
-    pub path: Option<String>,
-    pub uri: Option<String>,
-    pub file_type: Option<String>,
-}
-
-impl<'a> FromLua<'a> for PreviewOptions {
-    fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
-        lua.from_value(value)
-    }
-}
-
-impl<'a> IntoLua<'a> for PreviewOptions {
-    fn into_lua(self, lua: &'a Lua) -> LuaResult<LuaValue<'a>> {
-        lua.to_value_with(
-            &self,
-            LuaSerializeOptions::default().serialize_none_to_null(false),
-        )
-    }
-}
-
-impl Previewable for PreviewOptions {}
-
 impl Default for FileConfig {
     fn default() -> Self {
         let cwd = current_dir()
@@ -162,9 +133,6 @@ impl From<PartialFileConfig> for FileConfig {
         config
     }
 }
-
-pub type FinderFn<T, U> = Arc<dyn Fn(Sender<Data<T, U>>) + Sync + Send + 'static>;
-pub type InjectorFn<T, U, V> = Arc<dyn Fn(Option<V>) -> FinderFn<T, U> + Sync + Send>;
 
 pub fn injector(config: Option<FileConfig>) -> FinderFn<Value, PreviewOptions> {
     let FileConfig {
