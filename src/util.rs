@@ -2,10 +2,10 @@ use unicode_truncate::UnicodeTruncateStr;
 use unicode_width::UnicodeWidthStr;
 
 fn adjust_indices(
-    indices: &[(usize, usize)],
-    original_width: usize,
-    truncation_size: usize,
-) -> Vec<(usize, usize)> {
+    indices: &[(u32, u32)],
+    original_width: u32,
+    truncation_size: u32,
+) -> Vec<(u32, u32)> {
     if indices.is_empty() || truncation_size >= original_width {
         return indices.to_vec();
     }
@@ -27,27 +27,28 @@ fn adjust_indices(
 
 pub fn align_str(
     s: &str,
-    indices: &[(usize, usize)],
-    max_width: usize,
+    indices: &[(u32, u32)],
+    max_width: u32,
     replacement_text: &str,
-    hscroll_offset: usize,
-) -> (String, Vec<(usize, usize)>) {
+    hscroll_offset: u32,
+) -> (String, Vec<(u32, u32)>) {
     if s.is_empty() {
         return (String::new(), vec![]);
     }
 
     let mut current_string = String::from(s);
-    let mut current_width = current_string.width();
-    let mut current_indices: Vec<(usize, usize)> = indices.to_vec();
+    let mut current_width = current_string.width() as u32;
+    let mut current_indices: Vec<(u32, u32)> = indices.to_vec();
 
     dbg!(current_width);
     if current_width <= max_width {
         return (current_string.to_string(), current_indices);
     }
 
-    let replacement_width = replacement_text.width();
+    let replacement_width = replacement_text.width() as u32;
     if indices.is_empty() {
-        let (truncated_string, _) = current_string.unicode_truncate(max_width - replacement_width);
+        let (truncated_string, _) = current_string
+            .unicode_truncate(max_width.saturating_sub(replacement_width) as usize);
         return (
             format!("{}{}", truncated_string, replacement_text),
             current_indices,
@@ -65,8 +66,7 @@ pub fn align_str(
         .max()
         .expect("somehow unable to find max_match");
 
-    let trailing_width = current_string
-        .width()
+    let trailing_width = (current_string.width() as u32)
         .saturating_sub(max_match)
         .saturating_sub(hscroll_offset);
     dbg!(trailing_width);
@@ -76,11 +76,11 @@ pub fn align_str(
             current_width
                 .saturating_sub(trailing_width)
                 .saturating_sub(replacement_width)
-                .max(max_width.saturating_sub(replacement_width)),
+                .max(max_width.saturating_sub(replacement_width)) as usize,
         );
 
         current_string = format!("{}{}", truncated_string, replacement_text);
-        current_width = current_string.width();
+        current_width = current_string.width() as u32;
 
         dbg!(current_width);
         if current_width <= max_width {
@@ -96,12 +96,12 @@ pub fn align_str(
             .saturating_sub(leading_width)
             .saturating_sub(replacement_width)
             .max(max_width.saturating_sub(replacement_width));
-        let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size);
+        let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
 
         // let offset = current_width.saturating_sub(truncation_size);
         current_indices = adjust_indices(&current_indices, current_width, truncation_size);
         current_string = format!("{}{}", replacement_text, truncated_string);
-        current_width = current_string.width();
+        current_width = current_string.width() as u32;
         dbg!(current_width);
 
         if current_width <= max_width {
@@ -122,7 +122,7 @@ pub fn align_str(
     }
 
     let truncation_size = max_width.saturating_sub(replacement_width);
-    let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size);
+    let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
     current_indices = adjust_indices(&current_indices, current_width, truncation_size);
     // let offset = current_width.saturating_sub(truncation_size);
 
