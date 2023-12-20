@@ -25,6 +25,7 @@ mod matcher;
 mod picker;
 mod previewer;
 mod sources;
+mod util;
 
 pub fn init_picker(
     _: &Lua,
