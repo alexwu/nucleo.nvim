@@ -39,10 +39,12 @@ Previewer.render = a.void(function(self, entry)
 
 	local preview_options = entry.preview_options or {}
 	local start = preview_options.line_start or 0
+	local ft = preview_options.file_type
+
 	local height = api.nvim_win_get_height(self.winid)
 	local path
-	if preview_options.bufnr then
-		local uri = vim.uri_from_bufnr(entry.preview_options.bufnr)
+	if preview_options.bufnr and not preview_options.uri then
+		local uri = vim.uri_from_bufnr(preview_options.bufnr)
 		local fname = vim.uri_to_fname(uri)
 		if fname then
 			path = fname
@@ -65,7 +67,10 @@ Previewer.render = a.void(function(self, entry)
 
 	vim.schedule(function()
 		local name = vim.fs.basename(path)
-		local ft = vim.filetype.match({ filename = name, content = content })
+		if ft == "" then
+			ft = vim.filetype.match({ filename = name, content = content })
+		end
+
 		if not ft or ft == "" then
 			return
 		end

@@ -39,12 +39,11 @@ local api = vim.api
 ---@field move_cursor_up fun(self: PickerBackend, delta?: integer)
 ---@field move_to_bottom fun(self: PickerBackend)
 ---@field move_to_top fun(self: PickerBackend)
----@field populate_files fun(self: PickerBackend)
----@field populate fun(self: PickerBackend, entries: CustomEntry[])
+---@field populate fun(self: PickerBackend)
+---@field populate_with fun(self: PickerBackend, entries: CustomEntry[])
 ---@field restart fun(self: PickerBackend)
 ---@field multiselect fun(self: PickerBackend, pos: integer)
 ---@field toggle_selection fun(self: PickerBackend, pos: integer)
----@field selection_indices fun(self: PickerBackend): integer[]
 ---@field selections fun(self: PickerBackend): Nucleo.Picker.Entry[]
 ---@field set_cursor fun(self: PickerBackend, pos: integer)
 ---@field should_rerender fun(self: PickerBackend): boolean
@@ -168,12 +167,14 @@ function Picker:new(opts)
 		self.layout:unmount()
 	end)
 end
+
+---@param source_name string
 ---@param opts? Nucleo.FilePicker.Config
 ---@return Nucleo.FilePicker.Config
-local function override(opts)
+local function override(source_name, opts)
 	opts = opts or {}
 
-	local configs = { config.get("defaults"), config.get("sources", "files"), opts }
+	local configs = { config.get("defaults"), config.get("sources", source_name), opts }
 
 	return vim.tbl_deep_extend("force", unpack(configs))
 end
@@ -196,14 +197,21 @@ end
 
 ---@param opts Nucleo.FilePicker.Config
 function Picker:find(opts)
-	local options = override(opts)
+	local source_name = ""
+	if type(self.source) == "string" then
+		source_name = self.source
+	elseif type(self.source) == "table" and type(self.source.name) == "string" then
+		source_name = self.source.name
+	end
+
+	local options = override(source_name, opts)
 
 	self.picker:update_config(options)
 
 	if self.source == "builtin.files" then
-		self.picker:populate_files()
+		self.picker:populate()
 	elseif self.source == "builtin.git_status" then
-		self.picker:populate_files()
+		self.picker:populate()
 	elseif type(self.source) == "function" then
 		-- self.picker:populate(self.source)
 	else

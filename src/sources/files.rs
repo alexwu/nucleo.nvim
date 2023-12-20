@@ -29,21 +29,29 @@ impl Value {
             .expect("Failed to convert path to string")
             .to_string();
 
+        let file_type = path
+            .extension()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
         let value = Self {
             path: full_path.to_string(),
-            file_type: path
-                .extension()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string(),
+            file_type: file_type.clone(),
         };
+
+        let preview_options = PreviewOptions::builder()
+            .line_start(0)
+            .col_start(0)
+            .file_type(file_type)
+            .build();
 
         Data {
             kind: DataKind::File,
             selected: false,
             indices: Vec::new(),
             value,
-            preview_options: Some(PreviewOptions::default()),
+            preview_options: Some(preview_options),
             display: match_value,
         }
     }
@@ -80,6 +88,7 @@ pub struct PreviewOptions {
     pub bufnr: Option<usize>,
     pub path: Option<String>,
     pub uri: Option<String>,
+    pub file_type: Option<String>,
 }
 
 impl<'a> FromLua<'a> for PreviewOptions {

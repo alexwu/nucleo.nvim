@@ -314,6 +314,7 @@ where
             //     log::info!("Message sent!")
             // };
         });
+
         let matcher: Matcher<Data<T, U>> =
             Nucleo::new(nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
 
@@ -333,7 +334,6 @@ where
 
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
-        // if status.0.changed && self.total_matches() < self.window_height() as u32 {
         if status.0.changed {
             self.force_rerender();
         }
@@ -396,9 +396,9 @@ where
     }
 
     pub fn update_query(&mut self, query: &str) {
-        log::info!("Updating query: {}", &query);
         let previous_query = self.previous_query.clone();
         if query != previous_query {
+            log::info!("Updating query: {}", &query);
             self.matcher.pattern().reparse(
                 0,
                 query,
@@ -466,7 +466,7 @@ where
             let _ = self.sender.try_send(());
         }
 
-        log::info!("Selection index: {}", self.cursor.pos());
+        log::info!("Cursor position: {}", self.cursor.pos());
     }
 
     pub fn current_matches(&self) -> Vec<Data<T, U>> {
@@ -511,20 +511,10 @@ where
         self.matcher.0.restart(true);
     }
 
-    pub fn populate(&mut self, entries: Vec<Data<T, U>>) {
+    pub fn populate_with(&mut self, entries: Vec<Data<T, U>>) {
         let injector = self.matcher.injector();
         rayon::spawn(move || {
             injector.populate(entries);
-        });
-    }
-
-    pub fn populate_with<F>(&mut self, populator: Arc<F>)
-    where
-        F: Fn(Sender<Data<T, U>>) + Send + Sync + ?Sized + 'static,
-    {
-        let injector = self.matcher.injector();
-        rayon::spawn(move || {
-            injector.populate_with(populator);
         });
     }
 
@@ -537,7 +527,7 @@ where
         injector.populate_with_local(populator);
     }
 
-    pub fn populate_files(&mut self) {
+    pub fn populate(&mut self) {
         let injector = self.matcher.injector();
         let populator = self.populator.clone();
         rayon::spawn(move || {
@@ -807,10 +797,6 @@ where
             }
         });
 
-        methods.add_method("selection_indices", |lua, this, ()| {
-            Ok(lua.to_value(&this.selections))
-        });
-
         methods.add_method("selections", |lua, this, ()| {
             Ok(lua.to_value(&this.selections()))
         });
@@ -830,13 +816,13 @@ where
             Ok(status)
         });
 
-        methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
-            this.populate_files();
+        methods.add_method_mut("populate", |_lua, this, _params: ()| {
+            this.populate();
             Ok(())
         });
 
-        methods.add_method_mut("populate", |_lua, this, params: (Vec<Data<T, U>>,)| {
-            this.populate(params.0);
+        methods.add_method_mut("populate_with", |_lua, this, params: (Vec<Data<T, U>>,)| {
+            this.populate_with(params.0);
             Ok(())
         });
 

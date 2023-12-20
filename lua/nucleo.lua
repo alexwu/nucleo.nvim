@@ -15,8 +15,8 @@ function M.setup(...)
 	api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})
-	api.nvim_create_user_command("NucleoGitStatus", function()
-		M.find_git()
+	api.nvim_create_user_command("GitStatusPicker", function()
+		M.find_git({ cwd = vim.uv.cwd })
 	end, {})
 end
 
@@ -41,6 +41,7 @@ function M.find_git(...)
 
 	Picker({
 		source = "builtin.git_status",
+		cwd = vim.uv.cwd,
 		on_submit = function(selection)
 			local path = selection.value.path
 			if path then

@@ -56,17 +56,6 @@ impl FromLua<'_> for SourceConfig {
     }
 }
 
-pub fn call_or_get<T>(lua: &Lua, val: LuaValue, field: &str) -> LuaResult<T>
-where
-    T: for<'a> IntoLua<'a> + for<'a> FromLua<'a> + for<'a> Deserialize<'a>,
-{
-    let table = LuaTable::from_lua(val, lua)?;
-    match table.get(field)? {
-        LuaValue::Function(func) => func.call::<_, T>(()),
-        val => lua.from_value(val),
-    }
-}
-
 pub fn init_lua_picker(
     _lua: &'static Lua,
     params: (LuaValue<'static>,),
@@ -103,7 +92,7 @@ pub fn init_custom_picker(
     let mut picker: Picker<CustomEntry, Blob> = Picker::new(picker::Config::default());
 
     let results = params.0.results.into_par_iter().map(Data::from).collect();
-    picker.populate(results);
+    picker.populate_with(results);
 
     Ok(picker)
 }

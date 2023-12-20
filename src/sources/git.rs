@@ -6,6 +6,7 @@ use git2::Statuses;
 use mlua::prelude::*;
 use parking_lot::Mutex;
 use partially::Partial;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::files::{FinderFn, PreviewOptions};
@@ -145,17 +146,27 @@ impl From<PartialStatusConfig> for StatusConfig {
     }
 }
 
+pub fn call_or_get<T>(lua: &Lua, val: LuaValue, field: &str) -> LuaResult<T>
+where
+    T: for<'a> IntoLua<'a> + for<'a> FromLua<'a> + for<'a> Deserialize<'a>,
+{
+    let table = LuaTable::from_lua(val, lua)?;
+    match table.get(field)? {
+        LuaValue::Function(func) => {
+            log::info!("in the function section");
+            func.call::<_, T>(())
+        }
+        val => {
+            log::info!("val: {:?}", &val);
+            lua.from_value(val)
+        }
+    }
+}
+
 impl FromLua<'_> for PartialStatusConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        let table = LuaTable::from_lua(value, lua)?;
-        let cwd = match table.get::<&str, LuaValue>("cwd") {
-            Ok(val) => match val {
-                LuaValue::String(cwd) => Some(cwd.to_string_lossy().to_string()),
-                LuaValue::Function(thunk) => Some(thunk.call::<_, String>(())?),
-                _ => None,
-            },
-            _ => None,
-        };
+        let cwd: Option<String> = call_or_get(lua, value, "cwd")?;
+        log::info!("{:?}", &cwd);
 
         Ok(PartialStatusConfig { cwd })
     }
@@ -168,10 +179,26 @@ impl FromLua<'_> for StatusEntry {
 }
 impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
     fn from(value: StatusEntry) -> Self {
-        let path = value.path().expect("Invalid utf8").to_string();
-        let preview_options = PreviewOptions::builder().line_start(0).col_start(0).build();
+        let file_path = value.path().expect("Invalid utf8");
+        let path = Path::new(&file_path);
+        let file_type = path
+            .extension()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
 
-        Data::new(DataKind::File, path, value.clone(), Some(preview_options))
+        let preview_options = PreviewOptions::builder()
+            .line_start(0)
+            .col_start(0)
+            .file_type(file_type)
+            .build();
+
+        Data::new(
+            DataKind::File,
+            path.to_str().expect("Failed to convert path to string"),
+            value.clone(),
+            Some(preview_options),
+        )
     }
 }
 
@@ -179,12 +206,19 @@ pub fn injector(config: StatusConfig) -> FinderFn<StatusEntry, PreviewOptions> {
     let repo = Repository::open(config.cwd).expect("Unable to open repository");
 
     Arc::new(move |tx| {
-        let statuses = repo.statuses(None).expect("Unable to get statuses");
+        let status_options = &mut git2::StatusOptions::new();
+        status_options
+            .include_ignored(false)
+            .include_untracked(true);
+        let statuses = repo
+            .statuses(Some(status_options))
+            .expect("Unable to get statuses");
         statuses.iter().for_each(|entry| {
             let entry: StatusEntry = entry.into();
             let data = Data::from(entry);
-            tx.send(data);
-        })
+            log::info!("{:?}", &data);
+            let _ = tx.send(data);
+        });
     })
 }
 

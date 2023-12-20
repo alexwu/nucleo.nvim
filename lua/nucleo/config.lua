@@ -15,10 +15,13 @@ local defaults = {
 	},
 	sources = {
 		---@type Nucleo.FilePicker.Config
-		files = {
+		["builtin.files"] = {
 			cwd = vim.uv.cwd,
 			git_ignore = true,
 			ignore = true,
+		},
+		["builtin.git_status"] = {
+			cwd = vim.uv.cwd,
 		},
 	},
 	---@class Nucleo.Keymaps

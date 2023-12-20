@@ -32,7 +32,7 @@ function Entry:new(index, entry, bufnr, ns_multiselection_id, winid)
 end
 
 function Entry:update_icon()
-	if self.entry and self.entry.value.file_type then
+	if self.entry and self.entry.preview_options and self.entry.preview_options.file_type then
 		local value, color = devicons.get_icon(self.entry.value.path, self.entry.value.file_type, { default = true })
 		self.icon = {
 			value = value,
@@ -74,6 +74,10 @@ function Entry:render()
 
 	if last_line_content ~= self.line:content() then
 		self.line:render(self.bufnr, -1, self.index)
+	end
+
+	if vim.tbl_isempty(self.entry.indices) then
+		api.nvim_buf_clear_namespace(self.bufnr, ns_matching, self.index - 1, self.index)
 	end
 
 	vim.iter(ipairs(self.entry.indices)):each(function(i, range)
