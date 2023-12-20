@@ -21,7 +21,7 @@ use strum::{Display, EnumString};
 
 use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
 use crate::entry::{CustomEntry, Entry};
-use crate::matcher::{Matcher, Status, STRING_MATCHER};
+use crate::matcher::{Matcher, Status, MATCHER};
 use crate::sources::diagnostics::Diagnostic;
 use crate::sources::files::FinderFn;
 
@@ -474,7 +474,7 @@ where
         let snapshot = self.matcher.snapshot();
         log::info!("Item count: {:?}", snapshot.item_count());
         log::info!("Match count: {:?}", snapshot.matched_item_count());
-        let matcher = &mut STRING_MATCHER.lock();
+        let matcher = &mut MATCHER.lock();
         let string_matcher = matcher.as_inner_mut();
 
         let lower_bound = self.lower_bound();

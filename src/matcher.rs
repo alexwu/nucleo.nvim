@@ -48,24 +48,24 @@ impl<T: Entry> Matcher<T> {
 }
 
 #[derive(Default)]
-pub struct StringMatcher(pub nucleo::Matcher);
+pub struct FuzzyMatcher(pub nucleo::Matcher);
 
-pub static STRING_MATCHER: Lazy<Arc<Mutex<StringMatcher>>> =
-    Lazy::new(|| Arc::new(Mutex::new(StringMatcher::default())));
+pub static MATCHER: Lazy<Arc<Mutex<FuzzyMatcher>>> =
+    Lazy::new(|| Arc::new(Mutex::new(FuzzyMatcher::default())));
 
-impl From<nucleo::Matcher> for StringMatcher {
+impl From<nucleo::Matcher> for FuzzyMatcher {
     fn from(value: nucleo::Matcher) -> Self {
-        StringMatcher(value)
+        FuzzyMatcher(value)
     }
 }
 
-impl From<StringMatcher> for nucleo::Matcher {
-    fn from(val: StringMatcher) -> Self {
+impl From<FuzzyMatcher> for nucleo::Matcher {
+    fn from(val: FuzzyMatcher) -> Self {
         val.0
     }
 }
 
-impl StringMatcher {
+impl FuzzyMatcher {
     pub fn as_inner_mut(&mut self) -> &mut nucleo::Matcher {
         &mut self.0
     }

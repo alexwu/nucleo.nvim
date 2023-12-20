@@ -67,9 +67,7 @@ Previewer.render = a.void(function(self, entry)
 
 	vim.schedule(function()
 		local name = vim.fs.basename(path)
-		if ft == "" then
-			ft = vim.filetype.match({ filename = name, content = content })
-		end
+		ft = vim.filetype.match({ filename = name, content = content })
 
 		if not ft or ft == "" then
 			return
