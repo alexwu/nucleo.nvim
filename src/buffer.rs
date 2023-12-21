@@ -60,14 +60,11 @@ impl Window {
     }
 }
 
-pub trait Contents {
+pub trait Buffer<T: Clone + Debug>: Sized {
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
-}
-
-pub trait BufferContents<T: Clone + Debug>: Contents + Sized {
     fn window(&self) -> &Window;
     fn window_mut(&mut self) -> &mut Window;
     fn cursor(&self) -> &Cursor;

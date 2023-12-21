@@ -19,7 +19,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::{Display, EnumIs, EnumString};
 
-use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
+use crate::buffer::{Buffer, Cursor, Relative, Window};
 use crate::entry::{CustomEntry, Entry};
 use crate::injector::InjectorFn;
 use crate::matcher::{Matcher, Status, MATCHER};
@@ -652,23 +652,7 @@ where
     }
 }
 
-impl<T, U: Previewable, V: InjectorConfig> Contents for Picker<T, U, V>
-where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + 'static,
-{
-    fn len(&self) -> usize {
-        self.total_matches().try_into().unwrap_or(usize::MAX)
-    }
-}
-
-impl<T, U, V> BufferContents<T> for Picker<T, U, V>
+impl<T, U, V> Buffer<T> for Picker<T, U, V>
 where
     T: Clone
         + Debug
@@ -681,6 +665,10 @@ where
     U: Previewable,
     V: InjectorConfig,
 {
+    fn len(&self) -> usize {
+        self.total_matches().try_into().unwrap_or(usize::MAX)
+    }
+
     fn window(&self) -> &crate::buffer::Window {
         &self.window
     }
