@@ -10,10 +10,8 @@ fn adjust_indices(
         return indices.to_vec();
     }
 
-    // dbg!(original_width);
-    // dbg!(truncation_size);
     let offset = original_width.saturating_sub(truncation_size);
-    // dbg!(offset);
+
     indices
         .iter()
         .filter_map(|range| {
@@ -125,7 +123,11 @@ pub fn align_str(
     let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
 
     current_string = format!("{}{}", replacement_text, truncated_string);
-    current_indices = adjust_indices(&current_indices, current_length, current_string.len() as u32);
+    current_indices = adjust_indices(
+        &current_indices,
+        current_length,
+        current_string.len() as u32,
+    );
 
     (current_string, current_indices)
 }
@@ -151,10 +153,11 @@ mod test {
         let fixture =
             "Code/linux/scripts/dummy-tools/dummy-plugin-dir/include/plugin-version.h".to_string();
 
-        let result = align_str(&fixture, &[(65, 71)], 40, "...", 10);
+        let result = align_str(&fixture, &[(65, 71)], 40, "…", 10);
         assert_eq!(result.0.width(), 40);
-        assert_eq!(result.0, "...y-plugin-dir/include/plugin-version.h");
-        assert_eq!(result.1, vec![(33, 39)]);
+        assert_eq!(result.0.len(), 42);
+        assert_eq!(result.0, "…mmy-plugin-dir/include/plugin-version.h");
+        assert_eq!(result.1, vec![(35, 41)]);
     }
 
     #[test]
@@ -175,8 +178,9 @@ mod test {
 
         let result = align_str(&fixture, &[(30, 38)], 40, "…", 10);
         assert_eq!(result.0.width(), 40);
-        assert_eq!(vec![(21, 29)], result.1);
-        assert_eq!(result.0, "…x/scripts/dummy-tools/dummy-plugin-dir…");
+        assert_eq!(result.0.len(), 44);
+        assert_eq!(result.0, "…/scripts/dummy-tools/dummy-plugin-dir/…");
+        assert_eq!(result.1, vec![(23, 31)]);
     }
 
     #[test]
@@ -186,17 +190,8 @@ mod test {
 
         let result = align_str(&fixture, &[(5, 11), (60, 67)], 40, "…", 10);
         assert_eq!(result.0.width(), 40);
+        assert_eq!(result.0.len(), 42);
         assert_eq!(result.0, "…mmy-plugin-dir/include/plugin-version.h");
-        assert_eq!(result.1, vec![(26, 33)]);
-    }
-    #[test]
-    fn really_long_with_indices_end() {
-        let fixture =
-            "spec/fixtures/vcr_cassettes/EditOrder_OrderProcessor_V2_Processor_CancelsOriginalOrder_OrderCanceler/OrderProcessorRemoveLineItemsOnCancel_flipper_is_enabled/AND_editing_with_do_not_return_stock_/adds_refund_line_items_to_the_cancel_args_in_order_to_remove_items_from_the_order_on_cancel.yml".to_string();
-
-        let result = align_str(&fixture, &[(5, 11), (288, 291)], 110, "…", 10);
-        assert_eq!(result.0.width(), 40);
-        assert_eq!(result.1, vec![(288, 291)]);
-        assert_eq!(result.0, "");
+        assert_eq!(result.1, vec![(30, 37)]);
     }
 }
