@@ -19,12 +19,13 @@ use rayon::prelude::*;
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::{Display, EnumIs, EnumString};
 
-use crate::buffer::{Buffer, Cursor, Relative, Window};
+use crate::buffer::{Buffer, Cursor, Relative};
 use crate::entry::{CustomEntry, Entry};
 use crate::injector::InjectorFn;
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::previewer::Previewable;
 use crate::sources::diagnostics::Diagnostic;
+use crate::window::Window;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
@@ -630,6 +631,8 @@ where
             self.get_cursor_pos(Relative::Window).try_into().ok()
         }
     }
+
+    pub fn shutdown(&mut self) {}
 }
 
 impl<T, U, V> Default for Picker<T, U, V>
@@ -667,11 +670,11 @@ where
         self.total_matches().try_into().unwrap_or(usize::MAX)
     }
 
-    fn window(&self) -> &crate::buffer::Window {
+    fn window(&self) -> &Window {
         &self.window
     }
 
-    fn window_mut(&mut self) -> &mut crate::buffer::Window {
+    fn window_mut(&mut self) -> &mut Window {
         &mut self.window
     }
 
@@ -806,10 +809,6 @@ where
 
         methods.add_method("total_items", |_lua, this, ()| Ok(this.total_items()));
         methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));
-
-        methods.add_method("get_selection_index", |_lua, this, ()| {
-            Ok(this.get_cursor_pos(Relative::Window))
-        });
 
         methods.add_method("get_cursor_pos", |_lua, this, ()| Ok(this.cursor_pos()));
 

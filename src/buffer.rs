@@ -4,61 +4,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
-pub struct Window {
-    /// The buffer line number of the top of the window
-    pos: usize,
-    width: usize,
-    height: usize,
-}
-
-impl Default for Window {
-    fn default() -> Self {
-        Self {
-            pos: Default::default(),
-            width: 10,
-            height: 10,
-        }
-    }
-}
-
-impl Window {
-    pub fn new(x: usize, y: usize) -> Self {
-        Self {
-            width: x,
-            height: y,
-            ..Default::default()
-        }
-    }
-
-    fn set_pos(&mut self, pos: usize) {
-        self.pos = pos;
-    }
-
-    fn set_width(&mut self, width: usize) {
-        self.height = width;
-    }
-
-    fn set_height(&mut self, height: usize) {
-        self.height = height;
-    }
-
-    pub fn start(&self) -> usize {
-        self.pos
-    }
-
-    pub fn end(&self) -> usize {
-        self.pos + self.height
-    }
-
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    pub fn height(&self) -> usize {
-        self.height
-    }
-}
+use crate::window::Window;
 
 pub trait Buffer<T: Clone + Debug>: Sized {
     fn len(&self) -> usize;
@@ -77,11 +23,11 @@ pub trait Buffer<T: Clone + Debug>: Sized {
     }
 
     fn set_window_width(&mut self, width: usize) {
-        self.window_mut().width = width;
+        self.window_mut().set_width(width);
     }
 
     fn set_window_height(&mut self, height: usize) {
-        self.window_mut().height = height;
+        self.window_mut().set_height(height);
     }
 
     fn set_window_pos(&mut self, pos: usize) {
@@ -143,7 +89,7 @@ pub trait Buffer<T: Clone + Debug>: Sized {
             "window cursor pos: {}",
             self.get_cursor_pos(Relative::Window)
         );
-        log::info!("window pos: {}", self.window().pos);
+        log::info!("window pos: {}", self.window().pos());
     }
 }
 

@@ -28,6 +28,7 @@ mod picker;
 mod previewer;
 mod sources;
 mod util;
+mod window;
 
 pub fn init_picker(
     _: &Lua,
