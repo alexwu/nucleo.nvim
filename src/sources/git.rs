@@ -1,16 +1,16 @@
 use std::{env::current_dir, path::Path, sync::Arc};
 
+use anyhow::bail;
+use git2::Statuses;
+use mlua::prelude::*;
+use partially::Partial;
+use serde::{Deserialize, Serialize};
+
 use crate::{
     injector::FinderFn,
     picker::{self, Data, DataKind, InjectorConfig, Picker},
     previewer::PreviewOptions,
 };
-use anyhow::bail;
-use git2::Statuses;
-use mlua::prelude::*;
-
-use partially::Partial;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Partial)]
 #[partially(derive(Default, Debug))]
@@ -237,15 +237,14 @@ pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOp
 pub fn create_picker(
     file_options: Option<PartialStatusConfig>,
 ) -> anyhow::Result<Picker<StatusEntry, PreviewOptions, StatusConfig>> {
-    let config = match file_options {
+    let _config = match file_options {
         Some(config) => config,
         None => PartialStatusConfig::default(),
     };
-    let mut picker: Picker<StatusEntry, PreviewOptions, StatusConfig> =
+    let picker: Picker<StatusEntry, PreviewOptions, StatusConfig> =
         Picker::new(picker::Config::default()).with_injector(Arc::new(injector));
 
     // picker.populate(config.into());
-
 
     anyhow::Ok(picker)
 }

@@ -25,7 +25,6 @@ use crate::injector::InjectorFn;
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::previewer::Previewable;
 use crate::sources::diagnostics::Diagnostic;
-use crate::util::align_str;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {

@@ -2,15 +2,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::{env::current_dir, path::Path};
 
-use buildstructor::Builder;
-use crossbeam_channel::Sender;
 use ignore::types::TypesBuilder;
 use ignore::WalkBuilder;
 use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
-use serde_with::skip_serializing_none;
-use tokio::sync::mpsc::UnboundedSender;
 
 use crate::injector::FinderFn;
 use crate::picker::{self, Data, DataKind, InjectorConfig, Picker};
@@ -186,7 +182,7 @@ pub fn injector(config: Option<FileConfig>) -> FinderFn<Value, PreviewOptions> {
 pub fn create_picker(
     file_options: Option<PartialFileConfig>,
 ) -> anyhow::Result<Picker<Value, PreviewOptions, FileConfig>> {
-    let config = match file_options {
+    let _config = match file_options {
         Some(config) => config,
         None => PartialFileConfig::default(),
     };
