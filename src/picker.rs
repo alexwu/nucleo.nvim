@@ -249,6 +249,7 @@ where
 {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
+        let indices: Vec<(u32, u32)> = lua.from_value(table.get("indices")?)?;
 
         Ok(Self {
             kind: table.get("kind")?,
@@ -256,8 +257,8 @@ where
             ordinal: table.get("ordinal")?,
             value: table.get("value")?,
             selected: table.get("selected")?,
-            indices: vec![],
             preview_options: table.get("preview_options")?,
+            indices,
         })
     }
 }
@@ -452,10 +453,7 @@ where
 
     pub fn update_config(&mut self, config: PartialConfig) {
         log::info!("Updating config to: {:?}", config);
-
-        if let Some(sort_direction) = config.sort_direction {
-            self.config.sort_direction = sort_direction;
-        }
+        self.config.apply_some(config);
     }
 
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
