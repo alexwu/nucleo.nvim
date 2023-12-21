@@ -290,10 +290,6 @@ where
         self.selected
     }
 
-    fn with_display<V: ToString>(self, display: V) -> Self {
-        Self { display: display.to_string(), ..self }
-    }
-
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
         Self { indices, ..self }
     }
@@ -535,7 +531,8 @@ where
 
                 let ranges: Vec<(u32, u32)> = range_rover(indices.drain(..))
                     .into_par_iter()
-                    .map(RangeInclusive::into_inner).collect();
+                    .map(RangeInclusive::into_inner)
+                    .collect();
 
                 // let (display, adjusted_indices) =
                 //     align_str(&item.data.ordinal(), &ranges, self.window_width() as u32, "…", 10);
