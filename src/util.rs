@@ -42,13 +42,12 @@ pub fn align_str(
     let mut current_width = current_string.width() as u32;
     let mut current_indices: Vec<(u32, u32)> = indices.to_vec();
 
-    // dbg!(current_width);
     if current_width <= max_width {
         return (current_string.to_string(), current_indices);
     }
 
     let replacement_width = replacement_text.width() as u32;
-    // dbg!(replacement_width);
+
     if indices.is_empty() {
         let (truncated_string, _) =
             current_string.unicode_truncate(max_width.saturating_sub(replacement_width) as usize);
@@ -93,7 +92,6 @@ pub fn align_str(
     }
 
     let leading_width = min_match;
-    // dbg!(leading_width);
 
     if leading_width > 0 {
         let truncation_size = current_width
@@ -102,7 +100,6 @@ pub fn align_str(
             .max(max_width.saturating_sub(replacement_width));
         let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
 
-        // let offset = current_width.saturating_sub(truncation_size);
         current_string = format!("{}{}", replacement_text, truncated_string);
         current_indices = adjust_indices(
             &current_indices,
@@ -112,7 +109,6 @@ pub fn align_str(
         );
         current_length = current_string.len() as u32;
         current_width = current_string.width() as u32;
-        // dbg!(current_width);
 
         if current_width <= max_width {
             return (current_string, current_indices);
