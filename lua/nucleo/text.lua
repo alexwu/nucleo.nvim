@@ -60,7 +60,7 @@ function Text:set(content, extmarks)
 			local id = self.extmarks[i] and self.extmarks[i].id or nil
 
 			if type(extmark) == "string" then
-				self.extmarks[i] = { opts = { hl_group = extmark } }
+				self.extmarks[i] = { opts = { hl_group = extmark, id = id } }
 			else
 				self.extmarks[i] = vim.deepcopy(extmark)
 			end

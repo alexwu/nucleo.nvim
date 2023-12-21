@@ -81,6 +81,9 @@ function Entry:render()
 		end)
 		:totable()
 
+	-- TODO: Figure out a way so update the highlights instead of clearing them every time
+	api.nvim_buf_clear_namespace(self.bufnr, ns_matching, self.index - 1, self.index)
+
 	local path = Text(truncated_text, extmarks)
 
 	self.line:set({ picker_icon, icon, path })
