@@ -15,9 +15,6 @@ function M.setup(...)
 	api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})
-	api.nvim_create_user_command("GitStatusPicker", function()
-		M.find_git({ cwd = vim.uv.cwd })
-	end, {})
 end
 
 function M.find(...)
@@ -36,22 +33,6 @@ function M.find(...)
 	}):find(...)
 end
 
-function M.find_git(...)
-	local Picker = require("nucleo.picker")
-
-	Picker({
-		source = "builtin.git_status",
-		cwd = vim.uv.cwd,
-		on_submit = function(selection)
-			local path = selection.value.path
-			if path then
-				vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
-			else
-				vim.print(selection.value)
-			end
-		end,
-	}):find(...)
-end
 return setmetatable(M, {
 	__index = function(t, key)
 		if M._rust[key] then

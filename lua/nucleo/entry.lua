@@ -65,33 +65,26 @@ function Entry:render()
 
 	local width = api.nvim_win_get_width(self.winid) - leading_length
 	local truncated_text, indices = unpack(align_str(self.entry.ordinal, self.entry.indices, width, "…", 10))
-	local path = Text(truncated_text)
+	local extmarks = vim.iter(indices)
+		:map(function(range)
+			local start_col, end_col = unpack(range)
 
-	local last_line_content = self.line:content()
+			return {
+				start_col = start_col,
+				ns_id = ns_matching,
+				opts = {
+					hl_eol = false,
+					end_col = end_col + 1,
+					hl_group = "TelescopeMatching",
+				},
+			}
+		end)
+		:totable()
+
+	local path = Text(truncated_text, extmarks)
 
 	self.line:set({ picker_icon, icon, path })
-
-	if last_line_content ~= self.line:content() then
-		self.line:render(self.bufnr, -1, self.index)
-	end
-
-	if vim.tbl_isempty(indices) then
-		api.nvim_buf_clear_namespace(self.bufnr, ns_matching, self.index - 1, self.index)
-	end
-
-	vim.iter(ipairs(indices)):each(function(i, range)
-		local start_col = leading_length + range[1] + 2
-		local end_col = leading_length + range[2] + 2
-
-		if start_col > 0 and end_col > 0 then
-			self.match_extmarks[i] = api.nvim_buf_set_extmark(self.bufnr, ns_matching, self.index - 1, start_col, {
-				id = self.match_extmarks[i],
-				hl_eol = false,
-				end_col = end_col + 1,
-				hl_group = "TelescopeMatching",
-			})
-		end
-	end)
+	self.line:render(self.bufnr, -1, self.index)
 
 	if self.entry.selected then
 		self.selection_caret_extmark_id =
