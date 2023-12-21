@@ -18,6 +18,8 @@ use sources::{
     git::{self, PartialStatusConfig, StatusConfig},
 };
 
+use crate::util::align_str;
+
 mod buffer;
 mod entry;
 mod injector;
@@ -113,6 +115,20 @@ pub fn init_git_status_picker(
     git::create_picker(params.0).into_lua_err()
 }
 
+pub fn align_str_lua<'a>(
+    lua: &'a Lua,
+    params: (String, LuaValue<'a>, u32, String, u32),
+) -> LuaResult<LuaTable<'a>> {
+    let indices: Vec<(u32, u32)> = lua.from_value(params.1)?;
+
+    let (display, adjusted_indices) = align_str(&params.0, &indices, params.2, &params.3, params.4);
+
+    let table = lua.create_table()?;
+    table.push(display)?;
+    table.push(lua.to_value(&adjusted_indices)?)?;
+    Ok(table)
+}
+
 #[mlua::lua_module]
 fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
     let proj_dirs = ProjectDirs::from("", "bombeelu-labs", "nucleo")
@@ -142,6 +158,7 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
         "Previewer",
         LuaFunction::wrap(|_, ()| Ok(previewer::Previewer::new())),
     )?;
+    exports.set("align_str", lua.create_function(align_str_lua)?)?;
 
     Ok(exports)
 }

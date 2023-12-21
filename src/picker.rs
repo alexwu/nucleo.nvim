@@ -25,6 +25,7 @@ use crate::injector::InjectorFn;
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::previewer::Previewable;
 use crate::sources::diagnostics::Diagnostic;
+use crate::util::align_str;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
@@ -289,6 +290,10 @@ where
         self.selected
     }
 
+    fn with_display<V: ToString>(self, display: V) -> Self {
+        Self { display: display.to_string(), ..self }
+    }
+
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
         Self { indices, ..self }
     }
@@ -528,17 +533,21 @@ where
                 indices.par_sort_unstable();
                 indices.dedup();
 
-                let ranges = range_rover(indices.drain(..))
+                let ranges: Vec<(u32, u32)> = range_rover(indices.drain(..))
                     .into_par_iter()
-                    .map(RangeInclusive::into_inner);
-                let selected = self.selections.contains_key(&item.data.display());
+                    .map(RangeInclusive::into_inner).collect();
+
+                // let (display, adjusted_indices) =
+                //     align_str(&item.data.ordinal(), &ranges, self.window_width() as u32, "…", 10);
+                let selected = self.selections.contains_key(&item.data.ordinal());
                 if selected {
                     log::info!("{:?} is selected", &item.data);
                 }
                 // TODO: Probably a better way to do this
                 item.data
                     .clone()
-                    .with_indices(ranges.collect())
+                    // .with_display(display)
+                    .with_indices(ranges)
                     .with_selected(selected)
             })
             .collect::<Vec<_>>()

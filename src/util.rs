@@ -10,7 +10,10 @@ fn adjust_indices(
         return indices.to_vec();
     }
 
+    // dbg!(original_width);
+    // dbg!(truncation_size);
     let offset = original_width.saturating_sub(truncation_size);
+    // dbg!(offset);
     indices
         .iter()
         .filter_map(|range| {
@@ -40,15 +43,17 @@ pub fn align_str(
     let mut current_width = current_string.width() as u32;
     let mut current_indices: Vec<(u32, u32)> = indices.to_vec();
 
-    dbg!(current_width);
+    // dbg!(current_width);
     if current_width <= max_width {
         return (current_string.to_string(), current_indices);
     }
 
     let replacement_width = replacement_text.width() as u32;
+    // dbg!(replacement_width);
     if indices.is_empty() {
-        let (truncated_string, _) = current_string
-            .unicode_truncate(max_width.saturating_sub(replacement_width) as usize);
+        let (truncated_string, _) =
+            current_string.unicode_truncate(max_width.saturating_sub(replacement_width) as usize);
+
         return (
             format!("{}{}", truncated_string, replacement_text),
             current_indices,
@@ -67,29 +72,30 @@ pub fn align_str(
         .expect("somehow unable to find max_match");
 
     let trailing_width = (current_string.width() as u32)
-        .saturating_sub(max_match)
+        .saturating_sub(max_match.saturating_add(1))
         .saturating_sub(hscroll_offset);
-    dbg!(trailing_width);
+    // dbg!(trailing_width);
 
     if trailing_width > 0 {
-        let (truncated_string, _) = current_string.unicode_truncate(
-            current_width
-                .saturating_sub(trailing_width)
-                .saturating_sub(replacement_width)
-                .max(max_width.saturating_sub(replacement_width)) as usize,
-        );
+        let truncation_size = current_width
+            .saturating_sub(trailing_width)
+            .saturating_sub(replacement_width)
+            .max(max_width.saturating_sub(replacement_width))
+            as usize;
+
+        let (truncated_string, _) = current_string.unicode_truncate(truncation_size);
 
         current_string = format!("{}{}", truncated_string, replacement_text);
         current_width = current_string.width() as u32;
 
-        dbg!(current_width);
+        // dbg!(current_width);
         if current_width <= max_width {
             return (current_string, current_indices);
         }
     }
 
-    let leading_width = min_match + 1;
-    dbg!(leading_width);
+    let leading_width = min_match;
+    // dbg!(leading_width);
 
     if leading_width > 0 {
         let truncation_size = current_width
@@ -99,49 +105,31 @@ pub fn align_str(
         let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
 
         // let offset = current_width.saturating_sub(truncation_size);
-        current_indices = adjust_indices(&current_indices, current_width, truncation_size);
         current_string = format!("{}{}", replacement_text, truncated_string);
+        current_indices = adjust_indices(
+            &current_indices,
+            current_width,
+            current_string.width() as u32,
+        );
         current_width = current_string.width() as u32;
-        dbg!(current_width);
+        // dbg!(current_width);
 
         if current_width <= max_width {
-            // current_indices = current_indices
-            //     .iter()
-            //     .filter_map(|range| {
-            //         let x = range.0.saturating_sub(offset);
-            //         let y = range.1.saturating_sub(offset);
-            //         if x == 0 && y == 0 {
-            //             None
-            //         } else {
-            //             Some((x, y))
-            //         }
-            //     })
-            //     .collect();
             return (current_string, current_indices);
         }
     }
 
     let truncation_size = max_width.saturating_sub(replacement_width);
     let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
-    current_indices = adjust_indices(&current_indices, current_width, truncation_size);
-    // let offset = current_width.saturating_sub(truncation_size);
 
-    // current_indices = current_indices
-    //     .iter()
-    //     .filter_map(|range| {
-    //         let x = range.0.saturating_sub(offset);
-    //         let y = range.1.saturating_sub(offset);
-    //         if x == 0 && y == 0 {
-    //             None
-    //         } else {
-    //             Some((x, y))
-    //         }
-    //     })
-    //     .collect();
-    (
-        format!("{}{}", replacement_text, truncated_string),
-        current_indices,
-    )
+    current_string = format!("{}{}", replacement_text, truncated_string);
+    current_indices = adjust_indices(
+        &current_indices,
+        current_width,
+        current_string.width() as u32,
+    );
+
+    (current_string, current_indices)
 }
 
 #[cfg(test)]
@@ -165,10 +153,10 @@ mod test {
         let fixture =
             "Code/linux/scripts/dummy-tools/dummy-plugin-dir/include/plugin-version.h".to_string();
 
-        let result = align_str(&fixture, &[(65, 72)], 40, "…", 10);
+        let result = align_str(&fixture, &[(65, 71)], 40, "...", 10);
         assert_eq!(result.0.width(), 40);
-        assert_eq!(result.0, "…mmy-plugin-dir/include/plugin-version.h");
-        assert_eq!(result.1, vec![(32, 39)]);
+        assert_eq!(result.0, "...y-plugin-dir/include/plugin-version.h");
+        assert_eq!(result.1, vec![(33, 39)]);
     }
 
     #[test]
@@ -177,9 +165,9 @@ mod test {
             "Code/linux/scripts/dummy-tools/dummy-plugin-dir/include/plugin-version.h".to_string();
 
         let result = align_str(&fixture, &[(5, 11)], 40, "…", 10);
+        assert_eq!(result.1, vec![(5, 11)]);
         assert_eq!(result.0.width(), 40);
         assert_eq!(result.0, "Code/linux/scripts/dummy-tools/dummy-pl…");
-        assert_eq!(result.1, vec![(5, 11)]);
     }
 
     #[test]
@@ -189,8 +177,8 @@ mod test {
 
         let result = align_str(&fixture, &[(30, 38)], 40, "…", 10);
         assert_eq!(result.0.width(), 40);
+        assert_eq!(vec![(21, 29)], result.1);
         assert_eq!(result.0, "…x/scripts/dummy-tools/dummy-plugin-dir…");
-        assert_eq!(result.1, vec![(21, 29)]);
     }
 
     #[test]
@@ -202,5 +190,15 @@ mod test {
         assert_eq!(result.0.width(), 40);
         assert_eq!(result.0, "…mmy-plugin-dir/include/plugin-version.h");
         assert_eq!(result.1, vec![(26, 33)]);
+    }
+    #[test]
+    fn really_long_with_indices_end() {
+        let fixture =
+            "spec/fixtures/vcr_cassettes/EditOrder_OrderProcessor_V2_Processor_CancelsOriginalOrder_OrderCanceler/OrderProcessorRemoveLineItemsOnCancel_flipper_is_enabled/AND_editing_with_do_not_return_stock_/adds_refund_line_items_to_the_cancel_args_in_order_to_remove_items_from_the_order_on_cancel.yml".to_string();
+
+        let result = align_str(&fixture, &[(5, 11), (288, 291)], 110, "…", 10);
+        assert_eq!(result.0.width(), 40);
+        assert_eq!(result.1, vec![(288, 291)]);
+        assert_eq!(result.0, "");
     }
 }

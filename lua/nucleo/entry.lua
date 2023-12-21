@@ -8,6 +8,7 @@ local Line = require("nucleo.line")
 local Text = require("nucleo.text")
 local devicons = require("nvim-web-devicons")
 local strings = require("plenary.strings")
+local align_str = require("nucleo_rs").align_str
 local api = vim.api
 
 local ns_matching = vim.api.nvim_create_namespace("nucleo_matching")
@@ -64,9 +65,19 @@ function Entry:render()
 	local leading_length = picker_icon:length() + icon:length()
 
 	local width = api.nvim_win_get_width(self.winid) - leading_length
-	local truncated_text = strings.truncate(self.entry.display, width, nil, -1)
+	-- vim.print(width)
+	-- local truncated_text = strings.truncate(self.entry.display, width, nil, -1)
+	-- local truncated_text, indices = unpack(align_str(self.entry.ordinal, self.entry.indices, width, "…", 10))
+	local truncated_text, indices
+	if vim.fn.strlen(self.entry.ordinal) > width then
+		truncated_text, indices = unpack(align_str(self.entry.ordinal, self.entry.indices, width, "...", 10))
+	else
+		truncated_text = self.entry.ordinal
+		indices = self.entry.indices
+	end
+	-- local path = Text(self.entry.display)
 	local path = Text(truncated_text)
-	local truncation_offset = vim.fn.strlen(self.entry.display) - vim.fn.strlen(truncated_text)
+	-- local truncation_offset = vim.fn.strlen(self.entry.display) - vim.fn.strlen(truncated_text)
 
 	local last_line_content = self.line:content()
 
@@ -76,13 +87,22 @@ function Entry:render()
 		self.line:render(self.bufnr, -1, self.index)
 	end
 
-	if vim.tbl_isempty(self.entry.indices) then
+	if vim.tbl_isempty(indices) then
 		api.nvim_buf_clear_namespace(self.bufnr, ns_matching, self.index - 1, self.index)
 	end
 
-	vim.iter(ipairs(self.entry.indices)):each(function(i, range)
-		local start_col = leading_length + 1 + range[1] + 1 - truncation_offset
-		local end_col = leading_length + 1 + range[2] + 1 - truncation_offset
+	-- vim.print(truncated_text)
+	-- vim.print("leading_length: " .. leading_length)
+	-- vim.print("width: " .. path:width())
+	-- vim.print("length: " .. path:length())
+	vim.iter(ipairs(indices)):each(function(i, range)
+		-- local start_col = leading_length + 1 + range[1] + 1 - truncation_offset
+		-- local end_col = leading_length + 1 + range[2] + 1 - truncation_offset
+		-- vim.print(range)
+		local start_col = leading_length + range[1] + 2
+		local end_col = leading_length + range[2] + 2
+		-- vim.print(start_col)
+		-- vim.print(end_col)
 
 		if start_col > 0 and end_col > 0 then
 			self.match_extmarks[i] = api.nvim_buf_set_extmark(self.bufnr, ns_matching, self.index - 1, start_col, {
