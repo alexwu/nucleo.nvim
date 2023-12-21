@@ -4,7 +4,7 @@ use serde_with::skip_serializing_none;
 
 use crate::{
     picker::{self, Blob, Data, DataKind, Picker},
-    previewer::{PreviewOptions, Previewable},
+    previewer::{PreviewKind, PreviewOptions, Previewable},
 };
 
 #[skip_serializing_none]
@@ -56,6 +56,7 @@ impl From<Diagnostic> for Data<Diagnostic, PreviewOptions> {
         let message = value.message.clone().replace('\n', " ");
         log::info!("{:?}", &value);
         let preview_options = PreviewOptions::builder()
+            .kind(PreviewKind::File)
             .line_start(value.lnum)
             .and_line_end(value.end_lnum)
             .col_start(value.col)

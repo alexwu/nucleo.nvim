@@ -37,11 +37,6 @@ Previewer.render = a.void(function(self, entry)
 		return
 	end
 
-	if not entry.kind == "file" then
-		vim.print(entry.kind)
-		return
-	end
-
 	local preview_options = entry.preview_options or {}
 	local start = preview_options.line_start or 0
 	local ft = preview_options.file_type
@@ -62,7 +57,12 @@ Previewer.render = a.void(function(self, entry)
 		return
 	end
 
-	local content = self.previewer:preview_file(path, start, start + height)
+	local content
+	if preview_options.kind == "folder" then
+		content = self.previewer:preview_folder(path)
+	else
+		content = self.previewer:preview_file(path, start, start + height)
+	end
 	api.nvim_buf_set_lines(self.bufnr, 0, -1, false, content)
 
 	local line_count = api.nvim_buf_line_count(self.bufnr)

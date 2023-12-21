@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::injector::FinderFn;
 use crate::picker::{self, Data, DataKind, InjectorConfig, Picker};
-use crate::previewer::PreviewOptions;
+use crate::previewer::{PreviewOptions, PreviewKind};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -40,6 +40,7 @@ impl Value {
         };
 
         let preview_options = PreviewOptions::builder()
+            .kind(PreviewKind::File)
             .line_start(0)
             .col_start(0)
             .file_type(file_type)

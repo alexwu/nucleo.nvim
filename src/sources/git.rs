@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     injector::FinderFn,
     picker::{self, Data, DataKind, InjectorConfig, Picker},
-    previewer::PreviewOptions,
+    previewer::{PreviewKind, PreviewOptions},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Partial)]
@@ -196,7 +196,14 @@ impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
             .to_string_lossy()
             .to_string();
 
+        let preview_kind = if path.is_dir() {
+            PreviewKind::Folder
+        } else {
+            PreviewKind::File
+        };
+
         let preview_options = PreviewOptions::builder()
+            .kind(preview_kind)
             .line_start(0)
             .col_start(0)
             .file_type(file_type)
