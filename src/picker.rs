@@ -588,7 +588,7 @@ where
             Some(entry) => {
                 // WARN: This worries me...can these become out of sync?
                 self.selections
-                    .insert(entry.data.display(), entry.data.clone());
+                    .insert(entry.data.ordinal(), entry.data.clone());
                 log::info!("multi-selections: {:?}", &self.selections);
             }
             None => {
@@ -607,11 +607,11 @@ where
             Some(entry) => {
                 // WARN: This worries me...can these become out of sync?
                 if let std::collections::hash_map::Entry::Vacant(e) =
-                    self.selections.entry(entry.data.display())
+                    self.selections.entry(entry.data.ordinal())
                 {
                     e.insert(entry.data.clone());
                 } else {
-                    self.deselect(entry.data.display());
+                    self.deselect(entry.data.ordinal());
                 }
                 log::info!("multi-selections: {:?}", &self.selections);
             }
