@@ -39,6 +39,7 @@ pub fn align_str(
         return (String::new(), vec![]);
     }
 
+    let mut current_length = s.len() as u32;
     let mut current_string = String::from(s);
     let mut current_width = current_string.width() as u32;
     let mut current_indices: Vec<(u32, u32)> = indices.to_vec();
@@ -74,7 +75,6 @@ pub fn align_str(
     let trailing_width = (current_string.width() as u32)
         .saturating_sub(max_match.saturating_add(1))
         .saturating_sub(hscroll_offset);
-    // dbg!(trailing_width);
 
     if trailing_width > 0 {
         let truncation_size = current_width
@@ -86,9 +86,9 @@ pub fn align_str(
         let (truncated_string, _) = current_string.unicode_truncate(truncation_size);
 
         current_string = format!("{}{}", truncated_string, replacement_text);
+        current_length = current_string.len() as u32;
         current_width = current_string.width() as u32;
 
-        // dbg!(current_width);
         if current_width <= max_width {
             return (current_string, current_indices);
         }
@@ -108,9 +108,11 @@ pub fn align_str(
         current_string = format!("{}{}", replacement_text, truncated_string);
         current_indices = adjust_indices(
             &current_indices,
-            current_width,
-            current_string.width() as u32,
+            // current_width,
+            current_length,
+            current_string.len() as u32,
         );
+        current_length = current_string.len() as u32;
         current_width = current_string.width() as u32;
         // dbg!(current_width);
 
@@ -123,11 +125,7 @@ pub fn align_str(
     let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
 
     current_string = format!("{}{}", replacement_text, truncated_string);
-    current_indices = adjust_indices(
-        &current_indices,
-        current_width,
-        current_string.width() as u32,
-    );
+    current_indices = adjust_indices(&current_indices, current_length, current_string.len() as u32);
 
     (current_string, current_indices)
 }
