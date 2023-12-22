@@ -1,17 +1,36 @@
+local api = vim.api
+
 local M = {}
 
 --- @private
 M._rust = {
 	Picker = true,
+	FilePicker = true,
+	GitStatusPicker = true,
 	Previewer = true,
 }
 
 function M.setup(...)
-	require("nucleo.pickers").setup(...)
+	require("nucleo.config").setup(...)
+	api.nvim_create_user_command("Nucleo", function()
+		M.find()
+	end, {})
 end
 
 function M.find(...)
-	require("nucleo.pickers").find(...)
+	local Picker = require("nucleo.picker")
+
+	Picker({
+		source = "builtin.files",
+		on_submit = function(selection)
+			local path = selection.value.path
+			if path then
+				vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
+			else
+				vim.print(selection.value)
+			end
+		end,
+	}):find(...)
 end
 
 return setmetatable(M, {

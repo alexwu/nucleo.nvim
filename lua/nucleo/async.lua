@@ -3,6 +3,11 @@ local api = vim.api
 
 local M = {}
 
+M.a = a
+
+M.channel = require("plenary.async.control").channel
+
+---@type function
 M.scheduler = a.util.scheduler
 
 --- @param buf? integer

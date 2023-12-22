@@ -1,8 +1,8 @@
 local Input = require("nui.input")
 local Text = require("nui.text")
-local a = require("plenary.async")
+local a = require("nucleo.async").a
 local log = require("nucleo.log")
-local channel = require("plenary.async.control").channel
+local channel = require("nucleo.async").channel
 local scheduler_if_buf_valid = require("nucleo.async").scheduler_if_buf_valid
 
 local api = vim.api
@@ -15,7 +15,7 @@ local Prompt = Input:extend("Prompt")
 ---@class PromptConfig
 ---@field popup_options nui_popup_options
 ---@field input_options nui_input_options
----@field picker Picker
+---@field picker PickerBackend
 
 ---@param opts PromptConfig
 function Prompt:init(opts)
@@ -85,12 +85,7 @@ end
 ---@param total_matches number
 ---@param total_options number
 function Prompt:render_match_count(total_matches, total_options)
-	-- await_schedule()
 	scheduler_if_buf_valid(self.bufnr, function()
-		-- if not self.bufnr or not api.nvim_buf_is_loaded(self.bufnr) then
-		-- 	return
-		-- end
-
 		local match_count_str = string.format("%s / %s", total_matches, total_options)
 		self.extmark_id = api.nvim_buf_set_extmark(self.bufnr, ns_match_count, 0, 0, {
 			id = self.extmark_id,

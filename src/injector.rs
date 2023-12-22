@@ -1,11 +1,13 @@
-use std::path::Path;
+use std::sync::Arc;
 
-use crossbeam_channel::unbounded;
-use ignore::{types::TypesBuilder, WalkBuilder};
-use nucleo::Utf32String;
-use tokio::{runtime::Runtime, task::JoinHandle};
+use crossbeam_channel::{unbounded, Sender};
+use rayon::prelude::*;
+use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
 
-use crate::picker::Entry;
+use crate::{entry::Entry, picker::Data};
+
+pub type FinderFn<T, U> = Arc<dyn Fn(UnboundedSender<Data<T, U>>) + Sync + Send + 'static>;
+pub type InjectorFn<T, U, V> = Arc<dyn Fn(Option<V>) -> FinderFn<T, U> + Sync + Send>;
 
 pub struct Injector<T: Entry>(nucleo::Injector<T>);
 
@@ -22,62 +24,71 @@ impl<T: Entry> Clone for Injector<T> {
 }
 
 impl<T: Entry> Injector<T> {
-    pub fn push(&self, value: T, fill_columns: impl FnOnce(&mut [Utf32String])) -> u32 {
-        self.0.push(value, fill_columns)
+    pub fn push(&self, value: T) -> u32 {
+        self.0
+            .push(value.clone(), |dst| dst[0] = value.ordinal().into())
     }
 
-    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool) {
-        log::info!("Populating picker with {}", &cwd);
-        let runtime = Runtime::new().expect("Failed to create runtime");
+    pub fn populate(self, entries: Vec<T>) {
+        log::info!("Populating picker with {} entries", entries.len());
+        let rt = Runtime::new().expect("Failed to create runtime");
 
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let sender = tx.clone();
+        rt.block_on(async {
+            let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
+                while let Some(val) = rx.recv().await {
+                    self.push(val);
+                }
+                anyhow::Ok(())
+            });
+
+            entries.into_par_iter().for_each(|entry| {
+                let _ = sender.send(entry);
+            });
+        });
+    }
+
+    pub fn populate_with<F>(self, func: Arc<F>)
+    where
+        // F: Fn(Sender<T>) + Sync + Send + ?Sized + 'static,
+        F: Fn(UnboundedSender<T>) + Sync + Send + ?Sized + 'static,
+    {
+        let rt = Runtime::new().expect("Failed to create runtime");
+
+        // let (tx, rx) = unbounded::<T>();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+        log::info!("injector::populate_with");
+        rt.block_on(async {
+            let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
+                // for val in rx.iter() {
+                while let Some(val) = rx.recv().await {
+                    self.push(val);
+                }
+                anyhow::Ok(())
+            });
+
+            func(tx);
+        });
+    }
+
+    pub fn populate_with_local<F>(self, func: F)
+    where
+        F: Fn(Sender<T>) + 'static,
+    {
+        let runtime = Runtime::new().expect("Failed to create runtime");
         let (tx, rx) = unbounded::<T>();
         let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
             for val in rx.iter() {
-                self.push(val.clone(), |dst| dst[0] = val.into_utf32());
+                log::info!("Sending local: {:?}", &val);
+                self.push(val);
             }
             anyhow::Ok(())
         });
 
-        runtime.spawn(async move {
-            let dir = Path::new(&cwd);
-            log::info!("Spawning sorted file searcher...");
-            let mut walk_builder = WalkBuilder::new(dir);
-            walk_builder
-                .hidden(false)
-                .follow_links(true)
-                .git_ignore(git_ignore)
-                .ignore(true)
-                .sort_by_file_name(std::cmp::Ord::cmp);
-
-            let mut type_builder = TypesBuilder::new();
-            type_builder
-                .add(
-                    "compressed",
-                    "*.{zip,gz,bz2,zst,lzo,sz,tgz,tbz2,lz,lz4,lzma,lzo,z,Z,xz,7z,rar,cab}",
-                )
-                .expect("Invalid type definition");
-            type_builder.negate("all");
-            let excluded_types = type_builder
-                .build()
-                .expect("failed to build excluded_types");
-            walk_builder.types(excluded_types);
-            let tx = tx.clone();
-            for path in walk_builder.build() {
-                let cwd = cwd.clone();
-                match path {
-                    Ok(file) if file.path().is_file() => {
-                        if tx
-                            .send(Entry::from_path(file.path(), Some(cwd.clone())))
-                            .is_ok()
-                        {
-                            // log::info!("Sending {:?}", file.path());
-                        }
-                    }
-                    _ => (),
-                }
-            }
-        });
-
-        log::info!("After spawning file searcher...");
+        log::info!("injector::populate_with_local");
+        func(tx);
     }
 }
