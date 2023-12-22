@@ -532,8 +532,6 @@ where
                     .map(RangeInclusive::into_inner)
                     .collect();
 
-                // let (display, adjusted_indices) =
-                //     align_str(&item.data.ordinal(), &ranges, self.window_width() as u32, "…", 10);
                 let selected = self.selections.contains_key(&item.data.ordinal());
                 if selected {
                     log::info!("{:?} is selected", &item.data);
@@ -541,7 +539,6 @@ where
                 // TODO: Probably a better way to do this
                 item.data
                     .clone()
-                    // .with_display(display)
                     .with_indices(ranges)
                     .with_selected(selected)
             })

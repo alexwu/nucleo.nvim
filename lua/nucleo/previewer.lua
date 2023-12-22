@@ -64,6 +64,14 @@ Previewer.render = a.void(function(self, entry)
 	local content
 	if preview_options.kind == "folder" then
 		content = self.previewer:preview_folder(path)
+		content = vim.iter(content)
+			:map(function(line)
+				return vim.fs.basename(line)
+			end)
+			:filter(function(line)
+				return vim.fn.strlen(line) > 0
+			end)
+			:totable()
 	else
 		content = self.previewer:preview_file(path, start, start + height)
 	end

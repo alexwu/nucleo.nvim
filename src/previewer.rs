@@ -10,6 +10,7 @@ use mlua::UserDataMethods;
 use ropey::Rope;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
+use smol_str::SmolStr;
 use strum::{Display, EnumIs, EnumString};
 
 pub trait Previewable:
@@ -130,32 +131,33 @@ impl UserData for Previewer {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut(
             "preview_file",
-            |_lua, this, params: (Option<String>, usize, usize)| match params.0 {
+            |lua, this, params: (Option<String>, usize, usize)| match params.0 {
                 Some(path) => {
-                    let preview: Vec<String> = this
+                    let preview: Vec<SmolStr> = this
                         .preview_file(&path, params.1, params.2)
                         .split('\n')
                         .map(Into::into)
                         .collect();
-                    Ok(preview.clone())
+                    lua.to_value(&preview)
                 }
-                None => Ok(Vec::new()),
+                None => LuaSerdeExt::to_value::<Vec<SmolStr>>(lua, &vec![]),
             },
         );
 
-        methods.add_method_mut("preview_folder", |_lua, this, params: (Option<String>,)| {
-            match params.0 {
+        methods.add_method_mut(
+            "preview_folder",
+            |lua, this, params: (Option<String>,)| match params.0 {
                 Some(path) => {
-                    let preview: Vec<String> = this
+                    let preview: Vec<SmolStr> = this
                         .preview_folder(&path)
                         .split('\n')
                         .map(Into::into)
                         .collect();
-                    Ok(preview.clone())
+                    lua.to_value(&preview)
                 }
-                None => Ok(Vec::new()),
-            }
-        });
+                None => LuaSerdeExt::to_value::<Vec<SmolStr>>(lua, &vec![]),
+            },
+        );
 
         methods.add_method_mut("reset", |_lua, this, ()| {
             this.file_cache.clear();

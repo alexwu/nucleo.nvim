@@ -13,9 +13,13 @@ local defaults = {
 	---@class Nucleo.Config.Defaults.Generic
 	---@field sort_direction "descending"|"ascending"
 	---@field selection_strategy "reset"|"follow"
+	---@field selection_caret string
+	---@field multi_icon string
 	defaults = {
 		sort_direction = "descending",
 		selection_strategy = "reset",
+		selection_caret = "> ",
+		multi_icon = "+",
 	},
 	sources = {
 		---@class Nucleo.Config.Files: Nucleo.Config.Defaults.Generic

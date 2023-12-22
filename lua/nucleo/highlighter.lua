@@ -7,8 +7,10 @@ local log = require("nucleo.log")
 local api = vim.api
 
 local ns_selection = vim.api.nvim_create_namespace("nucleo_selection")
+---@class Nucleo.Highlighter.Options
+---@field picker PickerBackend
 
----@param opts Nucleo.Config.Highlighter
+---@param opts Nucleo.Highlighter.Options
 function Highlighter:new(opts)
 	opts = vim.F.if_nil(opts, {})
 	vim.validate({

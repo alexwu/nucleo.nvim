@@ -1,6 +1,6 @@
 local NuiLine = require("nui.line")
 
----@class Line: NuiLine
+---@class Nucleo.Line: NuiLine
 ---@field super NuiLine
 ---@field _texts Text[]
 ---@diagnostic disable-next-line: undefined-field

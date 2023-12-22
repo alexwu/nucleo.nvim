@@ -55,6 +55,7 @@ local api = vim.api
 ---@field update_query fun(self: PickerBackend, query: string)
 ---@field update_window fun(self: PickerBackend, width: integer, height: integer)
 ---@field window_height fun(self: PickerBackend): integer
+---@field current_matches fun(self: PickerBackend): Nucleo.Picker.Entry[]
 
 ---@class Nucleo.Picker: Object
 ---@field picker PickerBackend
@@ -272,14 +273,13 @@ function Picker:update_preview()
 end
 
 function Picker:highlight_selection()
-	if self.picker:total_matches() > 0 then
-		self.highlighter:highlight_selection()
-	end
+	self.highlighter:highlight_selection()
 end
 
 function Picker:reset_cursor()
 	if self.original_winid then
 		api.nvim_set_current_win(self.original_winid)
+		self.original_winid = nil
 	end
 end
 
