@@ -191,7 +191,7 @@ impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
     fn from(value: StatusEntry) -> Self {
         let file_path = value.path().expect("Invalid utf8");
         let path = Path::new(&file_path);
-        let file_type = path
+        let file_extension = path
             .extension()
             .unwrap_or_default()
             .to_string_lossy()
@@ -207,7 +207,7 @@ impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
             .kind(preview_kind)
             .line_start(0)
             .col_start(0)
-            .file_type(file_type)
+            .file_extension(file_extension)
             .build();
 
         Data::new(

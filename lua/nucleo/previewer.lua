@@ -39,7 +39,7 @@ Previewer.render = a.void(function(self, entry)
 
 	local preview_options = entry.preview_options or {}
 	local start = preview_options.line_start or 0
-	local ft = preview_options.file_type
+	local ft = preview_options.file_extension
 
 	local height = api.nvim_win_get_height(self.winid)
 	local path

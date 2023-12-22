@@ -32,8 +32,8 @@ function Entry:new(index, entry, bufnr, ns_multiselection_id, winid)
 end
 
 function Entry:update_icon()
-	if self.entry and self.entry.preview_options and self.entry.preview_options.file_type then
-		local value, color = devicons.get_icon(self.entry.value.path, self.entry.value.file_type, { default = true })
+	if self.entry and self.entry.preview_options and self.entry.preview_options.file_extension then
+		local value, color = devicons.get_icon(self.entry.value.path, self.entry.value.file_extension, { default = true })
 		self.icon = {
 			value = value,
 			color = color,

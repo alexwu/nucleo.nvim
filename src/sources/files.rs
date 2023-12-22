@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::injector::FinderFn;
 use crate::picker::{self, Data, DataKind, InjectorConfig, Picker};
-use crate::previewer::{PreviewOptions, PreviewKind};
+use crate::previewer::{PreviewKind, PreviewOptions};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -28,7 +28,7 @@ impl Value {
             .expect("Failed to convert path to string")
             .to_string();
 
-        let file_type = path
+        let file_extension = path
             .extension()
             .unwrap_or_default()
             .to_string_lossy()
@@ -36,14 +36,14 @@ impl Value {
 
         let value = Self {
             path: full_path.to_string(),
-            file_type: file_type.clone(),
+            file_type: file_extension.clone(),
         };
 
         let preview_options = PreviewOptions::builder()
             .kind(PreviewKind::File)
             .line_start(0)
             .col_start(0)
-            .file_type(file_type)
+            .file_extension(file_extension)
             .build();
 
         Data {
