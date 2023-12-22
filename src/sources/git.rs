@@ -4,6 +4,7 @@ use anyhow::bail;
 use git2::Statuses;
 use mlua::prelude::*;
 use partially::Partial;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -105,10 +106,10 @@ impl From<git2::Status> for Status {
 }
 
 impl<'a> Iterator for StatusIter<'a> {
-    type Item = <git2::StatusIter<'a> as Iterator>::Item;
+    type Item = StatusEntry;
 
-    fn next(&mut self) -> Option<git2::StatusEntry<'a>> {
-        <git2::StatusIter as Iterator>::next(&mut self.0)
+    fn next(&mut self) -> Option<StatusEntry> {
+        <git2::StatusIter as Iterator>::next(&mut self.0).map(|iter| iter.into())
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -225,6 +226,7 @@ pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOp
     Arc::new(move |tx| {
         let status_options = &mut git2::StatusOptions::new();
         status_options
+            .show(git2::StatusShow::Workdir)
             .update_index(true)
             .include_ignored(false)
             .include_untracked(true);
@@ -232,8 +234,9 @@ pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOp
         repo.statuses(Some(status_options))
             .expect("Unable to get statuses")
             .iter()
+            .par_bridge()
             .for_each(|entry| {
-                let entry: StatusEntry = entry.into();
+                let entry: StatusEntry = entry;
                 let data = Data::from(entry);
                 log::info!("{:?}", &data);
                 let _ = tx.send(data);
@@ -250,8 +253,6 @@ pub fn create_picker(
     };
     let picker: Picker<StatusEntry, PreviewOptions, StatusConfig> =
         Picker::new(picker::Config::default()).with_injector(Arc::new(injector));
-
-    // picker.populate(config.into());
 
     anyhow::Ok(picker)
 }
