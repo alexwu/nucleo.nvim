@@ -197,11 +197,7 @@ impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
             .to_string_lossy()
             .to_string();
 
-        let preview_kind = if path.is_dir() {
-            PreviewKind::Folder
-        } else {
-            PreviewKind::File
-        };
+        let preview_kind = PreviewKind::Diff;
 
         let preview_options = PreviewOptions::builder()
             .kind(preview_kind)

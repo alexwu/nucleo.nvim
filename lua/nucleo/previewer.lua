@@ -72,6 +72,8 @@ Previewer.render = a.void(function(self, entry)
 				return vim.fn.strlen(line) > 0
 			end)
 			:totable()
+	elseif preview_options.kind == "diff" then
+		content = self.previewer:preview_diff(path)
 	else
 		content = self.previewer:preview_file(path, start, start + height)
 	end
@@ -84,7 +86,11 @@ Previewer.render = a.void(function(self, entry)
 
 	vim.schedule(function()
 		local name = vim.fs.basename(path)
-		ft = vim.filetype.match({ filename = name, content = content })
+		if preview_options.kind == "diff" then
+			ft = "diff"
+		else
+			ft = vim.filetype.match({ filename = name, content = content })
+		end
 
 		if not ft or ft == "" then
 			return

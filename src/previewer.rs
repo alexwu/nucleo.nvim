@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::process::Command;
 use std::{collections::HashMap, fs::File};
 use std::{fmt::Debug, io::BufReader};
 
@@ -32,6 +33,7 @@ pub enum PreviewKind {
     Skip,
     File,
     Folder,
+    Diff,
 }
 
 #[skip_serializing_none]
@@ -98,6 +100,31 @@ impl Previewer {
         content
     }
 
+    pub fn preview_diff(&mut self, path: &str) -> String {
+        log::info!("Previewing folder {}", path);
+        if let Some(contents) = self.file_cache.get(path) {
+            log::info!("Using cached contents for {}", path);
+            return contents.to_string();
+        };
+
+        let output = Command::new("git")
+            .args(["--no-pager", "diff", path])
+            .output()
+            .expect("Failed to execute git diff");
+
+        match String::from_utf8(output.stdout) {
+            Ok(s) => {
+                self.file_cache.insert(path.to_string(), s.clone());
+                s
+            }
+            Err(err) => {
+                log::error!("Failed to get preview diff for: {}", path);
+                log::error!("{:?}", err);
+                String::new()
+            }
+        }
+    }
+
     pub fn preview_folder(&mut self, path: &str) -> String {
         log::info!("Previewing folder {}", path);
         if let Some(contents) = self.file_cache.get(path) {
@@ -150,6 +177,21 @@ impl UserData for Previewer {
                 Some(path) => {
                     let preview: Vec<SmolStr> = this
                         .preview_folder(&path)
+                        .split('\n')
+                        .map(Into::into)
+                        .collect();
+                    lua.to_value(&preview)
+                }
+                None => LuaSerdeExt::to_value::<Vec<SmolStr>>(lua, &vec![]),
+            },
+        );
+
+        methods.add_method_mut(
+            "preview_diff",
+            |lua, this, params: (Option<String>,)| match params.0 {
+                Some(path) => {
+                    let preview: Vec<SmolStr> = this
+                        .preview_diff(&path)
                         .split('\n')
                         .map(Into::into)
                         .collect();
