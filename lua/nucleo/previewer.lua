@@ -38,6 +38,10 @@ Previewer.render = a.void(function(self, entry)
 	end
 
 	local preview_options = entry.preview_options or {}
+	if preview_options.kind == "skip" then
+		return
+	end
+
 	local start = preview_options.line_start or 0
 	local ft = preview_options.file_extension
 

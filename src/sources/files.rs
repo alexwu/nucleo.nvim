@@ -7,6 +7,7 @@ use ignore::WalkBuilder;
 use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::injector::FinderFn;
 use crate::picker::{self, Data, DataKind, InjectorConfig, Picker};
@@ -21,6 +22,7 @@ pub struct Value {
 impl Value {
     fn from_path(path: &Path, cwd: Option<String>) -> Data<Value, PreviewOptions> {
         let full_path = path.to_str().expect("Failed to convert path to string");
+        let uri = Url::from_file_path(full_path).expect("Unable to create uri from full path");
         let match_value = path
             .strip_prefix(&cwd.unwrap_or_default())
             .expect("Failed to strip prefix")
@@ -44,6 +46,7 @@ impl Value {
             .line_start(0)
             .col_start(0)
             .file_extension(file_extension)
+            .uri(uri)
             .build();
 
         Data {

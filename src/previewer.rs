@@ -28,6 +28,7 @@ pub struct Previewer {
 #[serde(rename_all = "snake_case")]
 pub enum PreviewKind {
     #[default]
+    Skip,
     File,
     Folder,
 }
@@ -142,9 +143,8 @@ impl UserData for Previewer {
             },
         );
 
-        methods.add_method_mut(
-            "preview_folder",
-            |_lua, this, params: (Option<String>,)| match params.0 {
+        methods.add_method_mut("preview_folder", |_lua, this, params: (Option<String>,)| {
+            match params.0 {
                 Some(path) => {
                     let preview: Vec<String> = this
                         .preview_folder(&path)
@@ -154,8 +154,8 @@ impl UserData for Previewer {
                     Ok(preview.clone())
                 }
                 None => Ok(Vec::new()),
-            },
-        );
+            }
+        });
 
         methods.add_method_mut("reset", |_lua, this, ()| {
             this.file_cache.clear();

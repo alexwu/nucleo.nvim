@@ -33,11 +33,20 @@ end
 
 function Entry:update_icon()
 	if self.entry and self.entry.preview_options and self.entry.preview_options.file_extension then
-		local value, color = devicons.get_icon(self.entry.value.path, self.entry.value.file_extension, { default = true })
-		self.icon = {
-			value = value,
-			color = color,
-		}
+		local is_dir = self.entry.preview_options.kind == "folder"
+		if is_dir then
+			self.icon = {
+				value = "",
+				color = "Normal",
+			}
+		else
+			local value, color =
+				devicons.get_icon(self.entry.value.path, self.entry.value.file_extension, { default = true })
+			self.icon = {
+				value = value,
+				color = color,
+			}
+		end
 	else
 		self.icon = {
 			value = " ",
