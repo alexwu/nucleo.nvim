@@ -11,7 +11,7 @@ use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
 };
-use nucleo::pattern::CaseMatching;
+use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::Nucleo;
 use partially::Partial;
 use range_rover::range_rover;
@@ -439,6 +439,7 @@ where
                 0,
                 query,
                 CaseMatching::Smart,
+                Normalization::Smart,
                 query.starts_with(&previous_query),
             );
             self.previous_query = query.to_string();
