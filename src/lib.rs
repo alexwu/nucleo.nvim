@@ -5,12 +5,10 @@ use std::{
 
 use anyhow::bail;
 use directories::ProjectDirs;
-use entry::{CustomEntry, CustomSource};
 use log::LevelFilter;
 use mlua::prelude::*;
-use picker::{Blob, Data, Picker};
+use picker::{Blob, Picker};
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
 use sources::{
     diagnostics::{self, Diagnostic},

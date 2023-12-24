@@ -3,7 +3,10 @@ use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterato
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 
-use crate::picker::{self, Blob, Data, Picker};
+use crate::{
+    entry::Data,
+    picker::{self, Blob, Picker},
+};
 
 use super::Populator;
 

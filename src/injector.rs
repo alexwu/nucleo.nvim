@@ -9,7 +9,6 @@ use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
 
 use crate::{
     entry::Entry,
-    picker::Data,
     previewer::Previewable,
     sources::{Populator, Source},
 };

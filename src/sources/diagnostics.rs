@@ -6,7 +6,8 @@ use serde_with::skip_serializing_none;
 use url::Url;
 
 use crate::{
-    picker::{self, Blob, Data, DataKind, Picker},
+    entry::{Data, DataKind},
+    picker::{self, Blob, Picker},
     previewer::{PreviewKind, PreviewOptions, Previewable},
 };
 

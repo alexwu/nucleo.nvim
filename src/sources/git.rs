@@ -9,8 +9,9 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    entry::{Data, DataKind},
     injector::FinderFn,
-    picker::{self, Data, DataKind, InjectorConfig, Picker},
+    picker::{self, InjectorConfig, Picker},
     previewer::{PreviewKind, PreviewOptions},
 };
 

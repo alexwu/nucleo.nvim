@@ -1,11 +1,10 @@
 use std::{fmt::Debug, sync::Arc};
 
-use anyhow::anyhow;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{entry::Entry, injector::FinderFn, picker::Data, previewer::Previewable};
+use crate::{entry::Entry, injector::FinderFn, previewer::Previewable};
 
 pub mod diagnostics;
 pub mod files;

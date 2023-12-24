@@ -10,8 +10,9 @@ use partially::Partial;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::entry::{Data, DataKind};
 use crate::injector::FinderFn;
-use crate::picker::{self, Data, DataKind, InjectorConfig, Picker};
+use crate::picker::{self, InjectorConfig, Picker};
 use crate::previewer::{PreviewKind, PreviewOptions};
 
 use super::Populator;
