@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::{env::current_dir, path::Path};
 
-use anyhow::Result;
 use buildstructor::Builder;
 use ignore::types::TypesBuilder;
 use ignore::WalkBuilder;

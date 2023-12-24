@@ -9,7 +9,6 @@ use entry::{CustomEntry, CustomSource};
 use log::LevelFilter;
 use mlua::prelude::*;
 use picker::{Blob, Data, Picker};
-use previewer::PreviewOptions;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
@@ -34,24 +33,24 @@ mod sources;
 mod util;
 mod window;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SourceConfig {
-    name: String,
-    results: Vec<CustomEntry>,
-}
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// pub struct SourceConfig {
+//     name: String,
+//     results: Vec<CustomEntry>,
+// }
+//
+// impl FromLua<'_> for SourceConfig {
+//     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+//         let table = LuaTable::from_lua(value, lua)?;
+//
+//         Ok(Self {
+//             name: table.get("name")?,
+//             results: table.get("results")?,
+//         })
+//     }
+// }
 
-impl FromLua<'_> for SourceConfig {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        let table = LuaTable::from_lua(value, lua)?;
-
-        Ok(Self {
-            name: table.get("name")?,
-            results: table.get("results")?,
-        })
-    }
-}
-
-pub fn init_lua_picker(
+fn init_lua_picker(
     lua: &'static Lua,
     params: (LuaValue<'static>,),
 ) -> LuaResult<Picker<Diagnostic, Blob, diagnostics::Source>> {
@@ -60,64 +59,54 @@ pub fn init_lua_picker(
         LuaValue::LightUserData(_) => todo!(),
         LuaValue::Table(source) => todo!("Table not yet implemented"),
         LuaValue::Function(finder) => {
-            picker.populate_with_local(move |tx| {
-                let results = finder.call::<_, LuaValue>(());
-                match results {
-                    Ok(entries) => {
-                        let mut entries = lua
-                            .from_value::<Vec<Diagnostic>>(entries)
-                            .expect("Error with diagnostics");
-                        log::info!("{:?}", entries);
-                        rayon::spawn(move || {
-                            // TODO: Make a queue that sorts stuff i guess
-                            entries.par_sort_unstable_by_key(|entry| entry.severity.unwrap_or(0));
+            picker
+                .populate_with_local(move |tx| {
+                    let results = finder.call::<_, LuaValue>(());
+                    match results {
+                        Ok(entries) => {
+                            let mut entries = lua
+                                .from_value::<Vec<Diagnostic>>(entries)
+                                .expect("Error with diagnostics");
+                            log::info!("{:?}", entries);
+                            rayon::spawn(move || {
+                                // TODO: Make a queue that sorts stuff i guess
+                                entries
+                                    .par_sort_unstable_by_key(|entry| entry.severity.unwrap_or(0));
 
-                            entries.into_iter().for_each(|entry| {
-                                let _ = tx.send(entry.into());
+                                entries.into_iter().for_each(|entry| {
+                                    let _ = tx.send(entry.into());
+                                });
                             });
-                        });
 
-                        Ok(())
+                            Ok(())
+                        }
+                        Err(error) => {
+                            log::error!("Errored calling finder fn: {}", error);
+                            bail!(error)
+                        }
                     }
-                    Err(error) => {
-                        log::error!("Errored calling finder fn: {}", error);
-                        bail!(error)
-                    }
-                }
-            });
+                })
+                .into_lua_err()
         }
         LuaValue::Thread(_) => todo!(),
         _ => todo!("Invalid finder"),
-    };
+    }?;
 
     Ok(picker)
 }
 
-pub fn init_custom_picker(
-    _lua: &Lua,
-    params: (SourceConfig,),
-) -> LuaResult<Picker<CustomEntry, Blob, CustomSource>> {
-    let mut picker: Picker<CustomEntry, Blob, CustomSource> = Picker::new(picker::Config::default());
-
-    let results = params.0.results.into_par_iter().map(Data::from).collect();
-    picker.populate_with(results);
-
-    Ok(picker)
-}
-
-pub fn init_file_picker(
-    _lua: &Lua,
-    params: (Option<PartialFileConfig>,),
-) -> LuaResult<Picker<files::Value, FileConfig, files::Source>> {
-    files::create_picker(params.0).into_lua_err()
-}
-
-pub fn init_git_status_picker(
-    _: &Lua,
-    params: (Option<PartialStatusConfig>,),
-) -> LuaResult<Picker<git::StatusEntry, StatusConfig, git::Source>> {
-    git::create_picker(params.0).into_lua_err()
-}
+// pub fn init_custom_picker(
+//     _lua: &Lua,
+//     params: (SourceConfig,),
+// ) -> LuaResult<Picker<CustomEntry, Blob, CustomSource>> {
+//     let mut picker: Picker<CustomEntry, Blob, CustomSource> =
+//         Picker::new(picker::Config::default());
+//
+//     let results = params.0.results.into_par_iter().map(Data::from).collect();
+//     picker.populate_with(results).into_lua_err()?;
+//
+//     Ok(picker)
+// }
 
 #[mlua::lua_module]
 fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
@@ -136,12 +125,27 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
 
     let exports = lua.create_table()?;
 
-    exports.set("FilePicker", lua.create_function(init_file_picker)?)?;
-    exports.set("CustomPicker", lua.create_function(init_custom_picker)?)?;
+    exports.set(
+        "FilePicker",
+        LuaFunction::wrap(|_, params: (Option<PartialFileConfig>,)| {
+            files::create_picker(params.0).into_lua_err()
+        }),
+    )?;
+    exports.set(
+        "CustomPicker",
+        LuaFunction::wrap(|_, params: (sources::lua_tables::Source,)| {
+            Ok(sources::lua_tables::Source::picker(
+                params.0,
+                Default::default(),
+            ))
+        }),
+    )?;
     exports.set("LuaPicker", lua.create_function(init_lua_picker)?)?;
     exports.set(
         "GitStatusPicker",
-        lua.create_function(init_git_status_picker)?,
+        LuaFunction::wrap(|_, params: (Option<PartialStatusConfig>,)| {
+            git::create_picker(params.0).into_lua_err()
+        }),
     )?;
     exports.set(
         "Previewer",

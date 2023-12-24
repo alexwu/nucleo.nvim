@@ -26,7 +26,6 @@ use crate::entry::{CustomEntry, Entry};
 use crate::injector::InjectorFn;
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::previewer::{PreviewOptions, Previewable};
-use crate::sources::diagnostics::Diagnostic;
 use crate::sources::Populator;
 use crate::window::Window;
 
@@ -558,7 +557,9 @@ where
             source.update_config(config.into());
         };
         rayon::spawn(move || {
-            injector.populate_with_source(source);
+            injector
+                .populate_with_source(source)
+                .expect("Failed populating!");
         });
 
         Ok(())

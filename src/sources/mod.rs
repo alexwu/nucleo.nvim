@@ -5,11 +5,12 @@ use partially::Partial;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{injector::FinderFn, picker::Data, previewer::Previewable, entry::Entry};
+use crate::{entry::Entry, injector::FinderFn, picker::Data, previewer::Previewable};
 
 pub mod diagnostics;
 pub mod files;
 pub mod git;
+pub mod lua_tables;
 
 pub trait Populator<T, U, V>: Clone
 where
