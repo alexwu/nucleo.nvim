@@ -6,7 +6,9 @@ use std::str::FromStr;
 use std::string::ToString;
 use std::sync::Arc;
 
+use buildstructor::buildstructor;
 use crossbeam_channel::{bounded, Sender};
+use mlua::ExternalResult;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
@@ -23,8 +25,9 @@ use crate::buffer::{Buffer, Cursor, Relative};
 use crate::entry::{CustomEntry, Entry};
 use crate::injector::InjectorFn;
 use crate::matcher::{Matcher, Status, MATCHER};
-use crate::previewer::Previewable;
+use crate::previewer::{PreviewOptions, Previewable};
 use crate::sources::diagnostics::Diagnostic;
+use crate::sources::Populator;
 use crate::window::Window;
 
 #[derive(Debug, Clone, Copy)]
@@ -144,10 +147,9 @@ impl IntoLua<'_> for DataKind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Data<T, U>
+pub struct Data<T>
 where
     T: Clone + Debug + Sync + Send + for<'a> Deserialize<'a> + 'static,
-    U: Previewable + for<'a> FromLua<'a>,
 {
     pub display: String,
     pub ordinal: String,
@@ -159,15 +161,13 @@ where
     )]
     pub value: T,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(bound = "U: Previewable")]
-    pub preview_options: Option<U>,
+    pub preview_options: Option<PreviewOptions>,
 }
 
 #[buildstructor::buildstructor]
-impl<T, U> Data<T, U>
+impl<T> Data<T>
 where
     T: Clone + Debug + Sync + Send + for<'a> Deserialize<'a>,
-    U: Previewable + for<'a> FromLua<'a>,
 {
     #[builder]
     pub fn new<V: Into<String>>(
@@ -175,7 +175,7 @@ where
         display: V,
         ordinal: V,
         value: T,
-        preview_options: Option<U>,
+        preview_options: Option<PreviewOptions>,
     ) -> Self {
         Self {
             kind,
@@ -188,7 +188,7 @@ where
         }
     }
 
-    pub fn with_preview_options(self, preview_options: U) -> Self {
+    pub fn with_preview_options(self, preview_options: PreviewOptions) -> Self {
         Self {
             preview_options: Some(preview_options),
             ..self
@@ -196,13 +196,13 @@ where
     }
 }
 
-impl From<String> for Data<String, Blob> {
+impl From<String> for Data<String> {
     fn from(value: String) -> Self {
         Self::new(DataKind::String, &value, &value, value.clone(), None)
     }
 }
 
-impl From<CustomEntry> for Data<CustomEntry, Blob> {
+impl From<CustomEntry> for Data<CustomEntry> {
     fn from(value: CustomEntry) -> Self {
         let display = match value.display.clone() {
             Some(display) => display,
@@ -218,14 +218,14 @@ impl From<CustomEntry> for Data<CustomEntry, Blob> {
     }
 }
 
-impl From<Diagnostic> for Data<Diagnostic, Blob> {
-    fn from(value: Diagnostic) -> Self {
-        let message = value.message.clone().replace('\n', " ");
-        Data::new(DataKind::File, message.clone(), message, value, None)
-    }
-}
-
-impl<T, U> FromLua<'_> for Data<T, U>
+// impl From<Diagnostic> for Data<Diagnostic> {
+//     fn from(value: Diagnostic) -> Self {
+//         let message = value.message.clone().replace('\n', " ");
+//         Data::new(DataKind::File, message.clone(), message, value, None)
+//     }
+// }
+//
+impl<T> FromLua<'_> for Data<T>
 where
     T: Clone
         + Debug
@@ -235,14 +235,13 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
-    U: Previewable + for<'a> FromLua<'a>,
 {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         lua.from_value(value)
     }
 }
 
-impl<T, U> IntoLua<'_> for Data<T, U>
+impl<T> IntoLua<'_> for Data<T>
 where
     T: Clone
         + Debug
@@ -252,14 +251,13 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
-    U: Previewable + for<'a> FromLua<'a>,
 {
     fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
         lua.to_value(&self)
     }
 }
 
-impl<T, U> Entry for Data<T, U>
+impl<T> Entry for Data<T>
 where
     T: Clone
         + Debug
@@ -269,7 +267,6 @@ where
         + for<'a> Deserialize<'a>
         // + for<'a> FromLua<'a>
         + 'static,
-    U: Previewable + for<'a> FromLua<'a>,
 {
     fn display(&self) -> String {
         self.display.clone()
@@ -297,33 +294,36 @@ where
 }
 
 pub trait InjectorConfig:
-    Clone + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send + 'static
+    Serialize + Debug + Clone + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send + 'static
 {
 }
 
-pub struct Picker<T, U, V>
+pub struct Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    U: Previewable + for<'a> mlua::FromLua<'a>,
     V: InjectorConfig,
+    P: Populator<T, V, Data<T>>,
 {
-    pub matcher: Matcher<Data<T, U>>,
+    pub matcher: Matcher<Data<T>>,
     previous_query: String,
     cursor: Cursor,
     window: Window,
-    selections: HashMap<String, Data<T, U>>,
+    selections: HashMap<String, Data<T>>,
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
     config: Config,
-    injector_fn: Option<InjectorFn<T, U, V>>,
+    injector_fn: Option<InjectorFn<Data<T>, V>>,
+    source: Option<P>,
 }
 
-impl<T, U, V> Picker<T, U, V>
+#[buildstructor]
+impl<T, V, P> Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    U: Previewable,
     V: InjectorConfig,
+    P: Populator<T, V, Data<T>> + Send + 'static,
 {
+    #[builder]
     pub fn new(config: Config) -> Self {
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
@@ -335,7 +335,7 @@ where
             // };
         });
 
-        let matcher: Matcher<Data<T, U>> =
+        let matcher: Matcher<Data<T>> =
             Nucleo::new(nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
 
         Self {
@@ -348,6 +348,7 @@ where
             previous_query: String::new(),
             selections: HashMap::new(),
             window: Window::new(50, 50),
+            source: None,
         }
     }
 
@@ -366,9 +367,16 @@ where
         self.receiver.try_recv()
     }
 
-    pub fn with_injector(self, injector: InjectorFn<T, U, V>) -> Self {
+    pub fn with_injector(self, injector: InjectorFn<Data<T>, V>) -> Self {
         Self {
             injector_fn: Some(injector),
+            ..self
+        }
+    }
+
+    pub fn with_source(self, source: P) -> Self {
+        Self {
+            source: Some(source),
             ..self
         }
     }
@@ -489,7 +497,7 @@ where
         log::info!("Cursor position: {}", self.cursor.pos());
     }
 
-    pub fn current_matches(&self) -> Vec<Data<T, U>> {
+    pub fn current_matches(&self) -> Vec<Data<T>> {
         let mut indices = Vec::new();
         let snapshot = self.matcher.snapshot();
         log::info!("Item count: {:?}", snapshot.item_count());
@@ -533,34 +541,52 @@ where
         self.matcher.0.restart(true);
     }
 
-    pub fn populate_with(&mut self, entries: Vec<Data<T, U>>) {
+    pub fn populate_with(&mut self, entries: Vec<Data<T>>) -> anyhow::Result<()> {
         let injector = self.matcher.injector();
         rayon::spawn(move || {
             injector.populate(entries);
         });
+
+        Ok(())
     }
 
-    pub fn populate_with_local<F>(&mut self, populator: F)
+    // pub fn populate_with_source(&mut self) -> anyhow::Result<()> {
+    pub fn populate<R: Into<V>>(&self, config: Option<R>) -> anyhow::Result<()> {
+        let injector = self.matcher.injector();
+        let mut source = self.source.clone().expect("No source!");
+        if let Some(config) = config {
+            source.update_config(config.into());
+        };
+        rayon::spawn(move || {
+            injector.populate_with_source(source);
+        });
+
+        Ok(())
+    }
+
+    pub fn populate_with_local<F>(&mut self, populator: F) -> anyhow::Result<()>
     where
-        F: Fn(Sender<Data<T, U>>) + 'static,
+        F: Fn(Sender<Data<T>>) -> anyhow::Result<()> + 'static,
     {
         let injector = self.matcher.injector();
 
-        injector.populate_with_local(populator);
+        injector.populate_with_local(populator)
     }
 
-    pub fn populate<R: Into<V>>(&mut self, config: Option<R>) {
-        let injector = self.matcher.injector();
-        let populator = self
-            .injector_fn
-            .clone()
-            .expect("Trying to call picker with no injector fn")(
-            config.map(|c| c.into())
-        );
-        rayon::spawn(move || {
-            injector.populate_with(populator);
-        });
-    }
+    // pub fn populate<R: Into<V>>(&mut self, config: Option<R>) -> anyhow::Result<()> {
+    //     let injector = self.matcher.injector();
+    //     let populator = self
+    //         .injector_fn
+    //         .clone()
+    //         .expect("Trying to call picker with no injector fn")(
+    //         config.map(|c| c.into())
+    //     );
+    //     rayon::spawn(move || {
+    //         injector.populate_with(populator);
+    //     });
+    //
+    //     Ok(())
+    // }
 
     pub fn multiselect(&mut self, index: u32) {
         let snapshot = self.matcher.snapshot();
@@ -601,7 +627,7 @@ where
         };
     }
 
-    pub fn selections(&self) -> Vec<Data<T, U>> {
+    pub fn selections(&self) -> Vec<Data<T>> {
         self.selections.clone().into_values().collect()
     }
 
@@ -616,7 +642,7 @@ where
     pub fn shutdown(&mut self) {}
 }
 
-impl<T, U, V> Default for Picker<T, U, V>
+impl<T, V, P> Default for Picker<T, V, P>
 where
     T: Clone
         + Debug
@@ -626,19 +652,19 @@ where
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
         + 'static,
-    U: Previewable,
     V: InjectorConfig,
+    P: Populator<T, V, Data<T>> + Send + 'static,
 {
     fn default() -> Self {
         Self::new(Config::default())
     }
 }
 
-impl<T, U, V> Buffer<T> for Picker<T, U, V>
+impl<T, V, P> Buffer<T> for Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    U: Previewable,
     V: InjectorConfig,
+    P: Populator<T, V, Data<T>> + Send + 'static,
 {
     fn len(&self) -> usize {
         self.total_matches().try_into().unwrap_or(usize::MAX)
@@ -687,11 +713,11 @@ impl From<PartialConfig> for Config {
     }
 }
 
-impl<T, U, V> UserData for Picker<T, U, V>
+impl<T, V, P> UserData for Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    U: Previewable,
     V: InjectorConfig,
+    P: Populator<T, V, Data<T>> + Send + 'static,
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
@@ -813,13 +839,11 @@ where
         });
 
         methods.add_method_mut("populate", |_lua, this, params: (Option<V>,)| {
-            this.populate(params.0);
-            Ok(())
+            this.populate(params.0).into_lua_err()
         });
 
         methods.add_method_mut("populate_with", |lua, this, params: (LuaValue<'_>,)| {
-            this.populate_with(lua.from_value(params.0)?);
-            Ok(())
+            this.populate_with(lua.from_value(params.0)?).into_lua_err()
         });
 
         methods.add_method_mut("restart", |_lua, this, _params: ()| {

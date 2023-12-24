@@ -13,6 +13,27 @@ use crate::{
     previewer::{PreviewKind, PreviewOptions},
 };
 
+use super::Populator;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Source {
+    config: StatusConfig,
+}
+
+impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
+    fn name(&self) -> String {
+        todo!()
+    }
+
+    fn update_config(&mut self, config: StatusConfig) {
+        todo!()
+    }
+
+    fn build_injector(&self) -> FinderFn<Data<StatusEntry>> {
+        todo!()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Partial)]
 #[partially(derive(Default, Debug))]
 pub struct StatusConfig {
@@ -187,7 +208,7 @@ impl FromLua<'_> for StatusEntry {
         lua.from_value(value)
     }
 }
-impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
+impl From<StatusEntry> for Data<StatusEntry> {
     fn from(value: StatusEntry) -> Self {
         let file_path = value.path().expect("Invalid utf8");
         let path = Path::new(&file_path);
@@ -216,7 +237,7 @@ impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
     }
 }
 
-pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOptions> {
+pub fn injector(config: Option<StatusConfig>) -> FinderFn<Data<StatusEntry>> {
     let repo = Repository::open(config.unwrap_or_default().cwd).expect("Unable to open repository");
 
     Arc::new(move |tx| {
@@ -238,18 +259,22 @@ pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOp
                 log::info!("{:?}", &data);
                 let _ = tx.send(data);
             });
+
+        Ok(())
     })
 }
 
 pub fn create_picker(
     file_options: Option<PartialStatusConfig>,
-) -> anyhow::Result<Picker<StatusEntry, PreviewOptions, StatusConfig>> {
+) -> anyhow::Result<Picker<StatusEntry, StatusConfig, Source>> {
     let _config = match file_options {
         Some(config) => config,
         None => PartialStatusConfig::default(),
     };
-    let picker: Picker<StatusEntry, PreviewOptions, StatusConfig> =
-        Picker::new(picker::Config::default()).with_injector(Arc::new(injector));
+    let picker: Picker<StatusEntry, StatusConfig, Source> = Picker::builder()
+        .config(picker::Config::default())
+        .build()
+        .with_injector(Arc::new(injector));
 
     anyhow::Ok(picker)
 }

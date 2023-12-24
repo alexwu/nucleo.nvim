@@ -10,6 +10,25 @@ use crate::{
     previewer::{PreviewKind, PreviewOptions, Previewable},
 };
 
+use super::Populator;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Source {}
+
+impl Populator<Diagnostic, Blob, Data<Diagnostic>> for Source {
+    fn name(&self) -> String {
+        todo!()
+    }
+
+    fn update_config(&mut self, config: Blob) {
+        todo!()
+    }
+
+    fn build_injector(&self) -> crate::injector::FinderFn<Data<Diagnostic>> {
+        todo!()
+    }
+}
+
 #[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Diagnostic {
@@ -46,7 +65,7 @@ impl FromLua<'_> for DiagnosticPreviewOptions {
 }
 impl Previewable for DiagnosticPreviewOptions {}
 
-impl From<Diagnostic> for Data<Diagnostic, PreviewOptions> {
+impl From<Diagnostic> for Data<Diagnostic> {
     fn from(value: Diagnostic) -> Self {
         let bufnr = value.bufnr.unwrap_or_default();
         let file_path: String = unsafe {
@@ -62,11 +81,16 @@ impl From<Diagnostic> for Data<Diagnostic, PreviewOptions> {
 
         let file_extension = path.extension().map(|s| s.to_string_lossy().to_string());
 
-        let relative = path
-            .strip_prefix(dir)
-            .expect("Unable to strip prefix")
-            .display()
-            .to_string();
+        let relative = match path.strip_prefix(dir) {
+            Ok(relative_path) => relative_path.display().to_string(),
+            Err(err) => {
+                log::error!("Unable to strip prefix on: {:?}", &path);
+                log::error!("{:?}", err);
+
+                path.display().to_string()
+            }
+        };
+
         let message = value.message.clone().replace('\n', " ");
         let ordinal = format!(
             "{} {} {}",
@@ -98,6 +122,6 @@ impl From<Diagnostic> for Data<Diagnostic, PreviewOptions> {
     }
 }
 
-pub fn create_picker() -> anyhow::Result<Picker<Diagnostic, PreviewOptions, Blob>> {
+pub fn create_picker() -> anyhow::Result<Picker<Diagnostic, Blob, Source>> {
     anyhow::Ok(Picker::new(picker::Config::default()))
 }

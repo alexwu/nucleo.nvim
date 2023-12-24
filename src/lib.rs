@@ -3,8 +3,9 @@ use std::{
     fs::{self, File},
 };
 
+use anyhow::bail;
 use directories::ProjectDirs;
-use entry::CustomEntry;
+use entry::{CustomEntry, CustomSource};
 use log::LevelFilter;
 use mlua::prelude::*;
 use picker::{Blob, Data, Picker};
@@ -22,11 +23,13 @@ use crate::util::align_str;
 
 mod buffer;
 mod entry;
+mod error;
 mod injector;
 mod matcher;
 mod nvim;
 mod picker;
 mod previewer;
+mod sorter;
 mod sources;
 mod util;
 mod window;
@@ -51,11 +54,11 @@ impl FromLua<'_> for SourceConfig {
 pub fn init_lua_picker(
     lua: &'static Lua,
     params: (LuaValue<'static>,),
-) -> LuaResult<Picker<Diagnostic, PreviewOptions, Blob>> {
+) -> LuaResult<Picker<Diagnostic, Blob, diagnostics::Source>> {
     let mut picker = diagnostics::create_picker().into_lua_err()?;
     match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
-        LuaValue::Table(_) => todo!("Table not yet implemented"),
+        LuaValue::Table(source) => todo!("Table not yet implemented"),
         LuaValue::Function(finder) => {
             picker.populate_with_local(move |tx| {
                 let results = finder.call::<_, LuaValue>(());
@@ -73,9 +76,12 @@ pub fn init_lua_picker(
                                 let _ = tx.send(entry.into());
                             });
                         });
+
+                        Ok(())
                     }
                     Err(error) => {
                         log::error!("Errored calling finder fn: {}", error);
+                        bail!(error)
                     }
                 }
             });
@@ -90,8 +96,8 @@ pub fn init_lua_picker(
 pub fn init_custom_picker(
     _lua: &Lua,
     params: (SourceConfig,),
-) -> LuaResult<Picker<CustomEntry, Blob, Blob>> {
-    let mut picker: Picker<CustomEntry, Blob, Blob> = Picker::new(picker::Config::default());
+) -> LuaResult<Picker<CustomEntry, Blob, CustomSource>> {
+    let mut picker: Picker<CustomEntry, Blob, CustomSource> = Picker::new(picker::Config::default());
 
     let results = params.0.results.into_par_iter().map(Data::from).collect();
     picker.populate_with(results);
@@ -102,14 +108,14 @@ pub fn init_custom_picker(
 pub fn init_file_picker(
     _lua: &Lua,
     params: (Option<PartialFileConfig>,),
-) -> LuaResult<Picker<files::Value, PreviewOptions, FileConfig>> {
+) -> LuaResult<Picker<files::Value, FileConfig, files::Source>> {
     files::create_picker(params.0).into_lua_err()
 }
 
 pub fn init_git_status_picker(
     _: &Lua,
     params: (Option<PartialStatusConfig>,),
-) -> LuaResult<Picker<git::StatusEntry, PreviewOptions, StatusConfig>> {
+) -> LuaResult<Picker<git::StatusEntry, StatusConfig, git::Source>> {
     git::create_picker(params.0).into_lua_err()
 }
 

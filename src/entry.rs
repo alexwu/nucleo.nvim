@@ -6,7 +6,10 @@ use mlua::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::picker::Blob;
+use crate::{
+    picker::{Blob, Data},
+    sources::Populator,
+};
 
 pub trait Entry:
     for<'a> Deserialize<'a> + Debug + Serialize + Clone + Sync + Send + 'static
@@ -17,6 +20,25 @@ pub trait Entry:
     fn is_selected(&self) -> bool;
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
     fn with_selected(self, selected: bool) -> Self;
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomSource {
+    config: Blob,
+}
+
+impl Populator<CustomEntry, Blob, Data<CustomEntry>> for CustomSource {
+    fn name(&self) -> String {
+        todo!()
+    }
+
+    fn update_config(&mut self, config: Blob) {
+        todo!()
+    }
+
+    fn build_injector(&self) -> crate::injector::FinderFn<Data<CustomEntry>> {
+        todo!()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

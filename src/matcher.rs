@@ -22,7 +22,7 @@ impl<T: Entry> Matcher<T> {
         &mut self.0.pattern
     }
 
-    pub fn injector(&mut self) -> Injector<T> {
+    pub fn injector(&self) -> Injector<T> {
         self.0.injector().into()
     }
 
