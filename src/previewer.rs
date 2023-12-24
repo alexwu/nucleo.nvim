@@ -19,12 +19,17 @@ pub trait Previewable:
 {
 }
 
+// FIX: Need to invalidate cache when the position changes.
+// Maybe i should just cache the whole rope instead?
+// Also need to add a max file size...
+// Also probably need to break the cache up by picker type?
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Previewer {
     #[serde(skip)]
     file_cache: HashMap<String, String>,
 }
 
+// TODO: Probably should have a placeholder when previewing is skipped
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display, EnumIs)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
@@ -76,28 +81,37 @@ impl Previewer {
         }
     }
 
-    pub fn preview_file(&mut self, path: &str, start_line: usize, end_line: usize) -> String {
-        log::info!("Previewing file {}", path);
-        if let Some(contents) = self.file_cache.get(path) {
-            log::info!("Using cached contents for {}", path);
-            return contents.to_string();
+    pub fn preview_file(
+        &mut self,
+        path: &str,
+        start_line: usize,
+        end_line: usize,
+    ) -> (String, usize) {
+        let offset = 10;
+        let adjusted_start = start_line.saturating_sub(offset);
+        let cache_key = format!("{}:{}:{}", path, adjusted_start, end_line);
+        log::info!("Previewing file {}", cache_key);
+        if let Some(contents) = self.file_cache.get(&cache_key) {
+            log::info!("Using cached contents for {}", cache_key);
+            return (contents.to_string(), adjusted_start);
         };
         let file = match File::open(path) {
             Ok(file) => file,
-            Err(_) => return String::new(),
+            Err(_) => return (String::new(), 0),
         };
         let text = match Rope::from_reader(BufReader::new(file)) {
             Ok(rope) => rope,
-            Err(_) => return String::new(),
+            Err(_) => return (String::new(), 0),
         };
-        let end_line = text.len_lines().min(end_line.max(start_line));
-        let start_idx = text.line_to_char(start_line);
+        let end_line = text.len_lines().min(end_line.max(adjusted_start));
+        let start_idx = text.line_to_char(adjusted_start);
         let end_idx = text.line_to_char(end_line);
 
         let content = text.slice(start_idx..end_idx).to_string();
-        self.file_cache.insert(path.to_string(), content.clone());
+        self.file_cache
+            .insert(cache_key.to_string(), content.clone());
 
-        content
+        (content, adjusted_start)
     }
 
     pub fn preview_diff(&mut self, path: &str) -> String {
@@ -160,14 +174,11 @@ impl UserData for Previewer {
             "preview_file",
             |lua, this, params: (Option<String>, usize, usize)| match params.0 {
                 Some(path) => {
-                    let preview: Vec<SmolStr> = this
-                        .preview_file(&path, params.1, params.2)
-                        .split('\n')
-                        .map(Into::into)
-                        .collect();
-                    lua.to_value(&preview)
+                    let (result, start) = this.preview_file(&path, params.1, params.2);
+                    let preview: Vec<SmolStr> = result.split('\n').map(Into::into).collect();
+                    lua.to_value(&(preview, start))
                 }
-                None => LuaSerdeExt::to_value::<Vec<SmolStr>>(lua, &vec![]),
+                None => LuaSerdeExt::to_value::<(Vec<SmolStr>, usize)>(lua, &(vec![], 0)),
             },
         );
 

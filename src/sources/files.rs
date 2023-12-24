@@ -46,6 +46,7 @@ impl Value {
             .line_start(0)
             .col_start(0)
             .file_extension(file_extension)
+            .path(full_path)
             .uri(uri)
             .build();
 

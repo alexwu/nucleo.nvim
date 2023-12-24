@@ -224,6 +224,7 @@ pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOp
         status_options
             .show(git2::StatusShow::Workdir)
             .update_index(true)
+            .recurse_untracked_dirs(true)
             .include_ignored(false)
             .include_untracked(true);
 

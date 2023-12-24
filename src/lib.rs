@@ -7,7 +7,7 @@ use directories::ProjectDirs;
 use entry::CustomEntry;
 use log::LevelFilter;
 use mlua::prelude::*;
-use picker::{Blob, Data, FileEntry, Picker};
+use picker::{Blob, Data, Picker};
 use previewer::PreviewOptions;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -24,25 +24,12 @@ mod buffer;
 mod entry;
 mod injector;
 mod matcher;
+mod nvim;
 mod picker;
 mod previewer;
 mod sources;
 mod util;
 mod window;
-
-pub fn init_picker(
-    _: &Lua,
-    params: (Option<picker::PartialConfig>,),
-) -> LuaResult<Picker<FileEntry, PreviewOptions, Blob>> {
-    let config = match params.0 {
-        Some(config) => config,
-        None => picker::PartialConfig::default(),
-    };
-
-    let picker = Picker::new(config.into());
-
-    Ok(picker)
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceConfig {
@@ -62,7 +49,7 @@ impl FromLua<'_> for SourceConfig {
 }
 
 pub fn init_lua_picker(
-    _lua: &'static Lua,
+    lua: &'static Lua,
     params: (LuaValue<'static>,),
 ) -> LuaResult<Picker<Diagnostic, PreviewOptions, Blob>> {
     let mut picker = diagnostics::create_picker().into_lua_err()?;
@@ -71,12 +58,22 @@ pub fn init_lua_picker(
         LuaValue::Table(_) => todo!("Table not yet implemented"),
         LuaValue::Function(finder) => {
             picker.populate_with_local(move |tx| {
-                let results = finder.call::<_, Vec<Diagnostic>>(());
-                log::info!("please {:?}", results);
+                let results = finder.call::<_, LuaValue>(());
                 match results {
-                    Ok(entries) => entries.par_iter().for_each(|entry| {
-                        let _ = tx.send(entry.clone().into());
-                    }),
+                    Ok(entries) => {
+                        let mut entries = lua
+                            .from_value::<Vec<Diagnostic>>(entries)
+                            .expect("Error with diagnostics");
+                        log::info!("{:?}", entries);
+                        rayon::spawn(move || {
+                            // TODO: Make a queue that sorts stuff i guess
+                            entries.par_sort_unstable_by_key(|entry| entry.severity.unwrap_or(0));
+
+                            entries.into_iter().for_each(|entry| {
+                                let _ = tx.send(entry.into());
+                            });
+                        });
+                    }
                     Err(error) => {
                         log::error!("Errored calling finder fn: {}", error);
                     }
@@ -133,7 +130,6 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
 
     let exports = lua.create_table()?;
 
-    exports.set("Picker", lua.create_function(init_picker)?)?;
     exports.set("FilePicker", lua.create_function(init_file_picker)?)?;
     exports.set("CustomPicker", lua.create_function(init_custom_picker)?)?;
     exports.set("LuaPicker", lua.create_function(init_lua_picker)?)?;

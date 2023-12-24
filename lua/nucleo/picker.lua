@@ -169,7 +169,7 @@ end
 local function override(source_name, opts)
 	opts = opts or {}
 
-	local configs = { config.get("defaults"), config.get("sources", source_name), opts }
+	local configs = { config.get("defaults"), config.get("sources", source_name) or {}, opts }
 
 	return vim.tbl_deep_extend("force", unpack(configs))
 end
@@ -190,9 +190,10 @@ function Picker:apply_mapping(mode, key, mapping)
 	end, opts)
 end
 
----@param opts Nucleo.Config.Files
+---@param opts? Nucleo.Config.Files
 function Picker:find(opts)
-	local source_name = ""
+	opts = opts or {}
+	local source_name = "defaults"
 	if type(self.source) == "string" then
 		source_name = self.source
 	elseif type(self.source) == "table" and type(self.source.name) == "string" then

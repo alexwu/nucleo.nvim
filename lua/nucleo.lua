@@ -4,9 +4,9 @@ local M = {}
 
 --- @private
 M._rust = {
-	Picker = true,
 	FilePicker = true,
 	GitStatusPicker = true,
+	LuaPicker = true,
 	Previewer = true,
 }
 
@@ -14,6 +14,10 @@ function M.setup(...)
 	require("nucleo.config").setup(...)
 	api.nvim_create_user_command("Nucleo", function()
 		M.find()
+	end, {})
+
+	api.nvim_create_user_command("Diag", function()
+		require("nucleo.sources.diagnostics").diagnostics()
 	end, {})
 end
 

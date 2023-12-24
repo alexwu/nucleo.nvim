@@ -33,25 +33,6 @@ pub enum Movement {
     Down,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileEntry {
-    pub path: String,
-    pub match_value: String,
-    pub file_type: String,
-}
-
-impl FromLua<'_> for FileEntry {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        let table = LuaTable::from_lua(value, lua)?;
-
-        Ok(Self {
-            path: table.get("path")?,
-            match_value: table.get("match_value")?,
-            file_type: table.get("file_type")?,
-        })
-    }
-}
-
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum SortDirection {
@@ -165,7 +146,7 @@ impl IntoLua<'_> for DataKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Data<T, U>
 where
-    T: Clone + Debug + Sync + Send + for<'a> FromLua<'a> + 'static,
+    T: Clone + Debug + Sync + Send + for<'a> Deserialize<'a> + 'static,
     U: Previewable + for<'a> FromLua<'a>,
 {
     pub display: String,
@@ -174,7 +155,7 @@ where
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
     #[serde(
-        bound = "T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + 'static"
+        bound = "T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static"
     )]
     pub value: T,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -185,7 +166,7 @@ where
 #[buildstructor::buildstructor]
 impl<T, U> Data<T, U>
 where
-    T: Clone + Debug + Sync + Send + for<'a> FromLua<'a>,
+    T: Clone + Debug + Sync + Send + for<'a> Deserialize<'a>,
     U: Previewable + for<'a> FromLua<'a>,
 {
     #[builder]
@@ -204,6 +185,13 @@ where
             ordinal: ordinal.into(),
             selected: false,
             indices: vec![],
+        }
+    }
+
+    pub fn with_preview_options(self, preview_options: U) -> Self {
+        Self {
+            preview_options: Some(preview_options),
+            ..self
         }
     }
 }
@@ -236,6 +224,7 @@ impl From<Diagnostic> for Data<Diagnostic, Blob> {
         Data::new(DataKind::File, message.clone(), message, value, None)
     }
 }
+
 impl<T, U> FromLua<'_> for Data<T, U>
 where
     T: Clone
@@ -249,21 +238,11 @@ where
     U: Previewable + for<'a> FromLua<'a>,
 {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        let table = LuaTable::from_lua(value, lua)?;
-        let indices: Vec<(u32, u32)> = lua.from_value(table.get("indices")?)?;
-
-        Ok(Self {
-            kind: table.get("kind")?,
-            display: table.get("display")?,
-            ordinal: table.get("ordinal")?,
-            value: table.get("value")?,
-            selected: table.get("selected")?,
-            preview_options: table.get("preview_options")?,
-            indices,
-        })
+        lua.from_value(value)
     }
 }
-impl<T, U> Entry for Data<T, U>
+
+impl<T, U> IntoLua<'_> for Data<T, U>
 where
     T: Clone
         + Debug
@@ -272,6 +251,23 @@ where
         + Serialize
         + for<'a> Deserialize<'a>
         + for<'a> FromLua<'a>
+        + 'static,
+    U: Previewable + for<'a> FromLua<'a>,
+{
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+        lua.to_value(&self)
+    }
+}
+
+impl<T, U> Entry for Data<T, U>
+where
+    T: Clone
+        + Debug
+        + Sync
+        + Send
+        + Serialize
+        + for<'a> Deserialize<'a>
+        // + for<'a> FromLua<'a>
         + 'static,
     U: Previewable + for<'a> FromLua<'a>,
 {
@@ -300,18 +296,14 @@ where
     }
 }
 
-pub trait InjectorConfig: Clone + for<'a> FromLua<'a> + Sync + Send + 'static {}
+pub trait InjectorConfig:
+    Clone + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send + 'static
+{
+}
 
 pub struct Picker<T, U, V>
 where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + 'static,
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     U: Previewable + for<'a> mlua::FromLua<'a>,
     V: InjectorConfig,
 {
@@ -322,21 +314,13 @@ where
     selections: HashMap<String, Data<T, U>>,
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
-    matches_files: bool,
     config: Config,
     injector_fn: Option<InjectorFn<T, U, V>>,
 }
 
 impl<T, U, V> Picker<T, U, V>
 where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + 'static,
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     U: Previewable,
     V: InjectorConfig,
 {
@@ -364,7 +348,6 @@ where
             previous_query: String::new(),
             selections: HashMap::new(),
             window: Window::new(50, 50),
-            matches_files: true,
         }
     }
 
@@ -653,14 +636,7 @@ where
 
 impl<T, U, V> Buffer<T> for Picker<T, U, V>
 where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + 'static,
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     U: Previewable,
     V: InjectorConfig,
 {
@@ -713,14 +689,7 @@ impl From<PartialConfig> for Config {
 
 impl<T, U, V> UserData for Picker<T, U, V>
 where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + 'static,
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     U: Previewable,
     V: InjectorConfig,
 {
@@ -848,8 +817,8 @@ where
             Ok(())
         });
 
-        methods.add_method_mut("populate_with", |_lua, this, params: (Vec<Data<T, U>>,)| {
-            this.populate_with(params.0);
+        methods.add_method_mut("populate_with", |lua, this, params: (LuaValue<'_>,)| {
+            this.populate_with(lua.from_value(params.0)?);
             Ok(())
         });
 

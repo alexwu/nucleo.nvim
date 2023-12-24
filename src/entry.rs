@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::picker::Blob;
 
 pub trait Entry:
-    for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Debug + Serialize + Clone + Sync + Send + 'static
+    for<'a> Deserialize<'a> + Debug + Serialize + Clone + Sync + Send + 'static
 {
     fn display(&self) -> String;
     fn ordinal(&self) -> String;
