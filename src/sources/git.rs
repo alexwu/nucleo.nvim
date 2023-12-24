@@ -1,6 +1,7 @@
 use std::{env::current_dir, path::Path, sync::Arc};
 
 use anyhow::bail;
+use buildstructor::Builder;
 use git2::Statuses;
 use mlua::prelude::*;
 use partially::Partial;
@@ -15,22 +16,46 @@ use crate::{
 
 use super::Populator;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Source {
     config: StatusConfig,
 }
 
 impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
     fn name(&self) -> String {
-        todo!()
+        String::from("builtin.git_status")
     }
 
     fn update_config(&mut self, config: StatusConfig) {
-        todo!()
+        self.config = config;
     }
 
     fn build_injector(&self) -> FinderFn<Data<StatusEntry>> {
-        todo!()
+        let config = self.config.clone();
+        let repo = Repository::open(config.cwd).expect("Unable to open repository");
+
+        Arc::new(move |tx| {
+            let status_options = &mut git2::StatusOptions::new();
+            status_options
+                .show(git2::StatusShow::Workdir)
+                .update_index(true)
+                .recurse_untracked_dirs(true)
+                .include_ignored(false)
+                .include_untracked(true);
+
+            repo.statuses(Some(status_options))
+                .expect("Unable to get statuses")
+                .iter()
+                .par_bridge()
+                .for_each(|entry| {
+                    let entry: StatusEntry = entry;
+                    let data = Data::from(entry);
+                    log::info!("{:?}", &data);
+                    let _ = tx.send(data);
+                });
+
+            Ok(())
+        })
     }
 }
 
@@ -267,14 +292,17 @@ pub fn injector(config: Option<StatusConfig>) -> FinderFn<Data<StatusEntry>> {
 pub fn create_picker(
     file_options: Option<PartialStatusConfig>,
 ) -> anyhow::Result<Picker<StatusEntry, StatusConfig, Source>> {
-    let _config = match file_options {
+    let config = match file_options {
         Some(config) => config,
         None => PartialStatusConfig::default(),
     };
+
+    let source = Source::builder().config(config).build();
     let picker: Picker<StatusEntry, StatusConfig, Source> = Picker::builder()
         .config(picker::Config::default())
         .build()
-        .with_injector(Arc::new(injector));
+        .with_injector(Arc::new(injector))
+        .with_source(source);
 
     anyhow::Ok(picker)
 }
