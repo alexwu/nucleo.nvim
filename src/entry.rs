@@ -1,13 +1,10 @@
 use std::{fmt::Debug, str::FromStr};
 
-use mlua::{
-    prelude::{Lua, LuaResult, LuaTable, LuaValue},
-    ExternalResult, FromLua, IntoLua, LuaSerdeExt,
-};
+use mlua::{prelude::*, FromLua, IntoLua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::{Display, EnumString};
 
-use crate::{picker::Blob, previewer::PreviewOptions, sources::Populator};
+use crate::previewer::PreviewOptions;
 
 pub trait Entry:
     for<'a> Deserialize<'a> + Debug + Serialize + Clone + Sync + Send + 'static
@@ -63,7 +60,7 @@ impl IntoLua<'_> for DataKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Data<T>
 where
-    T: Clone + Debug + Sync + Send + for<'a> Deserialize<'a> + 'static,
+    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     pub display: String,
     pub ordinal: String,
@@ -81,7 +78,7 @@ where
 #[buildstructor::buildstructor]
 impl<T> Data<T>
 where
-    T: Clone + Debug + Sync + Send + for<'a> Deserialize<'a>,
+    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     #[builder]
     pub fn new<V: Into<String>>(
@@ -156,7 +153,6 @@ where
         + Send
         + Serialize
         + for<'a> Deserialize<'a>
-        // + for<'a> FromLua<'a>
         + 'static,
 {
     fn display(&self) -> String {

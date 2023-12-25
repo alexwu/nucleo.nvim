@@ -2,16 +2,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Sender};
-use partially::Partial;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
 
-use crate::{
-    entry::Entry,
-    previewer::Previewable,
-    sources::{Populator, Source},
-};
+use crate::{entry::Entry, sources::Populator};
 
 pub type FinderFn<T> =
     Arc<dyn Fn(UnboundedSender<T>) -> anyhow::Result<()> + Sync + Send + 'static>;

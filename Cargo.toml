@@ -19,6 +19,7 @@ mlua = { version = "0.9", features = [
   "macros",
   "serialize",
   "parking_lot",
+  "send",
 ] }
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"

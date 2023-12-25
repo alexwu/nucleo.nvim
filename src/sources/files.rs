@@ -12,7 +12,7 @@ use url::Url;
 
 use crate::entry::{Data, DataKind};
 use crate::injector::FinderFn;
-use crate::picker::{self, InjectorConfig, Picker};
+use crate::picker::Picker;
 use crate::previewer::{PreviewKind, PreviewOptions};
 
 use super::Populator;
@@ -158,8 +158,6 @@ impl<'a> FromLua<'a> for FileConfig {
     }
 }
 
-impl InjectorConfig for FileConfig {}
-
 impl Default for FileConfig {
     fn default() -> Self {
         let cwd = current_dir()
@@ -205,57 +203,6 @@ impl From<PartialFileConfig> for FileConfig {
     }
 }
 
-pub fn injector(config: Option<FileConfig>) -> FinderFn<Data<Value>> {
-    let FileConfig {
-        cwd,
-        hidden,
-        git_ignore,
-        ignore,
-    } = config.unwrap_or_default();
-
-    let dir = Path::new(&cwd);
-    log::info!("Spawning sorted file searcher at: {:?}", &dir);
-    let mut walk_builder = WalkBuilder::new(dir);
-    walk_builder
-        .hidden(hidden)
-        .follow_links(true)
-        .git_ignore(git_ignore)
-        .ignore(ignore)
-        .sort_by_file_name(std::cmp::Ord::cmp);
-
-    let mut type_builder = TypesBuilder::new();
-    type_builder
-        .add(
-            "compressed",
-            "*.{zip,gz,bz2,zst,lzo,sz,tgz,tbz2,lz,lz4,lzma,lzo,z,Z,xz,7z,rar,cab}",
-        )
-        .expect("Invalid type definition");
-    type_builder.negate("all");
-    let excluded_types = type_builder
-        .build()
-        .expect("failed to build excluded_types");
-    walk_builder.types(excluded_types);
-
-    Arc::new(move |tx| {
-        for path in walk_builder.build() {
-            let cwd = cwd.clone();
-            match path {
-                Ok(file) if file.path().is_file() => {
-                    if tx
-                        .send(Value::from_path(file.path(), Some(cwd.clone())))
-                        .is_ok()
-                    {
-                        // log::info!("Sending {:?}", file.path());
-                    }
-                }
-                _ => (),
-            };
-        }
-
-        Ok(())
-    })
-}
-
 pub fn create_picker(
     file_options: Option<PartialFileConfig>,
 ) -> anyhow::Result<Picker<Value, FileConfig, Source>> {
@@ -264,9 +211,7 @@ pub fn create_picker(
         None => PartialFileConfig::default(),
     };
     let source = Source::builder().config(config).build();
-    let picker: Picker<Value, FileConfig, Source> = Picker::new(picker::Config::default())
-        .with_injector(Arc::new(injector))
-        .with_source(source);
+    let picker: Picker<Value, FileConfig, Source> = Picker::builder().source(source).build();
 
     anyhow::Ok(picker)
 }

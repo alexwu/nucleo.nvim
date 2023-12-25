@@ -19,6 +19,18 @@ pub trait Previewable:
 {
 }
 
+impl<T> Previewable for T where
+    T: Serialize
+        + for<'a> FromLua<'a>
+        + for<'a> Deserialize<'a>
+        + Clone
+        + Debug
+        + Send
+        + Sync
+        + 'static
+{
+}
+
 // FIX: Need to invalidate cache when the position changes.
 // Maybe i should just cache the whole rope instead?
 // Also need to add a max file size...
@@ -71,8 +83,6 @@ impl<'a> IntoLua<'a> for PreviewOptions {
         )
     }
 }
-
-impl Previewable for PreviewOptions {}
 
 impl Previewer {
     pub fn new() -> Self {

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     entry::{Data, DataKind},
     injector::FinderFn,
-    picker::{self, InjectorConfig, Picker},
+    picker::Picker,
     previewer::{PreviewKind, PreviewOptions},
 };
 
@@ -195,7 +195,6 @@ impl From<PartialStatusConfig> for StatusConfig {
     }
 }
 
-impl InjectorConfig for StatusConfig {}
 impl FromLua<'_> for StatusConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let config: PartialStatusConfig = FromLua::from_lua(value, lua)?;
@@ -263,33 +262,6 @@ impl From<StatusEntry> for Data<StatusEntry> {
     }
 }
 
-pub fn injector(config: Option<StatusConfig>) -> FinderFn<Data<StatusEntry>> {
-    let repo = Repository::open(config.unwrap_or_default().cwd).expect("Unable to open repository");
-
-    Arc::new(move |tx| {
-        let status_options = &mut git2::StatusOptions::new();
-        status_options
-            .show(git2::StatusShow::Workdir)
-            .update_index(true)
-            .recurse_untracked_dirs(true)
-            .include_ignored(false)
-            .include_untracked(true);
-
-        repo.statuses(Some(status_options))
-            .expect("Unable to get statuses")
-            .iter()
-            .par_bridge()
-            .for_each(|entry| {
-                let entry: StatusEntry = entry;
-                let data = Data::from(entry);
-                log::info!("{:?}", &data);
-                let _ = tx.send(data);
-            });
-
-        Ok(())
-    })
-}
-
 pub fn create_picker(
     file_options: Option<PartialStatusConfig>,
 ) -> anyhow::Result<Picker<StatusEntry, StatusConfig, Source>> {
@@ -299,11 +271,8 @@ pub fn create_picker(
     };
 
     let source = Source::builder().config(config).build();
-    let picker: Picker<StatusEntry, StatusConfig, Source> = Picker::builder()
-        .config(picker::Config::default())
-        .build()
-        .with_injector(Arc::new(injector))
-        .with_source(source);
+    let picker: Picker<StatusEntry, StatusConfig, Source> =
+        Picker::builder().source(source).build();
 
     anyhow::Ok(picker)
 }

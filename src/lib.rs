@@ -7,13 +7,13 @@ use anyhow::bail;
 use directories::ProjectDirs;
 use log::LevelFilter;
 use mlua::prelude::*;
-use picker::{Blob, Picker};
+use picker::Picker;
 use rayon::prelude::*;
 use simplelog::{Config, WriteLogger};
 use sources::{
     diagnostics::{self, Diagnostic},
-    files::{self, FileConfig, PartialFileConfig},
-    git::{self, PartialStatusConfig, StatusConfig},
+    files::{self, PartialFileConfig},
+    git::{self, PartialStatusConfig},
 };
 
 use crate::util::align_str;
@@ -31,32 +31,16 @@ mod sources;
 mod util;
 mod window;
 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct SourceConfig {
-//     name: String,
-//     results: Vec<CustomEntry>,
-// }
-//
-// impl FromLua<'_> for SourceConfig {
-//     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-//         let table = LuaTable::from_lua(value, lua)?;
-//
-//         Ok(Self {
-//             name: table.get("name")?,
-//             results: table.get("results")?,
-//         })
-//     }
-// }
-
 fn init_lua_picker(
     lua: &'static Lua,
     params: (LuaValue<'static>,),
-) -> LuaResult<Picker<Diagnostic, Blob, diagnostics::Source>> {
+) -> LuaResult<Picker<Diagnostic, diagnostics::Config, diagnostics::Source>> {
     let mut picker = diagnostics::create_picker().into_lua_err()?;
     match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
         LuaValue::Table(source) => todo!("Table not yet implemented"),
         LuaValue::Function(finder) => {
+            let func = lua.create_registry_value(finder.clone())?;
             picker
                 .populate_with_local(move |tx| {
                     let results = finder.call::<_, LuaValue>(());
@@ -92,19 +76,6 @@ fn init_lua_picker(
 
     Ok(picker)
 }
-
-// pub fn init_custom_picker(
-//     _lua: &Lua,
-//     params: (SourceConfig,),
-// ) -> LuaResult<Picker<CustomEntry, Blob, CustomSource>> {
-//     let mut picker: Picker<CustomEntry, Blob, CustomSource> =
-//         Picker::new(picker::Config::default());
-//
-//     let results = params.0.results.into_par_iter().map(Data::from).collect();
-//     picker.populate_with(results).into_lua_err()?;
-//
-//     Ok(picker)
-// }
 
 #[mlua::lua_module]
 fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {

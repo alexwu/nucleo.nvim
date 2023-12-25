@@ -1,5 +1,5 @@
 use mlua::FromLua;
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 
@@ -19,7 +19,7 @@ pub struct Source {
 
 impl Source {
     pub fn picker(source: Self, config: picker::Config) -> Picker<Blob, Blob, Source> {
-        Picker::builder().config(config).build().with_source(source)
+        Picker::builder().source(source).config(config).build()
     }
 }
 

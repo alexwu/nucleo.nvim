@@ -7,22 +7,27 @@ use url::Url;
 
 use crate::{
     entry::{Data, DataKind},
-    picker::{self, Blob, Picker},
-    previewer::{PreviewKind, PreviewOptions, Previewable},
+    picker::Picker,
+    previewer::{PreviewKind, PreviewOptions},
 };
 
 use super::Populator;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Source {}
+#[derive(Debug, Clone, Serialize, Deserialize, FromLua)]
+pub struct Config {}
 
-impl Populator<Diagnostic, Blob, Data<Diagnostic>> for Source {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Source {
+    config: Config,
+}
+
+impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
     fn name(&self) -> String {
-        todo!()
+        String::from("builtin.diagnostics")
     }
 
-    fn update_config(&mut self, config: Blob) {
-        todo!()
+    fn update_config(&mut self, config: Config) {
+        self.config = config;
     }
 
     fn build_injector(&self) -> crate::injector::FinderFn<Data<Diagnostic>> {
@@ -64,7 +69,6 @@ impl FromLua<'_> for DiagnosticPreviewOptions {
         lua.from_value(value)
     }
 }
-impl Previewable for DiagnosticPreviewOptions {}
 
 impl From<Diagnostic> for Data<Diagnostic> {
     fn from(value: Diagnostic) -> Self {
@@ -123,6 +127,6 @@ impl From<Diagnostic> for Data<Diagnostic> {
     }
 }
 
-pub fn create_picker() -> anyhow::Result<Picker<Diagnostic, Blob, Source>> {
-    anyhow::Ok(Picker::new(picker::Config::default()))
+pub fn create_picker() -> anyhow::Result<Picker<Diagnostic, Config, Source>> {
+    anyhow::Ok(Picker::builder().build())
 }

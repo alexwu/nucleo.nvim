@@ -18,14 +18,12 @@ use nucleo::Nucleo;
 use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIs, EnumString};
 
 use crate::buffer::{Buffer, Cursor, Relative};
 use crate::entry::{Data, Entry};
-use crate::injector::InjectorFn;
 use crate::matcher::{Matcher, Status, MATCHER};
-use crate::previewer::{PreviewOptions, Previewable};
 use crate::sources::Populator;
 use crate::window::Window;
 
@@ -102,11 +100,21 @@ impl<'a> FromLua<'a> for Blob {
         })?))
     }
 }
-impl Previewable for Blob {}
-impl InjectorConfig for Blob {}
 
 pub trait InjectorConfig:
     Serialize + Debug + Clone + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send + 'static
+{
+}
+
+impl<T> InjectorConfig for T where
+    T: Serialize
+        + Debug
+        + Clone
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + Sync
+        + Send
+        + 'static
 {
 }
 
@@ -124,8 +132,8 @@ where
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
     config: Config,
-    injector_fn: Option<InjectorFn<Data<T>, V>>,
     source: Option<P>,
+    _marker: std::marker::PhantomData<V>,
 }
 
 #[buildstructor]
@@ -133,10 +141,11 @@ impl<T, V, P> Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>> + Send + 'static,
+    P: Populator<T, V, Data<T>>,
 {
     #[builder]
-    pub fn new(config: Config) -> Self {
+    pub fn new(source: Option<P>, config: Option<Config>) -> Self {
+        let config = config.unwrap_or_default();
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
         // let notifier = sender.clone();
@@ -155,15 +164,21 @@ where
             receiver,
             sender,
             config,
-            injector_fn: None,
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: HashMap::new(),
             window: Window::new(50, 50),
-            source: None,
+            source,
+            _marker: Default::default(),
         }
     }
-
+}
+impl<T, V, P> Picker<T, V, P>
+where
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    V: InjectorConfig,
+    P: Populator<T, V, Data<T>>,
+{
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
         if status.0.changed {
@@ -177,13 +192,6 @@ where
 
     fn try_recv(&self) -> Result<(), crossbeam_channel::TryRecvError> {
         self.receiver.try_recv()
-    }
-
-    pub fn with_injector(self, injector: InjectorFn<Data<T>, V>) -> Self {
-        Self {
-            injector_fn: Some(injector),
-            ..self
-        }
     }
 
     pub fn with_source(self, source: P) -> Self {
@@ -362,22 +370,6 @@ where
         Ok(())
     }
 
-    // pub fn populate_with_source(&mut self) -> anyhow::Result<()> {
-    pub fn populate<R: Into<V>>(&self, config: Option<R>) -> anyhow::Result<()> {
-        let injector = self.matcher.injector();
-        let mut source = self.source.clone().expect("No source!");
-        if let Some(config) = config {
-            source.update_config(config.into());
-        };
-        rayon::spawn(move || {
-            injector
-                .populate_with_source(source)
-                .expect("Failed populating!");
-        });
-
-        Ok(())
-    }
-
     pub fn populate_with_local<F>(&mut self, populator: F) -> anyhow::Result<()>
     where
         F: Fn(Sender<Data<T>>) -> anyhow::Result<()> + 'static,
@@ -386,21 +378,6 @@ where
 
         injector.populate_with_local(populator)
     }
-
-    // pub fn populate<R: Into<V>>(&mut self, config: Option<R>) -> anyhow::Result<()> {
-    //     let injector = self.matcher.injector();
-    //     let populator = self
-    //         .injector_fn
-    //         .clone()
-    //         .expect("Trying to call picker with no injector fn")(
-    //         config.map(|c| c.into())
-    //     );
-    //     rayon::spawn(move || {
-    //         injector.populate_with(populator);
-    //     });
-    //
-    //     Ok(())
-    // }
 
     pub fn multiselect(&mut self, index: u32) {
         let snapshot = self.matcher.snapshot();
@@ -456,29 +433,11 @@ where
     pub fn shutdown(&mut self) {}
 }
 
-impl<T, V, P> Default for Picker<T, V, P>
-where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + 'static,
-    V: InjectorConfig,
-    P: Populator<T, V, Data<T>> + Send + 'static,
-{
-    fn default() -> Self {
-        Self::new(Config::default())
-    }
-}
-
 impl<T, V, P> Buffer<T> for Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>> + Send + 'static,
+    P: Populator<T, V, Data<T>> + 'static,
 {
     fn len(&self) -> usize {
         self.total_matches().try_into().unwrap_or(usize::MAX)
@@ -498,6 +457,27 @@ where
 
     fn cursor_mut(&mut self) -> &mut crate::buffer::Cursor {
         &mut self.cursor
+    }
+}
+impl<T, V, P> Picker<T, V, P>
+where
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    V: InjectorConfig,
+    P: Populator<T, V, Data<T>> + Send + Clone + 'static,
+{
+    pub fn populate<R: Into<V>>(&self, config: Option<R>) -> anyhow::Result<()> {
+        let injector = self.matcher.injector();
+        let mut source = self.source.clone().expect("No source!");
+        if let Some(config) = config {
+            source.update_config(config.into());
+        };
+        rayon::spawn(move || {
+            injector
+                .populate_with_source(source)
+                .expect("Failed populating!");
+        });
+
+        Ok(())
     }
 }
 
@@ -531,7 +511,7 @@ impl<T, V, P> UserData for Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>> + Send + 'static,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
