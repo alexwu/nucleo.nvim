@@ -177,7 +177,7 @@ impl<T, V, P> Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>>,
+    P: Populator<T, V, Data<T>> + 'static,
 {
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
