@@ -8,7 +8,6 @@ use directories::ProjectDirs;
 use log::LevelFilter;
 use mlua::prelude::*;
 use picker::Picker;
-use rayon::prelude::*;
 use simplelog::{Config, WriteLogger};
 use sources::{
     diagnostics::{self, Diagnostic},
@@ -39,37 +38,31 @@ fn init_lua_picker(
     let mut picker = diagnostics::create_picker().into_lua_err()?;
     match params.0.clone() {
         LuaValue::LightUserData(_) => todo!(),
-        LuaValue::Table(source) => todo!("Table not yet implemented"),
-        LuaValue::Function(finder) => {
-            picker
-                .populate_with_local(move |tx| {
-                    let results = finder.call::<_, LuaValue>(());
-                    match results {
-                        Ok(entries) => {
-                            let mut entries = lua
-                                .from_value::<Vec<Diagnostic>>(entries)
-                                .expect("Error with diagnostics");
-                            log::info!("{:?}", entries);
-                            rayon::spawn(move || {
-                                // TODO: Make a queue that sorts stuff i guess
-                                entries
-                                    .par_sort_unstable_by_key(|entry| entry.severity.unwrap_or(0));
-
-                                entries.into_iter().for_each(|entry| {
-                                    let _ = tx.send(entry.into());
-                                });
+        LuaValue::Table(_) => todo!("Table not yet implemented"),
+        LuaValue::Function(finder) => picker
+            .populate_with_local(move |tx| {
+                let results = finder.call::<_, LuaValue>(());
+                match results {
+                    Ok(entries) => {
+                        let entries = lua
+                            .from_value::<Vec<Diagnostic>>(entries)
+                            .expect("Error with diagnostics");
+                        log::info!("{:?}", entries);
+                        rayon::spawn(move || {
+                            entries.into_iter().for_each(|entry| {
+                                let _ = tx.send(entry.into());
                             });
+                        });
 
-                            Ok(())
-                        }
-                        Err(error) => {
-                            log::error!("Errored calling finder fn: {}", error);
-                            bail!(error)
-                        }
+                        Ok(())
                     }
-                })
-                .into_lua_err()
-        }
+                    Err(error) => {
+                        log::error!("Errored calling finder fn: {}", error);
+                        bail!(error)
+                    }
+                }
+            })
+            .into_lua_err(),
         LuaValue::Thread(_) => todo!(),
         _ => todo!("Invalid finder"),
     }?;

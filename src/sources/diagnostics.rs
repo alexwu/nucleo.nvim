@@ -119,14 +119,14 @@ impl From<Diagnostic> for Data<Diagnostic> {
 
         let severity = value.severity.unwrap_or_default();
 
-        Data::new(
-            DataKind::File,
-            ordinal.clone(),
-            ordinal,
-            value,
-            Some(severity as u32),
-            Some(preview_options),
-        )
+        Data::builder()
+            .kind(DataKind::File)
+            .display(ordinal.clone())
+            .ordinal(ordinal)
+            .value(value)
+            .score(severity as u32)
+            .preview_options(preview_options)
+            .build()
     }
 }
 
