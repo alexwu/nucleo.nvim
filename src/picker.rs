@@ -133,6 +133,7 @@ where
     receiver: crossbeam_channel::Receiver<()>,
     config: Config,
     source: Option<P>,
+    multisort: bool,
     _marker: std::marker::PhantomData<V>,
 }
 
@@ -144,7 +145,7 @@ where
     P: Populator<T, V, Data<T>>,
 {
     #[builder]
-    pub fn new(source: Option<P>, config: Option<Config>) -> Self {
+    pub fn new(source: Option<P>, config: Option<Config>, multisort: Option<bool>) -> Self {
         let config = config.unwrap_or_default();
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
@@ -164,6 +165,7 @@ where
             receiver,
             sender,
             config,
+            multisort: multisort.unwrap_or_default(),
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: HashMap::new(),
@@ -192,13 +194,6 @@ where
 
     fn try_recv(&self) -> Result<(), crossbeam_channel::TryRecvError> {
         self.receiver.try_recv()
-    }
-
-    pub fn with_source(self, source: P) -> Self {
-        Self {
-            source: Some(source),
-            ..self
-        }
     }
 
     pub fn should_rerender(&self) -> bool {
@@ -591,7 +586,14 @@ where
         methods.add_method_mut("window_height", |_lua, this, ()| Ok(this.window_height()));
 
         methods.add_method("current_matches", |lua, this, ()| {
-            Ok(lua.to_value(&this.current_matches()))
+            if this.multisort {
+                let mut matches = this.current_matches();
+                matches.par_sort_unstable_by_key(|entry| entry.score);
+
+                Ok(lua.to_value(&matches))
+            } else {
+                Ok(lua.to_value(&this.current_matches()))
+            }
         });
 
         methods.add_method("total_items", |_lua, this, ()| Ok(this.total_items()));

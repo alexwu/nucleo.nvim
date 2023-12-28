@@ -24,6 +24,7 @@ mod error;
 mod injector;
 mod matcher;
 mod nvim;
+mod pattern;
 mod picker;
 mod previewer;
 mod sorter;
@@ -40,7 +41,6 @@ fn init_lua_picker(
         LuaValue::LightUserData(_) => todo!(),
         LuaValue::Table(source) => todo!("Table not yet implemented"),
         LuaValue::Function(finder) => {
-            let func = lua.create_registry_value(finder.clone())?;
             picker
                 .populate_with_local(move |tx| {
                     let results = finder.call::<_, LuaValue>(());

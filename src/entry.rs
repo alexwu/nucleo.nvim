@@ -64,6 +64,7 @@ where
 {
     pub display: String,
     pub ordinal: String,
+    pub score: u32,
     pub kind: DataKind,
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
@@ -86,30 +87,25 @@ where
         display: V,
         ordinal: V,
         value: T,
+        score: Option<u32>,
         preview_options: Option<PreviewOptions>,
     ) -> Self {
         Self {
             kind,
             value,
             preview_options,
+            score: score.unwrap_or(0),
             display: display.into(),
             ordinal: ordinal.into(),
             selected: false,
             indices: vec![],
         }
     }
-
-    pub fn with_preview_options(self, preview_options: PreviewOptions) -> Self {
-        Self {
-            preview_options: Some(preview_options),
-            ..self
-        }
-    }
 }
 
 impl From<String> for Data<String> {
     fn from(value: String) -> Self {
-        Self::new(DataKind::String, &value, &value, value.clone(), None)
+        Self::new(DataKind::String, &value, &value, value.clone(), Some(0), None)
     }
 }
 
@@ -147,13 +143,7 @@ where
 
 impl<T> Entry for Data<T>
 where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + 'static,
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     fn display(&self) -> String {
         self.display.clone()

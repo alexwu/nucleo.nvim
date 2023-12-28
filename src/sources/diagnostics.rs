@@ -117,16 +117,19 @@ impl From<Diagnostic> for Data<Diagnostic> {
             .and_file_extension(file_extension)
             .build();
 
+        let severity = value.severity.unwrap_or_default();
+
         Data::new(
             DataKind::File,
             ordinal.clone(),
             ordinal,
             value,
+            Some(severity as u32),
             Some(preview_options),
         )
     }
 }
 
 pub fn create_picker() -> anyhow::Result<Picker<Diagnostic, Config, Source>> {
-    anyhow::Ok(Picker::builder().build())
+    anyhow::Ok(Picker::builder().multisort(true).build())
 }
