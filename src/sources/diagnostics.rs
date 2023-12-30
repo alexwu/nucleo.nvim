@@ -1,6 +1,9 @@
-use std::{env::current_dir, path::Path};
+use std::{env::current_dir, path::Path, sync::Arc};
 
+use buildstructor::Builder;
 use mlua::prelude::*;
+use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
+use rayon::slice::ParallelSliceMut;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use url::Url;
@@ -11,14 +14,48 @@ use crate::{
     previewer::{PreviewKind, PreviewOptions},
 };
 
-use super::Populator;
+use super::{Populator, SourceKind};
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromLua)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromLua, Default)]
 pub struct Config {}
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Source {
     config: Config,
+    #[serde(skip)]
+    finder: Option<Arc<RegistryKey>>,
+}
+
+impl FromLua<'_> for Source {
+    fn from_lua(value: Value<'_>, lua: &Lua) -> LuaResult<Self> {
+        let table = value
+            .as_table()
+            .ok_or_else(|| anyhow::anyhow!("Source wasn't given a table!"))
+            .into_lua_err()?;
+
+        // log::info!("config: {:?}", table.s);
+        table.for_each(|k: String, v: Value| {
+            log::info!("{:?}", k);
+            log::info!("{:?}", v);
+
+            Ok(())
+        })?;
+
+        let registry_key = match table.get::<&str, LuaValue>("finder")? {
+            LuaValue::Function(thunk) => lua.create_registry_value(thunk)?,
+            _ => todo!("Failed to implement finder"),
+        };
+
+        // let config: Config = table.get::<_, Config>("config")?;
+        let config: Option<Config> = table.get::<_, Option<Config>>("config")?;
+
+        log::info!("diagnostics config: {:?}", config);
+
+        Ok(Source::builder()
+            .config(config.unwrap_or_default())
+            .finder(Arc::new(registry_key))
+            .build())
+    }
 }
 
 impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
@@ -26,12 +63,40 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
         String::from("builtin.diagnostics")
     }
 
+    fn kind(&self) -> super::SourceKind {
+        SourceKind::Lua
+    }
+
     fn update_config(&mut self, config: Config) {
         self.config = config;
     }
 
-    fn build_injector(&self) -> crate::injector::FinderFn<Data<Diagnostic>> {
-        todo!()
+    fn build_injector(&self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Diagnostic>> {
+        let key = self.finder.clone().expect("No registry key stored!");
+        let finder = lua
+            .expect("No Lua object given!")
+            .registry_value::<Function>(&key)
+            .expect("Remember to make it so these return results!");
+        let results = finder.call::<_, Value>(());
+        let mut entries = match results {
+            Ok(entries) => lua
+                .expect("No lua!")
+                .from_value::<Vec<Diagnostic>>(entries)
+                .expect("Error with diagnostics"),
+            Err(error) => {
+                log::error!("Errored calling finder fn: {}", error);
+                Vec::new()
+            }
+        };
+
+        entries.par_sort_unstable_by_key(|entry| entry.severity.unwrap_or_default());
+
+        Arc::new(move |tx| {
+            entries.clone().into_iter().for_each(|entry| {
+                let _ = tx.send(entry.into());
+            });
+            Ok(())
+        })
     }
 }
 
@@ -130,6 +195,6 @@ impl From<Diagnostic> for Data<Diagnostic> {
     }
 }
 
-pub fn create_picker() -> anyhow::Result<Picker<Diagnostic, Config, Source>> {
-    anyhow::Ok(Picker::builder().multisort(true).build())
+pub fn create_picker(source: Source) -> anyhow::Result<Picker<Diagnostic, Config, Source>> {
+    anyhow::Ok(Picker::builder().multisort(true).source(source).build())
 }

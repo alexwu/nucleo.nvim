@@ -27,11 +27,15 @@ impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
         String::from("builtin.git_status")
     }
 
+    fn kind(&self) -> super::SourceKind {
+        super::SourceKind::Rust
+    }
+
     fn update_config(&mut self, config: StatusConfig) {
         self.config = config;
     }
 
-    fn build_injector(&self) -> FinderFn<Data<StatusEntry>> {
+    fn build_injector(&self, _: Option<&Lua>) -> FinderFn<Data<StatusEntry>> {
         let config = self.config.clone();
         let repo = Repository::open(config.cwd).expect("Unable to open repository");
 

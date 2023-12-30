@@ -31,44 +31,44 @@ mod sources;
 mod util;
 mod window;
 
-fn init_lua_picker(
-    lua: &'static Lua,
-    params: (LuaValue<'static>,),
-) -> LuaResult<Picker<Diagnostic, diagnostics::Config, diagnostics::Source>> {
-    let mut picker = diagnostics::create_picker().into_lua_err()?;
-    match params.0.clone() {
-        LuaValue::LightUserData(_) => todo!(),
-        LuaValue::Table(_) => todo!("Table not yet implemented"),
-        LuaValue::Function(finder) => picker
-            .populate_with_local(move |tx| {
-                let results = finder.call::<_, LuaValue>(());
-                match results {
-                    Ok(entries) => {
-                        let entries = lua
-                            .from_value::<Vec<Diagnostic>>(entries)
-                            .expect("Error with diagnostics");
-                        log::info!("{:?}", entries);
-                        rayon::spawn(move || {
-                            entries.into_iter().for_each(|entry| {
-                                let _ = tx.send(entry.into());
-                            });
-                        });
-
-                        Ok(())
-                    }
-                    Err(error) => {
-                        log::error!("Errored calling finder fn: {}", error);
-                        bail!(error)
-                    }
-                }
-            })
-            .into_lua_err(),
-        LuaValue::Thread(_) => todo!(),
-        _ => todo!("Invalid finder"),
-    }?;
-
-    Ok(picker)
-}
+// fn init_lua_picker(
+//     lua: &'static Lua,
+//     params: (LuaValue<'static>,),
+// ) -> LuaResult<Picker<Diagnostic, diagnostics::Config, diagnostics::Source>> {
+//     let mut picker = diagnostics::create_picker().into_lua_err()?;
+//     match params.0.clone() {
+//         LuaValue::LightUserData(_) => todo!(),
+//         LuaValue::Table(_) => todo!("Table not yet implemented"),
+//         LuaValue::Function(finder) => picker
+//             .populate_with_local(lua, move |tx| {
+//                 let results = finder.call::<_, LuaValue>(());
+//                 match results {
+//                     Ok(entries) => {
+//                         let entries = lua
+//                             .from_value::<Vec<Diagnostic>>(entries)
+//                             .expect("Error with diagnostics");
+//                         log::info!("{:?}", entries);
+//                         rayon::spawn(move || {
+//                             entries.into_iter().for_each(|entry| {
+//                                 let _ = tx.send(entry.into());
+//                             });
+//                         });
+//
+//                         Ok(())
+//                     }
+//                     Err(error) => {
+//                         log::error!("Errored calling finder fn: {}", error);
+//                         bail!(error)
+//                     }
+//                 }
+//             })
+//             .into_lua_err(),
+//         LuaValue::Thread(_) => todo!(),
+//         _ => todo!("Invalid finder"),
+//     }?;
+//
+//     Ok(picker)
+// }
 
 #[mlua::lua_module]
 fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
@@ -102,7 +102,14 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
             ))
         }),
     )?;
-    exports.set("LuaPicker", lua.create_function(init_lua_picker)?)?;
+    // exports.set("LuaPicker", lua.create_function(init_lua_picker)?)?;
+    exports.set(
+        "LuaPicker",
+        LuaFunction::wrap(|_, params: (diagnostics::Source,)| {
+            diagnostics::create_picker(params.0).into_lua_err()
+            // diagnostics::create_picker().into_lua_err()
+        }),
+    )?;
     exports.set(
         "GitStatusPicker",
         LuaFunction::wrap(|_, params: (Option<PartialStatusConfig>,)| {

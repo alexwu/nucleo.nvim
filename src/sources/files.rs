@@ -27,11 +27,15 @@ impl Populator<Value, FileConfig, Data<Value>> for Source {
         String::from("builtin.files")
     }
 
+    fn kind(&self) -> super::SourceKind {
+        super::SourceKind::Rust
+    }
+
     fn update_config(&mut self, config: FileConfig) {
         self.config = config;
     }
 
-    fn build_injector(&self) -> FinderFn<Data<Value>> {
+    fn build_injector(&self, _: Option<&Lua>) -> FinderFn<Data<Value>> {
         let FileConfig {
             cwd,
             hidden,

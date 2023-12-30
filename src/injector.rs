@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use crossbeam_channel::{unbounded, Sender};
+use mlua::Lua;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
@@ -84,10 +85,10 @@ impl<T: Entry> Injector<T> {
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
 
-        let injector = source.build_injector();
+        let injector = source.build_injector(None);
         log::info!("injector::populate_with");
         rt.block_on(async {
-            let _: JoinHandle<Result<(), _>> = rt.spawn(async move {
+            let _f: JoinHandle<Result<(), _>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
                     self.push(val);
                 }
@@ -98,7 +99,32 @@ impl<T: Entry> Injector<T> {
         })
     }
 
-    pub fn populate_with_local<F>(self, func: F) -> anyhow::Result<()>
+    pub fn populate_with_lua_source<P, U, V>(self, lua: &Lua, source: P) -> anyhow::Result<()>
+    where
+        U: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+        V: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+        P: Populator<V, U, T>,
+    {
+        let rt = Runtime::new().expect("Failed to create runtime");
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let injector = source.build_injector(Some(lua));
+        log::info!("injector::populate_with_lua_source");
+
+        rt.block_on(async {
+            let _f: JoinHandle<Result<(), _>> = rt.spawn(async move {
+                while let Some(val) = rx.recv().await {
+                    self.push(val);
+                }
+                anyhow::Ok(())
+            });
+
+            injector(tx)
+        })
+    }
+
+    pub fn populate_with_local<F>(self, lua: &Lua, func: F) -> anyhow::Result<()>
     where
         F: Fn(Sender<T>) -> anyhow::Result<()> + 'static,
     {

@@ -77,10 +77,11 @@ function Picker:new(opts)
 		self.picker = nu.FilePicker(opts)
 	elseif opts.source == "builtin.git_status" then
 		self.picker = nu.GitStatusPicker(opts)
-	elseif type(opts.source) == "function" then
-		self.picker = nu.LuaPicker(opts.source)
+	-- elseif type(opts.source) == "function" then
+	-- 	self.picker = nu.LuaPicker(opts.source)
 	else
-		self.picker = nu.CustomPicker(opts.source)
+		-- self.picker = nu.CustomPicker(opts.source)
+		self.picker = nu.LuaPicker(opts.source)
 	end
 
 	self.results = Results()
@@ -206,11 +207,13 @@ function Picker:find(opts)
 
 	if type(self.source) == "string" then
 		self.picker:populate(options)
-	elseif type(self.source) == "function" then
+	-- elseif type(self.source) == "function" then
 		-- self.picker:populate(self.source)
 	else
 		-- vim.print(self.source)
-		-- self.picker:populate(self.source.results)
+		-- self.picker:populate(self.source)
+		-- self.picker:populate_with_lua_source(options)
+		self.picker:populate_with_lua_source()
 	end
 
 	self.picker:tick(10)

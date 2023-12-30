@@ -3,9 +3,14 @@ local M = {}
 
 function M.diagnostics(...)
 	Picker({
-		source = function()
-			return vim.diagnostic.get(nil)
-		end,
+		source = {
+			name = "builtin.diagnostics",
+			-- config = {},
+			config = nil,
+			finder = function()
+				return vim.diagnostic.get(nil)
+			end,
+		},
 		on_submit = function(selection)
 			local bufnr = selection.value.bufnr
 			local lnum = selection.value.lnum

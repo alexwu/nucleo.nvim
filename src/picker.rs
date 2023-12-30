@@ -142,7 +142,7 @@ impl<T, V, P> Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>>,
+    P: Populator<T, V, Data<T>> + Clone,
 {
     #[builder]
     pub fn new(source: Option<P>, config: Option<Config>, multisort: Option<bool>) -> Self {
@@ -179,7 +179,7 @@ impl<T, V, P> Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>> + 'static,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
 {
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
@@ -365,15 +365,33 @@ where
         Ok(())
     }
 
-    pub fn populate_with_local<F>(&mut self, populator: F) -> anyhow::Result<()>
+    pub fn populate_with_local<F>(&mut self, lua: &Lua, populator: F) -> anyhow::Result<()>
     where
         F: Fn(Sender<Data<T>>) -> anyhow::Result<()> + 'static,
     {
         let injector = self.matcher.injector();
 
-        injector.populate_with_local(populator)
+        injector.populate_with_local(lua, populator)
     }
 
+    pub fn populate_with_lua_source<R: Into<V>>(
+        &self,
+        lua: &Lua,
+        config: Option<R>,
+    ) -> anyhow::Result<()> {
+        let injector = self.matcher.injector();
+        let mut source = self.source.clone().expect("No source!");
+
+        if let Some(config) = config {
+            source.update_config(config.into());
+        };
+
+        injector
+            .populate_with_lua_source(lua, source)
+            .expect("Failed populating!");
+
+        Ok(())
+    }
     pub fn multiselect(&mut self, index: u32) {
         let snapshot = self.matcher.snapshot();
         match snapshot.get_matched_item(index) {
@@ -432,7 +450,7 @@ impl<T, V, P> Buffer<T> for Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>> + 'static,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
 {
     fn len(&self) -> usize {
         self.total_matches().try_into().unwrap_or(usize::MAX)
@@ -466,6 +484,7 @@ where
         if let Some(config) = config {
             source.update_config(config.into());
         };
+
         rayon::spawn(move || {
             injector
                 .populate_with_source(source)
@@ -587,8 +606,9 @@ where
 
         methods.add_method("current_matches", |lua, this, ()| {
             if this.multisort {
-                let mut matches = this.current_matches();
-                matches.par_sort_unstable_by_key(|entry| entry.score);
+                let matches = this.current_matches();
+                // TODO: This leads the matches to be out of sync with the indices
+                // matches.par_sort_unstable_by_key(|entry| entry.score);
 
                 Ok(lua.to_value(&matches))
             } else {
@@ -637,6 +657,13 @@ where
         methods.add_method_mut("populate", |_lua, this, params: (Option<V>,)| {
             this.populate(params.0).into_lua_err()
         });
+
+        methods.add_method_mut(
+            "populate_with_lua_source",
+            |lua, this, params: (Option<V>,)| {
+                this.populate_with_lua_source(lua, params.0).into_lua_err()
+            },
+        );
 
         methods.add_method_mut("populate_with", |lua, this, params: (LuaValue<'_>,)| {
             this.populate_with(lua.from_value(params.0)?).into_lua_err()

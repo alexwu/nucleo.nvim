@@ -1,5 +1,4 @@
-use mlua::{FromLua, Lua};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 
@@ -14,7 +13,8 @@ use super::Populator;
 pub struct Source {
     name: String,
     config: Blob,
-    results: Vec<Data<Blob>>,
+    #[serde(skip)]
+    function_key: Option<Arc<RegistryKey>>,
 }
 
 impl Source {
@@ -37,10 +37,26 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
     }
 
     fn build_injector(&self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Blob>> {
-        let entries = self.results.clone();
+        let key = self.function_key.clone().expect("No registry key stored!");
+        let finder = lua
+            .expect("No Lua object given!")
+            .registry_value::<Function>(&key)
+            .expect("Remember to make it so these return results!");
+        let results = finder.call::<_, Value>(());
+        let entries = match results {
+            Ok(entries) => lua
+                .expect("No lua!")
+                .from_value::<Vec<Data<Blob>>>(entries)
+                .expect("Error with diagnostics"),
+            Err(error) => {
+                log::error!("Errored calling finder fn: {}", error);
+                Vec::new()
+            }
+        };
+
         Arc::new(move |tx| {
-            entries.par_iter().for_each(|entry| {
-                let _ = tx.send(entry.clone());
+            entries.clone().into_iter().for_each(|entry| {
+                let _ = tx.send(entry);
             });
             Ok(())
         })
