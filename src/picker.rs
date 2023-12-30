@@ -24,7 +24,7 @@ use strum::{Display, EnumIs, EnumString};
 use crate::buffer::{Buffer, Cursor, Relative};
 use crate::entry::{Data, Entry};
 use crate::matcher::{Matcher, Status, MATCHER};
-use crate::sources::Populator;
+use crate::sources::{Populator, SourceKind};
 use crate::window::Window;
 
 #[derive(Debug, Clone, Copy)]
@@ -343,7 +343,6 @@ where
                 if selected {
                     log::info!("{:?} is selected", &item.data);
                 }
-                // TODO: Probably a better way to do this
                 item.data
                     .clone()
                     .with_indices(ranges)
@@ -478,18 +477,27 @@ where
     V: InjectorConfig,
     P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
-    pub fn populate<R: Into<V>>(&self, config: Option<R>) -> anyhow::Result<()> {
+    pub fn populate<R: Into<V>>(&self, lua: &Lua, config: Option<R>) -> anyhow::Result<()> {
         let injector = self.matcher.injector();
         let mut source = self.source.clone().expect("No source!");
         if let Some(config) = config {
             source.update_config(config.into());
         };
 
-        rayon::spawn(move || {
-            injector
-                .populate_with_source(source)
-                .expect("Failed populating!");
-        });
+        match source.kind() {
+            SourceKind::Rust => {
+                rayon::spawn(move || {
+                    injector
+                        .populate_with_source(source)
+                        .expect("Failed populating!");
+                });
+            }
+            SourceKind::Lua => {
+                injector
+                    .populate_with_lua_source(lua, source)
+                    .expect("Failed populating!");
+            }
+        }
 
         Ok(())
     }
@@ -654,8 +662,8 @@ where
             Ok(status)
         });
 
-        methods.add_method_mut("populate", |_lua, this, params: (Option<V>,)| {
-            this.populate(params.0).into_lua_err()
+        methods.add_method_mut("populate", |lua, this, params: (Option<V>,)| {
+            this.populate(lua, params.0).into_lua_err()
         });
 
         methods.add_method_mut(

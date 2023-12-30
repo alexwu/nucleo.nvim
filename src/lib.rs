@@ -3,14 +3,12 @@ use std::{
     fs::{self, File},
 };
 
-use anyhow::bail;
 use directories::ProjectDirs;
 use log::LevelFilter;
 use mlua::prelude::*;
-use picker::Picker;
 use simplelog::{Config, WriteLogger};
 use sources::{
-    diagnostics::{self, Diagnostic},
+    diagnostics,
     files::{self, PartialFileConfig},
     git::{self, PartialStatusConfig},
 };
@@ -102,12 +100,10 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
             ))
         }),
     )?;
-    // exports.set("LuaPicker", lua.create_function(init_lua_picker)?)?;
     exports.set(
-        "LuaPicker",
+        "DiagnosticsPicker",
         LuaFunction::wrap(|_, params: (diagnostics::Source,)| {
             diagnostics::create_picker(params.0).into_lua_err()
-            // diagnostics::create_picker().into_lua_err()
         }),
     )?;
     exports.set(

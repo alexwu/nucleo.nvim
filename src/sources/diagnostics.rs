@@ -14,7 +14,7 @@ use crate::{
     previewer::{PreviewKind, PreviewOptions},
 };
 
-use super::{Populator, SourceKind};
+use super::{Populator, SourceKind, Sources};
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromLua, Default)]
 pub struct Config {}
@@ -59,8 +59,8 @@ impl FromLua<'_> for Source {
 }
 
 impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
-    fn name(&self) -> String {
-        String::from("builtin.diagnostics")
+    fn name(&self) -> Sources {
+        Sources::Diagnostics
     }
 
     fn kind(&self) -> super::SourceKind {

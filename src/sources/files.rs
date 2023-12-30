@@ -15,7 +15,7 @@ use crate::injector::FinderFn;
 use crate::picker::Picker;
 use crate::previewer::{PreviewKind, PreviewOptions};
 
-use super::Populator;
+use super::{Populator, Sources};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Source {
@@ -23,8 +23,8 @@ pub struct Source {
 }
 
 impl Populator<Value, FileConfig, Data<Value>> for Source {
-    fn name(&self) -> String {
-        String::from("builtin.files")
+    fn name(&self) -> Sources {
+        Sources::Files
     }
 
     fn kind(&self) -> super::SourceKind {

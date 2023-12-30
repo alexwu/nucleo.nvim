@@ -15,7 +15,7 @@ use crate::{
     previewer::{PreviewKind, PreviewOptions},
 };
 
-use super::Populator;
+use super::{Populator, Sources};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Source {
@@ -23,8 +23,8 @@ pub struct Source {
 }
 
 impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
-    fn name(&self) -> String {
-        String::from("builtin.git_status")
+    fn name(&self) -> Sources {
+        Sources::GitStatus
     }
 
     fn kind(&self) -> super::SourceKind {

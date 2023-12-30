@@ -8,7 +8,7 @@ use crate::{
     picker::{self, Blob, Picker},
 };
 
-use super::Populator;
+use super::{Populator, Sources};
 
 #[derive(FromLua, Debug, Clone, Serialize, Deserialize, buildstructor::Builder)]
 pub struct Source {
@@ -24,8 +24,8 @@ impl Source {
 }
 
 impl Populator<Blob, Blob, Data<Blob>> for Source {
-    fn name(&self) -> String {
-        self.name.clone()
+    fn name(&self) -> Sources {
+        Sources::Custom(self.name.clone())
     }
 
     fn kind(&self) -> super::SourceKind {
