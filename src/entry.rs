@@ -62,7 +62,6 @@ pub struct Data<T>
 where
     T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
 {
-    pub display: String,
     pub ordinal: String,
     pub score: u32,
     pub kind: DataKind,
@@ -84,7 +83,6 @@ where
     #[builder]
     pub fn new<V: Into<String>>(
         kind: DataKind,
-        display: V,
         ordinal: V,
         value: T,
         score: Option<u32>,
@@ -95,7 +93,6 @@ where
             value,
             preview_options,
             score: score.unwrap_or(0),
-            display: display.into(),
             ordinal: ordinal.into(),
             selected: false,
             indices: vec![],
@@ -105,7 +102,7 @@ where
 
 impl From<String> for Data<String> {
     fn from(value: String) -> Self {
-        Self::new(DataKind::String, &value, &value, value.clone(), Some(0), None)
+        Self::new(DataKind::String, &value, value.clone(), Some(0), None)
     }
 }
 
@@ -146,7 +143,7 @@ where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     fn display(&self) -> String {
-        self.display.clone()
+        self.ordinal.clone()
     }
 
     fn ordinal(&self) -> String {

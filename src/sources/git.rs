@@ -259,7 +259,6 @@ impl From<StatusEntry> for Data<StatusEntry> {
         Data::new(
             DataKind::File,
             path.to_str().expect("Failed to convert path to string"),
-            path.to_str().expect("Failed to convert path to string"),
             value.clone(),
             Some(0),
             Some(preview_options),

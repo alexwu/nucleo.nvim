@@ -24,16 +24,18 @@ local defaults = {
 	sources = {
 		---@class Nucleo.Config.Files: Nucleo.Config.Defaults.Generic
 		---@field cwd fun()|string
-		---@field ignore boolean
 		["builtin.files"] = {
 			cwd = vim.uv.cwd,
 			git_ignore = true,
 			ignore = true,
+			hidden = false,
 		},
 		---@class Nucleo.Config.GitStatus: Nucleo.Config.Defaults.Generic
 		["builtin.git_status"] = {
 			cwd = vim.uv.cwd,
 		},
+		---@class Nucleo.Config.Diagnostics: Nucleo.Config.Defaults.Generic
+		["builtin.diagnostics"] = {},
 	},
 	---@class Nucleo.Keymaps
 	mappings = {

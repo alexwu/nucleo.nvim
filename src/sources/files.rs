@@ -131,7 +131,6 @@ impl Value {
             value,
             score: 0,
             preview_options: Some(preview_options),
-            display: match_value.clone(),
             ordinal: match_value,
         }
     }

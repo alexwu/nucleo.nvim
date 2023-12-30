@@ -186,7 +186,6 @@ impl From<Diagnostic> for Data<Diagnostic> {
 
         Data::builder()
             .kind(DataKind::File)
-            .display(ordinal.clone())
             .ordinal(ordinal)
             .value(value)
             .score(severity as u32)

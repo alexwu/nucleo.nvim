@@ -53,10 +53,10 @@ pub enum PreviewKind {
     Diff,
 }
 
+// TODO: Rename to `Metadata` or something. It's not really exclusive to the previewer anymore
 #[skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder, Default)]
 #[serde(default)]
-#[derive(Default)]
 pub struct PreviewOptions {
     pub kind: PreviewKind,
     pub line_start: usize,

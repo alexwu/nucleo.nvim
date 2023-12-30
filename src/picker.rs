@@ -132,7 +132,7 @@ where
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
     config: Config,
-    source: Option<P>,
+    source: P,
     multisort: bool,
     _marker: std::marker::PhantomData<V>,
 }
@@ -145,7 +145,7 @@ where
     P: Populator<T, V, Data<T>> + Clone,
 {
     #[builder]
-    pub fn new(source: Option<P>, config: Option<Config>, multisort: Option<bool>) -> Self {
+    pub fn new(source: P, config: Option<Config>, multisort: Option<bool>) -> Self {
         let config = config.unwrap_or_default();
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
@@ -373,24 +373,6 @@ where
         injector.populate_with_local(lua, populator)
     }
 
-    pub fn populate_with_lua_source<R: Into<V>>(
-        &self,
-        lua: &Lua,
-        config: Option<R>,
-    ) -> anyhow::Result<()> {
-        let injector = self.matcher.injector();
-        let mut source = self.source.clone().expect("No source!");
-
-        if let Some(config) = config {
-            source.update_config(config.into());
-        };
-
-        injector
-            .populate_with_lua_source(lua, source)
-            .expect("Failed populating!");
-
-        Ok(())
-    }
     pub fn multiselect(&mut self, index: u32) {
         let snapshot = self.matcher.snapshot();
         match snapshot.get_matched_item(index) {
@@ -479,7 +461,7 @@ where
 {
     pub fn populate<R: Into<V>>(&self, lua: &Lua, config: Option<R>) -> anyhow::Result<()> {
         let injector = self.matcher.injector();
-        let mut source = self.source.clone().expect("No source!");
+        let mut source = self.source.clone();
         if let Some(config) = config {
             source.update_config(config.into());
         };
@@ -665,13 +647,6 @@ where
         methods.add_method_mut("populate", |lua, this, params: (Option<V>,)| {
             this.populate(lua, params.0).into_lua_err()
         });
-
-        methods.add_method_mut(
-            "populate_with_lua_source",
-            |lua, this, params: (Option<V>,)| {
-                this.populate_with_lua_source(lua, params.0).into_lua_err()
-            },
-        );
 
         methods.add_method_mut("populate_with", |lua, this, params: (LuaValue<'_>,)| {
             this.populate_with(lua.from_value(params.0)?).into_lua_err()
