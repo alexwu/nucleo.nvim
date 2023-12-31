@@ -1,14 +1,14 @@
+use std::{fmt::Debug, sync::Arc};
+
 use mlua::{FromLua, Lua};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, sync::Arc};
 
+use super::{Populator, Sources};
 use crate::{
     entry::Data,
     picker::{self, Blob, Picker},
 };
-
-use super::{Populator, Sources};
 
 #[derive(FromLua, Debug, Clone, Serialize, Deserialize, buildstructor::Builder)]
 pub struct Source {
@@ -36,7 +36,7 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
         self.config = config;
     }
 
-    fn build_injector(&self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Blob>> {
+    fn build_injector(&self, _lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Blob>> {
         let entries = self.results.clone();
         Arc::new(move |tx| {
             entries.par_iter().for_each(|entry| {

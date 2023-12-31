@@ -35,12 +35,12 @@ use std::sync::atomic::{self, AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
+pub use nucleo_matcher::{chars, Config, Matcher, Utf32Str, Utf32String};
 use parking_lot::Mutex;
 use rayon::ThreadPool;
 
 use crate::nucleo::pattern::MultiPattern;
 use crate::nucleo::worker::Worker;
-pub use nucleo_matcher::{chars, Config, Matcher, Utf32Str, Utf32String};
 
 mod boxcar;
 mod par_sort;

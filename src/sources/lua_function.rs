@@ -1,13 +1,13 @@
-use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
-use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 
+use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
+use serde::{Deserialize, Serialize};
+
+use super::{Populator, Sources};
 use crate::{
     entry::Data,
     picker::{self, Blob, Picker},
 };
-
-use super::{Populator, Sources};
 
 #[derive(FromLua, Debug, Clone, Serialize, Deserialize, buildstructor::Builder)]
 pub struct Source {

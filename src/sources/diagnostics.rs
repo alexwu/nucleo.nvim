@@ -9,13 +9,12 @@ use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use url::Url;
 
+use super::{Populator, SourceKind, Sources};
 use crate::{
     entry::{Data, DataKind},
     picker::Picker,
     previewer::{PreviewKind, PreviewOptions},
 };
-
-use super::{Populator, SourceKind, Sources};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, FromLua, Default)]
 pub enum Scope {

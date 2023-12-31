@@ -8,14 +8,13 @@ use partially::Partial;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use super::{Populator, Sources};
 use crate::{
     entry::{Data, DataKind},
     injector::FinderFn,
     picker::Picker,
     previewer::{PreviewKind, PreviewOptions},
 };
-
-use super::{Populator, Sources};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Source {

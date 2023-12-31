@@ -42,6 +42,7 @@ impl<T: Sync + Send + 'static> Worker<T> {
     pub(crate) fn item_count(&self) -> u32 {
         self.last_snapshot - self.in_flight.len() as u32
     }
+
     pub(crate) fn update_config(&mut self, config: Config) {
         for matcher in self.matchers.0.iter_mut() {
             matcher.get_mut().config = config.clone();

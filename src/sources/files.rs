@@ -10,12 +10,11 @@ use partially::Partial;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use super::{Populator, Sources};
 use crate::entry::{Data, DataKind};
 use crate::injector::{FinderFn, FromPartial};
 use crate::picker::Picker;
 use crate::previewer::{PreviewKind, PreviewOptions};
-
-use super::{Populator, Sources};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Source {

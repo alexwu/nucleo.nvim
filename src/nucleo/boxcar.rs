@@ -70,6 +70,7 @@ impl<T> Vec<T> {
             columns,
         }
     }
+
     pub fn columns(&self) -> u32 {
         self.columns
     }
@@ -265,6 +266,7 @@ impl<T> Iter<'_, T> {
 
 impl<'v, T> Iterator for Iter<'v, T> {
     type Item = SnapshotItem<'v, T>;
+
     fn size_hint(&self) -> (usize, Option<usize>) {
         (
             (self.end - self.idx) as usize,
@@ -382,8 +384,8 @@ struct ParIterProducer<'v, T: Send> {
 }
 
 impl<'v, T: 'v + Send + Sync> rayon::iter::plumbing::Producer for ParIterProducer<'v, T> {
-    type Item = SnapshotItem<'v, T>;
     type IntoIter = Iter<'v, T>;
+    type Item = SnapshotItem<'v, T>;
 
     fn into_iter(self) -> Self::IntoIter {
         debug_assert!(self.start <= self.end);
@@ -505,6 +507,7 @@ impl<T> Entry<T> {
         let ptr = (ptr as *mut u8).add(offset) as *mut _;
         slice::from_raw_parts_mut(ptr, cols as usize)
     }
+
     // # Safety
     //
     // Value must be initialized.

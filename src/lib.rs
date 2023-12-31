@@ -20,6 +20,7 @@ mod entry;
 mod error;
 mod injector;
 mod matcher;
+mod nucleo;
 mod nvim;
 mod pattern;
 mod picker;
@@ -28,7 +29,6 @@ mod sorter;
 mod sources;
 mod util;
 mod window;
-mod nucleo;
 
 // fn init_lua_picker(
 //     lua: &'static Lua,
