@@ -7,14 +7,12 @@ use std::string::ToString;
 use std::sync::Arc;
 
 use buildstructor::buildstructor;
-use crossbeam_channel::{bounded, Sender};
+use crossbeam_channel::bounded;
 use mlua::ExternalResult;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
 };
-use crate::nucleo::pattern::{CaseMatching, Normalization};
-use crate::nucleo::Nucleo;
 use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
@@ -23,7 +21,10 @@ use strum::{Display, EnumIs, EnumString};
 
 use crate::buffer::{Buffer, Cursor, Relative};
 use crate::entry::{Data, Entry};
+use crate::injector::Config as InjectorConfig;
 use crate::matcher::{Matcher, Status, MATCHER};
+use crate::nucleo::pattern::{CaseMatching, Normalization};
+use crate::nucleo::Nucleo;
 use crate::sources::{Populator, SourceKind};
 use crate::window::Window;
 
@@ -101,23 +102,6 @@ impl<'a> FromLua<'a> for Blob {
     }
 }
 
-pub trait InjectorConfig:
-    Serialize + Debug + Clone + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send + 'static
-{
-}
-
-impl<T> InjectorConfig for T where
-    T: Serialize
-        + Debug
-        + Clone
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + Sync
-        + Send
-        + 'static
-{
-}
-
 pub struct Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
@@ -157,8 +141,13 @@ where
             // };
         });
 
-        let matcher: Matcher<Data<T>> =
-            Nucleo::new(crate::nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
+        let matcher: Matcher<Data<T>> = Nucleo::new(
+            crate::nucleo::Config::DEFAULT.match_paths(),
+            notify,
+            None,
+            1,
+        )
+        .into();
 
         Self {
             matcher,
@@ -362,15 +351,6 @@ where
         });
 
         Ok(())
-    }
-
-    pub fn populate_with_local<F>(&mut self, lua: &Lua, populator: F) -> anyhow::Result<()>
-    where
-        F: Fn(Sender<Data<T>>) -> anyhow::Result<()> + 'static,
-    {
-        let injector = self.matcher.injector();
-
-        injector.populate_with_local(lua, populator)
     }
 
     pub fn multiselect(&mut self, index: u32) {

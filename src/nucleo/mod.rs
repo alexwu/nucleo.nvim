@@ -44,7 +44,7 @@ pub use nucleo_matcher::{chars, Config, Matcher, Utf32Str, Utf32String};
 
 mod boxcar;
 mod par_sort;
-pub mod pattern;
+pub(crate) mod pattern;
 mod worker;
 
 /// A match candidate stored in a [`Nucleo`] worker.
