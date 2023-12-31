@@ -9,7 +9,7 @@ use crate::nucleo::{self, Nucleo};
 use crate::{entry::Entry, injector::Injector};
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Deref)]
-pub struct Status(crate::nucleo::Status);
+pub struct Status(nucleo::Status);
 
 impl UserData for Status {
     fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
@@ -21,7 +21,7 @@ impl UserData for Status {
 pub struct Matcher<T: Entry>(Nucleo<T>);
 
 impl<T: Entry> Matcher<T> {
-    pub fn pattern(&mut self) -> &mut crate::nucleo::pattern::MultiPattern {
+    pub fn pattern(&mut self) -> &mut nucleo::pattern::MultiPattern {
         &mut self.0.pattern
     }
 
@@ -33,7 +33,7 @@ impl<T: Entry> Matcher<T> {
         Status(self.0.tick(timeout))
     }
 
-    pub fn snapshot(&self) -> &crate::nucleo::Snapshot<T> {
+    pub fn snapshot(&self) -> &nucleo::Snapshot<T> {
         self.0.snapshot()
     }
 
@@ -41,7 +41,7 @@ impl<T: Entry> Matcher<T> {
         self.0.restart(clear_snapshot)
     }
 
-    fn update_config(&mut self, config: crate::nucleo::Config) {
+    fn update_config(&mut self, config: nucleo::Config) {
         self.0.update_config(config);
     }
 }
@@ -53,12 +53,12 @@ impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
 }
 
 #[derive(Default)]
-pub struct FuzzyMatcher(crate::nucleo::Matcher);
+pub struct FuzzyMatcher(nucleo::Matcher);
 
 pub static MATCHER: Lazy<Arc<Mutex<FuzzyMatcher>>> =
     Lazy::new(|| Arc::new(Mutex::new(FuzzyMatcher::default())));
 
-impl From<crate::nucleo::Matcher> for FuzzyMatcher {
+impl From<nucleo::Matcher> for FuzzyMatcher {
     fn from(value: nucleo::Matcher) -> Self {
         FuzzyMatcher(value)
     }
