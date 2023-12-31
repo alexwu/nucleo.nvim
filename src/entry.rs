@@ -17,6 +17,16 @@ pub trait Entry:
     fn with_selected(self, selected: bool) -> Self;
 }
 
+pub trait IntoUtf32String {
+    fn into_utf32_string(self) -> crate::nucleo::Utf32String;
+}
+
+impl<T: Entry> IntoUtf32String for T {
+    fn into_utf32_string(self) -> crate::nucleo::Utf32String {
+        self.ordinal().clone().into()
+    }
+}
+
 #[derive(Debug, Clone, EnumString, Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum DataKind {

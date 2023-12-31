@@ -4,6 +4,7 @@ use derive_deref::Deref;
 use mlua::{UserData, UserDataFields};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use rvstruct::ValueStruct;
 
 use crate::nucleo::{self, Nucleo};
 use crate::{entry::Entry, injector::Injector};
@@ -52,23 +53,11 @@ impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, ValueStruct)]
 pub struct FuzzyMatcher(nucleo::Matcher);
 
 pub static MATCHER: Lazy<Arc<Mutex<FuzzyMatcher>>> =
     Lazy::new(|| Arc::new(Mutex::new(FuzzyMatcher::default())));
-
-impl From<nucleo::Matcher> for FuzzyMatcher {
-    fn from(value: nucleo::Matcher) -> Self {
-        FuzzyMatcher(value)
-    }
-}
-
-impl From<FuzzyMatcher> for nucleo::Matcher {
-    fn from(val: FuzzyMatcher) -> Self {
-        val.0
-    }
-}
 
 impl FuzzyMatcher {
     pub fn as_inner_mut(&mut self) -> &mut nucleo::Matcher {

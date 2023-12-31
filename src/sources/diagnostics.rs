@@ -3,6 +3,7 @@ use std::{env::current_dir, path::Path, sync::Arc};
 use buildstructor::Builder;
 use mlua::prelude::*;
 use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
+use partially::Partial;
 use rayon::slice::ParallelSliceMut;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
@@ -16,8 +17,17 @@ use crate::{
 
 use super::{Populator, SourceKind, Sources};
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromLua, Default)]
-pub struct Config {}
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, FromLua, Default)]
+pub enum Scope {
+    #[default]
+    Document,
+    Workspace,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromLua, Default, Partial)]
+pub struct Config {
+    scope: Scope,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Source {
@@ -124,14 +134,6 @@ impl FromLua<'_> for Diagnostic {
 impl<'lua> IntoLua<'lua> for Diagnostic {
     fn into_lua(self, lua: &'lua Lua) -> LuaResult<LuaValue<'lua>> {
         lua.to_value(&self)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DiagnosticPreviewOptions {}
-impl FromLua<'_> for DiagnosticPreviewOptions {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        lua.from_value(value)
     }
 }
 

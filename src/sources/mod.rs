@@ -4,7 +4,7 @@ use mlua::{FromLua, IntoLua, Lua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::{Display, EnumIs, EnumString};
 
-use crate::{entry::Entry, injector::FinderFn};
+use crate::{entry::{Entry, IntoUtf32String}, injector::FinderFn};
 
 pub mod diagnostics;
 pub mod files;
@@ -70,7 +70,7 @@ pub trait Populator<T, U, V>
 where
     T: Debug + Clone + Serialize + for<'a> Deserialize<'a> + 'static,
     U: Debug + Clone + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: Entry,
+    V: IntoUtf32String + Clone,
 {
     fn name(&self) -> Sources;
     fn kind(&self) -> SourceKind;

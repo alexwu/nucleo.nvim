@@ -21,7 +21,7 @@ use strum::{Display, EnumIs, EnumString};
 
 use crate::buffer::{Buffer, Cursor, Relative};
 use crate::entry::{Data, Entry};
-use crate::injector::Config as InjectorConfig;
+use crate::injector::{Config as InjectorConfig, FromPartial};
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::nucleo::pattern::{CaseMatching, Normalization};
 use crate::nucleo::Nucleo;
@@ -105,7 +105,7 @@ impl<'a> FromLua<'a> for Blob {
 pub struct Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig,
+    V: InjectorConfig + 'static,
     P: Populator<T, V, Data<T>>,
 {
     pub matcher: Matcher<Data<T>>,
@@ -125,7 +125,7 @@ where
 impl<T, V, P> Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig,
+    V: InjectorConfig + 'static,
     P: Populator<T, V, Data<T>> + Clone,
 {
     #[builder]
@@ -466,7 +466,7 @@ where
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Partial, Default)]
-#[partially(derive(Default, Debug))]
+#[partially(derive(Default, Debug, Clone, Serialize, Deserialize))]
 pub struct Config {
     pub sort_direction: SortDirection,
     pub selection_strategy: SelectionStrategy,
@@ -485,9 +485,7 @@ impl FromLua<'_> for PartialConfig {
 
 impl From<PartialConfig> for Config {
     fn from(value: PartialConfig) -> Self {
-        let mut config = Config::default();
-        config.apply_some(value);
-        config
+        Config::from_partial(value)
     }
 }
 

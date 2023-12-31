@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::entry::{Data, DataKind};
-use crate::injector::FinderFn;
+use crate::injector::{FinderFn, FromPartial};
 use crate::picker::Picker;
 use crate::previewer::{PreviewKind, PreviewOptions};
 
@@ -201,9 +201,7 @@ impl FromLua<'_> for PartialFileConfig {
 
 impl From<PartialFileConfig> for FileConfig {
     fn from(value: PartialFileConfig) -> Self {
-        let mut config = FileConfig::default();
-        config.apply_some(value);
-        config
+        FileConfig::from_partial(value)
     }
 }
 
