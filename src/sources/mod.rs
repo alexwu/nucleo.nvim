@@ -4,7 +4,7 @@ use mlua::{FromLua, IntoLua, Lua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer, Serialize};
 use strum::{Display, EnumIs, EnumString};
 
-use crate::{entry::{Entry, IntoUtf32String}, injector::FinderFn};
+use crate::{entry::IntoUtf32String, injector::FinderFn};
 
 pub mod diagnostics;
 pub mod files;

@@ -25,7 +25,9 @@ pub struct Previewer {
 }
 
 // TODO: Probably should have a placeholder when previewing is skipped
-#[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display, EnumIs)]
+#[derive(
+    Default, Debug, Clone, Serialize, Deserialize, PartialEq, EnumString, Display, EnumIs, Eq,
+)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum PreviewKind {
@@ -38,7 +40,7 @@ pub enum PreviewKind {
 
 // TODO: Rename to `Metadata` or something. It's not really exclusive to the previewer anymore
 #[skip_serializing_none]
-#[derive(Debug, Clone, Serialize, Deserialize, Builder, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder, Default, PartialEq, Eq)]
 #[serde(default)]
 pub struct PreviewOptions {
     pub kind: PreviewKind,

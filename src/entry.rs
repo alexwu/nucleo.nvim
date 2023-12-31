@@ -27,7 +27,7 @@ impl<T: Entry> IntoUtf32String for T {
     }
 }
 
-#[derive(Debug, Clone, EnumString, Display)]
+#[derive(Debug, Clone, EnumString, Display, PartialEq, Eq)]
 #[strum(serialize_all = "snake_case")]
 pub enum DataKind {
     File,
@@ -67,7 +67,7 @@ impl IntoLua<'_> for DataKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Data<T>
 where
     T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
