@@ -10,9 +10,8 @@ crate-type = ["cdylib"]
 [dependencies]
 anyhow = "1"
 buildstructor = "0.5"
-nucleo = "0.3"
 nucleo-matcher = "0.3"
-parking_lot = "0.12"
+parking_lot = { version = "0.12", features = ["send_guard", "arc_lock"] }
 ignore = "0.4"
 mlua = { version = "0.9", features = [
   "luajit",

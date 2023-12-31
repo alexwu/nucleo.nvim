@@ -13,8 +13,8 @@ use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
 };
-use nucleo::pattern::{CaseMatching, Normalization};
-use nucleo::Nucleo;
+use crate::nucleo::pattern::{CaseMatching, Normalization};
+use crate::nucleo::Nucleo;
 use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
@@ -158,7 +158,7 @@ where
         });
 
         let matcher: Matcher<Data<T>> =
-            Nucleo::new(nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
+            Nucleo::new(crate::nucleo::Config::DEFAULT.match_paths(), notify, None, 1).into();
 
         Self {
             matcher,

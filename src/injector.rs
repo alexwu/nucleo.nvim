@@ -13,17 +13,17 @@ pub type FinderFn<T> =
     Arc<dyn Fn(UnboundedSender<T>) -> anyhow::Result<()> + Sync + Send + 'static>;
 pub type InjectorFn<T, V> = Arc<dyn Fn(Option<V>) -> FinderFn<T> + Sync + Send>;
 
-pub struct Injector<T: Entry>(nucleo::Injector<T>);
+pub struct Injector<T: Entry>(crate::nucleo::Injector<T>);
 
-impl<T: Entry> From<nucleo::Injector<T>> for Injector<T> {
-    fn from(value: nucleo::Injector<T>) -> Self {
+impl<T: Entry> From<crate::nucleo::Injector<T>> for Injector<T> {
+    fn from(value: crate::nucleo::Injector<T>) -> Self {
         Self(value)
     }
 }
 
 impl<T: Entry> Clone for Injector<T> {
     fn clone(&self) -> Self {
-        <nucleo::Injector<T> as Clone>::clone(&self.0).into()
+        <crate::nucleo::Injector<T> as Clone>::clone(&self.0).into()
     }
 }
 

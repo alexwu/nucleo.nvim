@@ -14,23 +14,6 @@ use serde_with::skip_serializing_none;
 use smol_str::SmolStr;
 use strum::{Display, EnumIs, EnumString};
 
-pub trait Previewable:
-    Serialize + for<'a> FromLua<'a> + for<'a> Deserialize<'a> + Clone + Debug + Send + Sync + 'static
-{
-}
-
-impl<T> Previewable for T where
-    T: Serialize
-        + for<'a> FromLua<'a>
-        + for<'a> Deserialize<'a>
-        + Clone
-        + Debug
-        + Send
-        + Sync
-        + 'static
-{
-}
-
 // FIX: Need to invalidate cache when the position changes.
 // Maybe i should just cache the whole rope instead?
 // Also need to add a max file size...
