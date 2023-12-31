@@ -161,7 +161,7 @@ impl<T: Sync + Send + 'static> Snapshot<T> {
         self.matches.len() as u32
     }
 
-    /// Returns an iteror over the items that correspond to a subrange of
+    /// Returns an iterator over the items that correspond to a subrange of
     /// all the matches in this snapshot.
     ///
     /// # Panics

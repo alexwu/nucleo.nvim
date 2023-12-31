@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 [dependencies]
 anyhow = "1"
 buildstructor = "0.5"
+derive_deref = "1.1"
 nucleo-matcher = "0.3"
 parking_lot = { version = "0.12", features = ["send_guard", "arc_lock"] }
 ignore = "0.4"

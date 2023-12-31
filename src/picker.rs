@@ -154,12 +154,12 @@ where
             receiver,
             sender,
             config,
+            source,
             multisort: multisort.unwrap_or_default(),
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: HashMap::new(),
             window: Window::new(50, 50),
-            source,
             _marker: Default::default(),
         }
     }
@@ -172,7 +172,7 @@ where
 {
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
-        if status.0.changed {
+        if status.changed {
             self.force_rerender();
         }
 
@@ -341,7 +341,7 @@ where
     }
 
     pub fn restart(&mut self) {
-        self.matcher.0.restart(true);
+        self.matcher.restart(true);
     }
 
     pub fn populate_with(&mut self, entries: Vec<Data<T>>) -> anyhow::Result<()> {

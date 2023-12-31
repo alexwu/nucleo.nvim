@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use derive_deref::Deref;
 use mlua::{UserData, UserDataFields};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -7,7 +8,9 @@ use parking_lot::Mutex;
 use crate::nucleo::{self, Nucleo};
 use crate::{entry::Entry, injector::Injector};
 
-pub struct Status(pub crate::nucleo::Status);
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Deref)]
+pub struct Status(crate::nucleo::Status);
+
 impl UserData for Status {
     fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
         fields.add_field_method_get("changed", |_, this| Ok(this.0.changed));
@@ -15,7 +18,7 @@ impl UserData for Status {
     }
 }
 
-pub struct Matcher<T: Entry>(pub Nucleo<T>);
+pub struct Matcher<T: Entry>(Nucleo<T>);
 
 impl<T: Entry> Matcher<T> {
     pub fn pattern(&mut self) -> &mut crate::nucleo::pattern::MultiPattern {
@@ -33,6 +36,14 @@ impl<T: Entry> Matcher<T> {
     pub fn snapshot(&self) -> &crate::nucleo::Snapshot<T> {
         self.0.snapshot()
     }
+
+    pub fn restart(&mut self, clear_snapshot: bool) {
+        self.0.restart(clear_snapshot)
+    }
+
+    fn update_config(&mut self, config: crate::nucleo::Config) {
+        self.0.update_config(config);
+    }
 }
 
 impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
@@ -41,14 +52,8 @@ impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
     }
 }
 
-impl<T: Entry> Matcher<T> {
-    fn update_config(&mut self, config: crate::nucleo::Config) {
-        self.0.update_config(config);
-    }
-}
-
 #[derive(Default)]
-pub struct FuzzyMatcher(pub crate::nucleo::Matcher);
+pub struct FuzzyMatcher(crate::nucleo::Matcher);
 
 pub static MATCHER: Lazy<Arc<Mutex<FuzzyMatcher>>> =
     Lazy::new(|| Arc::new(Mutex::new(FuzzyMatcher::default())));
