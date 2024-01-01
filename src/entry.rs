@@ -27,6 +27,10 @@ impl<T: Entry> IntoUtf32String for T {
     }
 }
 
+pub trait Scored {
+    fn score(&self) -> u32;
+}
+
 #[derive(Debug, Clone, EnumString, Display, PartialEq, Eq)]
 #[strum(serialize_all = "snake_case")]
 pub enum DataKind {
@@ -67,7 +71,7 @@ impl IntoLua<'_> for DataKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq)]
 pub struct Data<T>
 where
     T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
@@ -107,6 +111,33 @@ where
             selected: false,
             indices: vec![],
         }
+    }
+}
+
+impl<T> Scored for Data<T>
+where
+    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+{
+    fn score(&self) -> u32 {
+        self.score
+    }
+}
+
+impl<T> PartialEq for Data<T>
+where
+    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.score() == other.score()
+    }
+}
+
+impl<T> PartialOrd for Data<T>
+where
+    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.score().cmp(&other.score()))
     }
 }
 

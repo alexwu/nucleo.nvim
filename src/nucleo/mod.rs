@@ -38,7 +38,9 @@ use std::time::Duration;
 pub use nucleo_matcher::{chars, Config, Matcher, Utf32Str, Utf32String};
 use parking_lot::Mutex;
 use rayon::ThreadPool;
+use serde::{Deserialize, Serialize};
 
+use crate::entry::Scored;
 use crate::nucleo::pattern::MultiPattern;
 use crate::nucleo::worker::Worker;
 
@@ -53,16 +55,28 @@ pub struct Item<'a, T> {
     pub matcher_columns: &'a [Utf32String],
 }
 
+impl<'a, T: Scored> Item<'a, T> {
+    pub fn score(&self) -> u32 {
+        self.data.score()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd)]
+pub struct CachedItem {
+    pub score: u32,
+    pub idx: u32,
+}
+
 /// A handle that allows adding new items to a [`Nucleo`] worker.
 ///
 /// It's internally reference counted and can be cheaply cloned
 /// and sent across threads.
-pub struct Injector<T> {
+pub struct Injector<T: Scored + Clone> {
     items: Arc<boxcar::Vec<T>>,
     notify: Arc<(dyn Fn() + Sync + Send)>,
 }
 
-impl<T> Clone for Injector<T> {
+impl<T: Scored + Clone> Clone for Injector<T> {
     fn clone(&self) -> Self {
         Injector {
             items: self.items.clone(),
@@ -71,7 +85,7 @@ impl<T> Clone for Injector<T> {
     }
 }
 
-impl<T> Injector<T> {
+impl<T: Scored + Clone> Injector<T> {
     /// Appends an element to the list of matched items.
     /// This function is lock-free and wait-free.
     pub fn push(&self, value: T, fill_columns: impl FnOnce(&mut [Utf32String])) -> u32 {
@@ -112,8 +126,25 @@ pub struct Match {
     pub idx: u32,
 }
 
+impl Ord for Match {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match other.score.cmp(&self.score) {
+            std::cmp::Ordering::Equal => {}
+            ord => return ord,
+        }
+
+        self.idx.cmp(&other.idx)
+    }
+}
+
+impl PartialOrd for Match {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(other.cmp(self))
+    }
+}
+
 /// That status of a [`Nucleo`] worker after a match.
-#[derive(PartialEq, Eq, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Status {
     /// Whether the current snapshot has changed.
     pub changed: bool,
@@ -123,14 +154,14 @@ pub struct Status {
 
 /// A snapshot represent the results of a [`Nucleo`] worker after
 /// finishing a [`tick`](Nucleo::tick).
-pub struct Snapshot<T: Sync + Send + 'static> {
+pub struct Snapshot<T: Sync + Send + 'static + Scored + Clone> {
     item_count: u32,
     matches: Vec<Match>,
     pattern: MultiPattern,
     items: Arc<boxcar::Vec<T>>,
 }
 
-impl<T: Sync + Send + 'static> Snapshot<T> {
+impl<T: Sync + Send + Scored + Clone + 'static> Snapshot<T> {
     fn clear(&mut self, new_items: Arc<boxcar::Vec<T>>) {
         self.item_count = 0;
         self.matches.clear();
@@ -225,7 +256,7 @@ impl<T: Sync + Send + 'static> Snapshot<T> {
 
 /// A high level matcher worker that quickly computes matches in a background
 /// threadpool.
-pub struct Nucleo<T: Sync + Send + 'static> {
+pub struct Nucleo<T: Sync + Send + Scored + 'static + PartialOrd + std::clone::Clone> {
     // the way the API is build we totally don't actually need these to be Arcs
     // but this lets us avoid some unsafe
     canceled: Arc<AtomicBool>,
@@ -243,7 +274,7 @@ pub struct Nucleo<T: Sync + Send + 'static> {
     pub pattern: MultiPattern,
 }
 
-impl<T: Sync + Send + 'static> Nucleo<T> {
+impl<T: Sync + Send + Scored + Clone + 'static + PartialOrd> Nucleo<T> {
     /// Constructs a new `nucleo` worker threadpool with the provided `config`.
     ///
     /// `notify` is called everytime new information is available and
@@ -262,8 +293,9 @@ impl<T: Sync + Send + 'static> Nucleo<T> {
         notify: Arc<(dyn Fn() + Sync + Send)>,
         num_threads: Option<usize>,
         columns: u32,
+        multi_sort: bool,
     ) -> Self {
-        let (pool, worker) = Worker::new(num_threads, config, notify.clone(), columns);
+        let (pool, worker) = Worker::new(num_threads, config, notify.clone(), columns, multi_sort);
         Self {
             canceled: worker.canceled.clone(),
             should_notify: worker.should_notify.clone(),
@@ -380,7 +412,7 @@ impl<T: Sync + Send + 'static> Nucleo<T> {
     }
 }
 
-impl<T: Sync + Send> Drop for Nucleo<T> {
+impl<T: Sync + Send + Scored + PartialOrd + Clone> Drop for Nucleo<T> {
     fn drop(&mut self) {
         // we ensure the worker quits before dropping items to ensure that
         // the worker can always assume the items outlive it

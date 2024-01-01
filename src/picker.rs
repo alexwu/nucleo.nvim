@@ -117,7 +117,7 @@ where
     receiver: crossbeam_channel::Receiver<()>,
     config: Config,
     source: P,
-    multisort: bool,
+    multi_sort: bool,
     _marker: std::marker::PhantomData<V>,
 }
 
@@ -129,7 +129,7 @@ where
     P: Populator<T, V, Data<T>> + Clone,
 {
     #[builder]
-    pub fn new(source: P, config: Option<Config>, multisort: Option<bool>) -> Self {
+    pub fn new(source: P, config: Option<Config>, multi_sort: Option<bool>) -> Self {
         let config = config.unwrap_or_default();
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
@@ -146,6 +146,7 @@ where
             notify,
             None,
             1,
+            multi_sort.unwrap_or_default(),
         )
         .into();
 
@@ -155,7 +156,7 @@ where
             sender,
             config,
             source,
-            multisort: multisort.unwrap_or_default(),
+            multi_sort: multi_sort.unwrap_or_default(),
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: HashMap::new(),
@@ -249,7 +250,7 @@ where
     }
 
     pub fn update_config(&mut self, config: PartialConfig) {
-        log::info!("Updating config to: {:?}", config);
+        // log::info!("Updating config to: {:?}", config);
         self.config.apply_some(config);
     }
 
@@ -281,7 +282,7 @@ where
             let _ = self.sender.try_send(());
         }
 
-        log::info!("Cursor position: {}", self.cursor.pos());
+        // log::info!("Cursor position: {}", self.cursor.pos());
     }
 
     pub fn move_cursor_to(&mut self, pos: usize) {
@@ -298,7 +299,7 @@ where
             let _ = self.sender.try_send(());
         }
 
-        log::info!("Cursor position: {}", self.cursor.pos());
+        // log::info!("Cursor position: {}", self.cursor.pos());
     }
 
     pub fn current_matches(&self) -> Vec<Data<T>> {
@@ -573,7 +574,7 @@ where
         methods.add_method_mut("window_height", |_lua, this, ()| Ok(this.window_height()));
 
         methods.add_method("current_matches", |lua, this, ()| {
-            if this.multisort {
+            if this.multi_sort {
                 let matches = this.current_matches();
                 // TODO: This leads the matches to be out of sync with the indices
                 // matches.par_sort_unstable_by_key(|entry| entry.score);

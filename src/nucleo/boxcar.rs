@@ -27,13 +27,14 @@ use std::mem::MaybeUninit;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, Ordering};
 use std::{ptr, slice};
 
+use crate::entry::Scored;
 use crate::nucleo::{Item, Utf32String};
 
 const BUCKETS: u32 = u32::BITS - SKIP_BUCKET;
 const MAX_ENTRIES: u32 = u32::MAX - SKIP;
 
 /// A lock-free, append-only vector.
-pub(crate) struct Vec<T> {
+pub(crate) struct Vec<T: Scored + Clone> {
     /// a counter used to retrieve a unique index to push to.
     ///
     /// this value may be more than the true length as it will
@@ -47,7 +48,7 @@ pub(crate) struct Vec<T> {
     columns: u32,
 }
 
-impl<T> Vec<T> {
+impl<T: Scored + Clone> Vec<T> {
     /// Constructs a new, empty `Vec<T>` with the specified capacity and matcher columns.
     pub fn with_capacity(capacity: u32, columns: u32) -> Vec<T> {
         assert_ne!(columns, 0, "there must be atleast one matcher column");
@@ -235,7 +236,7 @@ impl<T> Vec<T> {
     }
 }
 
-impl<T> Drop for Vec<T> {
+impl<T: Scored + Clone> Drop for Vec<T> {
     fn drop(&mut self) {
         for (i, bucket) in self.buckets.iter_mut().enumerate() {
             let entries = *bucket.entries.get_mut();
@@ -252,19 +253,19 @@ impl<T> Drop for Vec<T> {
 }
 type SnapshotItem<'v, T> = (u32, Option<Item<'v, T>>);
 
-pub struct Iter<'v, T> {
+pub struct Iter<'v, T: Scored + Clone> {
     location: Location,
     idx: u32,
     end: u32,
     vec: &'v Vec<T>,
 }
-impl<T> Iter<'_, T> {
+impl<T: Scored + Clone> Iter<'_, T> {
     pub fn end(&self) -> u32 {
         self.end
     }
 }
 
-impl<'v, T> Iterator for Iter<'v, T> {
+impl<'v, T: Scored + Clone> Iterator for Iter<'v, T> {
     type Item = SnapshotItem<'v, T>;
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -323,25 +324,25 @@ impl<'v, T> Iterator for Iter<'v, T> {
         }
     }
 }
-impl<T> ExactSizeIterator for Iter<'_, T> {}
-impl<T> DoubleEndedIterator for Iter<'_, T> {
+impl<T: Scored + Clone> ExactSizeIterator for Iter<'_, T> {}
+impl<T: Scored + Clone> DoubleEndedIterator for Iter<'_, T> {
     fn next_back(&mut self) -> Option<Self::Item> {
         unimplemented!()
     }
 }
 
-pub struct ParIter<'v, T> {
+pub struct ParIter<'v, T: Scored + Clone> {
     end: u32,
     start: u32,
     vec: &'v Vec<T>,
 }
-impl<'v, T> ParIter<'v, T> {
+impl<'v, T: Scored + Clone> ParIter<'v, T> {
     pub fn end(&self) -> u32 {
         self.end
     }
 }
 
-impl<'v, T: Send + Sync> rayon::iter::ParallelIterator for ParIter<'v, T> {
+impl<'v, T: Send + Sync + Scored + Clone> rayon::iter::ParallelIterator for ParIter<'v, T> {
     type Item = SnapshotItem<'v, T>;
 
     fn drive_unindexed<C>(self, consumer: C) -> C::Result
@@ -356,7 +357,7 @@ impl<'v, T: Send + Sync> rayon::iter::ParallelIterator for ParIter<'v, T> {
     }
 }
 
-impl<T: Send + Sync> rayon::iter::IndexedParallelIterator for ParIter<'_, T> {
+impl<T: Send + Sync + Scored + Clone> rayon::iter::IndexedParallelIterator for ParIter<'_, T> {
     fn len(&self) -> usize {
         (self.end - self.start) as usize
     }
@@ -377,13 +378,13 @@ impl<T: Send + Sync> rayon::iter::IndexedParallelIterator for ParIter<'_, T> {
     }
 }
 
-struct ParIterProducer<'v, T: Send> {
+struct ParIterProducer<'v, T: Send + Scored + Clone> {
     start: u32,
     end: u32,
     vec: &'v Vec<T>,
 }
 
-impl<'v, T: 'v + Send + Sync> rayon::iter::plumbing::Producer for ParIterProducer<'v, T> {
+impl<'v, T: 'v + Send + Sync + Scored + Clone> rayon::iter::plumbing::Producer for ParIterProducer<'v, T> {
     type IntoIter = Iter<'v, T>;
     type Item = SnapshotItem<'v, T>;
 
@@ -527,7 +528,7 @@ impl<T> Entry<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Location {
     // the index of the bucket
     bucket: u32,

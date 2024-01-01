@@ -3,10 +3,12 @@ use std::mem::take;
 use std::sync::atomic::{self, AtomicBool, AtomicU32};
 use std::sync::Arc;
 
+use crate::sorted_vec::SortedVec;
 use nucleo_matcher::Config;
 use parking_lot::Mutex;
 use rayon::{prelude::*, ThreadPool};
 
+use crate::entry::Scored;
 use crate::nucleo::par_sort::par_quicksort;
 use crate::nucleo::pattern::{self, MultiPattern};
 use crate::nucleo::{boxcar, Match};
@@ -24,7 +26,7 @@ impl Matchers {
 unsafe impl Sync for Matchers {}
 unsafe impl Send for Matchers {}
 
-pub(crate) struct Worker<T: Sync + Send + 'static> {
+pub(crate) struct Worker<T: Sync + Send + Scored + Clone + 'static> {
     pub(crate) running: bool,
     matchers: Matchers,
     pub(crate) matches: Vec<Match>,
@@ -35,10 +37,12 @@ pub(crate) struct Worker<T: Sync + Send + 'static> {
     pub(crate) last_snapshot: u32,
     notify: Arc<(dyn Fn() + Sync + Send)>,
     pub(crate) items: Arc<boxcar::Vec<T>>,
+    pub(crate) cached_matches: SortedVec<Match>,
     in_flight: Vec<u32>,
+    pub(crate) multi_sort: bool,
 }
 
-impl<T: Sync + Send + 'static> Worker<T> {
+impl<T: Sync + Send + Scored + Clone + 'static> Worker<T> {
     pub(crate) fn item_count(&self) -> u32 {
         self.last_snapshot - self.in_flight.len() as u32
     }
@@ -54,6 +58,7 @@ impl<T: Sync + Send + 'static> Worker<T> {
         config: Config,
         notify: Arc<(dyn Fn() + Sync + Send)>,
         cols: u32,
+        multi_sort: bool,
     ) -> (ThreadPool, Self) {
         let worker_threads = worker_threads
             .unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |it| it.get()));
@@ -78,6 +83,8 @@ impl<T: Sync + Send + 'static> Worker<T> {
             notify,
             items: Arc::new(boxcar::Vec::with_capacity(2 * 1024, cols)),
             in_flight: Vec::with_capacity(64),
+            multi_sort,
+            cached_matches: SortedVec::new(),
         };
         (pool, worker)
     }
@@ -90,8 +97,10 @@ impl<T: Sync + Send + 'static> Worker<T> {
             let Some(item) = self.items.get(idx) else {
                 return true;
             };
-            if let Some(score) = pattern.score(item.matcher_columns, matchers.get()) {
+            if let Some(score) = pattern.score(item.matcher_columns, matchers.get(), item.score()) {
                 self.matches.push(Match { score, idx });
+                self.cached_matches.push(Match { score, idx });
+                self.cached_matches.truncate(50);
             };
             false
         });
@@ -99,28 +108,36 @@ impl<T: Sync + Send + 'static> Worker<T> {
         if new_snapshot.end() != self.last_snapshot {
             let end = new_snapshot.end();
             let in_flight = Mutex::new(&mut self.in_flight);
-            let items = new_snapshot.map(|(idx, item)| {
-                let Some(item) = item else {
-                    in_flight.lock().push(idx);
-                    unmatched.fetch_add(1, atomic::Ordering::Relaxed);
-                    return Match {
-                        score: 0,
-                        idx: u32::MAX,
+            let items: Vec<_> = new_snapshot
+                .map(|(idx, item)| {
+                    let Some(item) = item else {
+                        in_flight.lock().push(idx);
+                        unmatched.fetch_add(1, atomic::Ordering::Relaxed);
+                        return Match {
+                            score: 0,
+                            idx: u32::MAX,
+                        };
                     };
-                };
-                if self.canceled.load(atomic::Ordering::Relaxed) {
-                    return Match { score: 0, idx };
-                }
-                let Some(score) = pattern.score(item.matcher_columns, matchers.get()) else {
-                    unmatched.fetch_add(1, atomic::Ordering::Relaxed);
-                    return Match {
-                        score: 0,
-                        idx: u32::MAX,
+                    if self.canceled.load(atomic::Ordering::Relaxed) {
+                        return Match { score: 0, idx };
+                    }
+                    let Some(score) =
+                        pattern.score(item.matcher_columns, matchers.get(), item.score())
+                    else {
+                        unmatched.fetch_add(1, atomic::Ordering::Relaxed);
+                        return Match {
+                            score: 0,
+                            idx: u32::MAX,
+                        };
                     };
-                };
-                Match { score, idx }
-            });
-            self.matches.par_extend(items);
+
+                    Match { score, idx }
+                })
+                .collect();
+
+            self.matches.par_extend(items.clone());
+            self.cached_matches.par_extend(items);
+            self.cached_matches.truncate(50);
             self.last_snapshot = end;
         }
     }
@@ -141,14 +158,22 @@ impl<T: Sync + Send + 'static> Worker<T> {
         let new_snapshot = self.items.snapshot(self.last_snapshot);
         if new_snapshot.end() != self.last_snapshot {
             let end = new_snapshot.end();
-            let items = new_snapshot.filter_map(|(idx, item)| {
-                if item.is_none() {
-                    self.in_flight.push(idx);
-                    return None;
-                };
-                Some(Match { score: 0, idx })
-            });
-            self.matches.extend(items);
+            let items: Vec<_> = new_snapshot
+                .filter_map(|(idx, item)| {
+                    if item.is_none() {
+                        self.in_flight.push(idx);
+                        return None;
+                    };
+                    Some(Match {
+                        score: item.expect("Item should be Some here").score(),
+                        idx,
+                    })
+                })
+                .collect();
+
+            self.matches.extend(items.clone());
+            self.cached_matches.extend(items);
+            self.cached_matches.truncate(50);
             self.last_snapshot = end;
         }
     }
@@ -192,7 +217,9 @@ impl<T: Sync + Send + 'static> Worker<T> {
                     }
                     // safety: in-flight items are never added to the matches
                     let item = self.items.get_unchecked(match_.idx);
-                    if let Some(score) = pattern.score(item.matcher_columns, matchers.get()) {
+                    if let Some(score) =
+                        pattern.score(item.matcher_columns, matchers.get(), item.score())
+                    {
                         match_.score = score;
                     } else {
                         unmatched.fetch_add(1, atomic::Ordering::Relaxed);
@@ -253,8 +280,19 @@ impl<T: Sync + Send + 'static> Worker<T> {
 
     fn reset_matches(&mut self) {
         self.matches.clear();
-        self.matches
-            .extend((0..self.last_snapshot).map(|idx| Match { score: 0, idx }));
+        self.matches.extend((0..self.last_snapshot).map(|i| {
+            // if self.multi_sort {
+            match self.cached_matches.get(i as usize) {
+                Some(item) => Match {
+                    score: item.score,
+                    idx: item.idx,
+                },
+                None => Match { score: 0, idx: i },
+            }
+            // } else {
+            //     Match { score: 0, idx: i }
+            // }
+        }));
         // there are usually only very few in flight items (one for each writer)
         self.remove_in_flight_matches();
     }

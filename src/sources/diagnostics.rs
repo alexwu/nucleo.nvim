@@ -4,7 +4,6 @@ use buildstructor::Builder;
 use mlua::prelude::*;
 use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
 use partially::Partial;
-use rayon::slice::ParallelSliceMut;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use url::Url;
@@ -87,7 +86,7 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
             .registry_value::<Function>(&key)
             .expect("Remember to make it so these return results!");
         let results = finder.call::<_, Value>(());
-        let mut entries = match results {
+        let entries = match results {
             Ok(entries) => lua
                 .expect("No lua!")
                 .from_value::<Vec<Diagnostic>>(entries)
@@ -97,8 +96,6 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
                 Vec::new()
             }
         };
-
-        entries.par_sort_unstable_by_key(|entry| entry.severity.unwrap_or_default());
 
         Arc::new(move |tx| {
             entries.clone().into_iter().for_each(|entry| {
@@ -189,12 +186,13 @@ impl From<Diagnostic> for Data<Diagnostic> {
             .kind(DataKind::File)
             .ordinal(ordinal)
             .value(value)
-            .score(severity as u32)
+            // Higher severities have lower values
+            .score(((5 - severity) * 100) as u32)
             .preview_options(preview_options)
             .build()
     }
 }
 
 pub fn create_picker(source: Source) -> anyhow::Result<Picker<Diagnostic, Config, Source>> {
-    anyhow::Ok(Picker::builder().multisort(true).source(source).build())
+    anyhow::Ok(Picker::builder().multi_sort(true).source(source).build())
 }

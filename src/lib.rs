@@ -25,6 +25,7 @@ mod nvim;
 mod pattern;
 mod picker;
 mod previewer;
+mod sorted_vec;
 mod sorter;
 mod sources;
 mod util;

@@ -6,6 +6,7 @@ use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use rvstruct::ValueStruct;
 
+use crate::entry::Scored;
 use crate::nucleo::{self, Nucleo};
 use crate::{entry::Entry, injector::Injector};
 
@@ -19,9 +20,9 @@ impl UserData for Status {
     }
 }
 
-pub struct Matcher<T: Entry>(Nucleo<T>);
+pub struct Matcher<T: Entry + Scored + PartialOrd>(Nucleo<T>);
 
-impl<T: Entry> Matcher<T> {
+impl<T: Entry + Scored + PartialOrd> Matcher<T> {
     pub fn pattern(&mut self) -> &mut nucleo::pattern::MultiPattern {
         &mut self.0.pattern
     }
@@ -47,7 +48,7 @@ impl<T: Entry> Matcher<T> {
     }
 }
 
-impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
+impl<T: Entry + Scored + PartialOrd> From<Nucleo<T>> for Matcher<T> {
     fn from(value: Nucleo<T>) -> Self {
         Matcher(value)
     }

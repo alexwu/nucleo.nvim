@@ -84,12 +84,12 @@ pub trait Buffer<T: Clone + Debug>: Sized {
 
         self.clamp_cursor_pos(Relative::Buffer);
 
-        log::info!("buffer cursor pos: {}", self.cursor().pos);
-        log::info!(
-            "window cursor pos: {}",
-            self.get_cursor_pos(Relative::Window)
-        );
-        log::info!("window pos: {}", self.window().pos());
+        // log::info!("buffer cursor pos: {}", self.cursor().pos);
+        // log::info!(
+        //     "window cursor pos: {}",
+        //     self.get_cursor_pos(Relative::Window)
+        // );
+        // log::info!("window pos: {}", self.window().pos());
     }
 }
 

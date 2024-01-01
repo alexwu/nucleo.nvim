@@ -212,7 +212,7 @@ pub fn create_picker(
         None => PartialFileConfig::default(),
     };
     let source = Source::builder().config(config).build();
-    let picker: Picker<Value, FileConfig, Source> = Picker::builder().source(source).build();
+    let picker: Picker<Value, FileConfig, Source> = Picker::builder().multi_sort(false).source(source).build();
 
     anyhow::Ok(picker)
 }

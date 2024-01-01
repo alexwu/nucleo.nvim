@@ -7,44 +7,47 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
 
-use crate::{entry::IntoUtf32String, sources::Populator};
+use crate::{
+    entry::{IntoUtf32String, Scored},
+    sources::Populator,
+};
 
 pub type FinderFn<T> =
     Arc<dyn Fn(UnboundedSender<T>) -> anyhow::Result<()> + Sync + Send + 'static>;
 
-pub struct Injector<T: IntoUtf32String>(crate::nucleo::Injector<T>);
+pub struct Injector<T: IntoUtf32String + Scored + Clone>(crate::nucleo::Injector<T>);
 
-impl<T: IntoUtf32String> From<crate::nucleo::Injector<T>> for Injector<T> {
+impl<T: IntoUtf32String + Scored + Clone> From<crate::nucleo::Injector<T>> for Injector<T> {
     fn from(value: crate::nucleo::Injector<T>) -> Self {
         Self(value)
     }
 }
 
-impl<T: IntoUtf32String> Clone for Injector<T> {
+impl<T: IntoUtf32String + Scored + Clone> Clone for Injector<T> {
     fn clone(&self) -> Self {
         <crate::nucleo::Injector<T> as Clone>::clone(&self.0).into()
     }
 }
 
-impl<T: IntoUtf32String + Clone> Injector<T> {
+impl<T: IntoUtf32String + Clone + Scored> Injector<T> {
     pub fn push(&self, value: T) -> u32 {
         self.0
             .push(value.clone(), |dst| dst[0] = value.into_utf32_string())
     }
 }
 
-impl<T: IntoUtf32String + Clone + Send + 'static> Injector<T> {
+impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
     pub fn populate(self, entries: Vec<T>) {
         log::info!("Populating picker with {} entries", entries.len());
         let rt = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
         let sender = tx.clone();
         rt.block_on(async {
             let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
-                    self.push(val);
+                    self.push(val.clone());
                 }
                 anyhow::Ok(())
             });
@@ -63,14 +66,14 @@ impl<T: IntoUtf32String + Clone + Send + 'static> Injector<T> {
     {
         let rt = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
         let injector = source.build_injector(None);
         log::info!("injector::populate_with_source");
         rt.block_on(async {
             let _f: JoinHandle<Result<(), _>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
-                    self.push(val);
+                    self.push(val.clone());
                 }
                 anyhow::Ok(())
             });
@@ -87,7 +90,7 @@ impl<T: IntoUtf32String + Clone + Send + 'static> Injector<T> {
     {
         let rt = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
         let injector = source.build_injector(Some(lua));
         log::info!("injector::populate_with_lua_source");
@@ -95,7 +98,7 @@ impl<T: IntoUtf32String + Clone + Send + 'static> Injector<T> {
         rt.block_on(async {
             let _f: JoinHandle<Result<(), _>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
-                    self.push(val);
+                    self.push(val.clone());
                 }
                 anyhow::Ok(())
             });

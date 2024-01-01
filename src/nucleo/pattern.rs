@@ -85,12 +85,13 @@ impl MultiPattern {
         }
     }
 
-    pub fn score(&self, haystack: &[Utf32String], matcher: &mut Matcher) -> Option<u32> {
+    pub fn score(&self, haystack: &[Utf32String], matcher: &mut Matcher, initial_score: u32) -> Option<u32> {
         // TODO: wheight columns?
-        let mut score = 0;
+        let mut score = initial_score;
         for ((pattern, _), haystack) in self.cols.iter().zip(haystack) {
             score += pattern.score(haystack.slice(..), matcher)?
         }
+        // log::info!("calculated score: {}", score);
         Some(score)
     }
 
