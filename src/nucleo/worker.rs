@@ -191,6 +191,9 @@ impl<T: Sync + Send + Scored + Clone + 'static> Worker<T> {
         if self.pattern.is_empty() {
             self.reset_matches();
             self.process_new_items_trivial();
+            if self.multi_sort {
+                self.reset_matches();
+            }
             if self.should_notify.load(atomic::Ordering::Relaxed) {
                 (self.notify)();
             }
@@ -281,17 +284,17 @@ impl<T: Sync + Send + Scored + Clone + 'static> Worker<T> {
     fn reset_matches(&mut self) {
         self.matches.clear();
         self.matches.extend((0..self.last_snapshot).map(|i| {
-            // if self.multi_sort {
-            match self.cached_matches.get(i as usize) {
-                Some(item) => Match {
-                    score: item.score,
-                    idx: item.idx,
-                },
-                None => Match { score: 0, idx: i },
+            if self.multi_sort {
+                match self.cached_matches.get(i as usize) {
+                    Some(item) => Match {
+                        score: item.score,
+                        idx: item.idx,
+                    },
+                    None => Match { score: 0, idx: i },
+                }
+            } else {
+                Match { score: 0, idx: i }
             }
-            // } else {
-            //     Match { score: 0, idx: i }
-            // }
         }));
         // there are usually only very few in flight items (one for each writer)
         self.remove_in_flight_matches();

@@ -256,7 +256,7 @@ impl<T: Sync + Send + Scored + Clone + 'static> Snapshot<T> {
 
 /// A high level matcher worker that quickly computes matches in a background
 /// threadpool.
-pub struct Nucleo<T: Sync + Send + Scored + 'static + PartialOrd + std::clone::Clone> {
+pub struct Nucleo<T: Sync + Send + Scored + 'static + std::clone::Clone> {
     // the way the API is build we totally don't actually need these to be Arcs
     // but this lets us avoid some unsafe
     canceled: Arc<AtomicBool>,
@@ -274,7 +274,7 @@ pub struct Nucleo<T: Sync + Send + Scored + 'static + PartialOrd + std::clone::C
     pub pattern: MultiPattern,
 }
 
-impl<T: Sync + Send + Scored + Clone + 'static + PartialOrd> Nucleo<T> {
+impl<T: Sync + Send + Scored + Clone + 'static> Nucleo<T> {
     /// Constructs a new `nucleo` worker threadpool with the provided `config`.
     ///
     /// `notify` is called everytime new information is available and
@@ -412,7 +412,7 @@ impl<T: Sync + Send + Scored + Clone + 'static + PartialOrd> Nucleo<T> {
     }
 }
 
-impl<T: Sync + Send + Scored + PartialOrd + Clone> Drop for Nucleo<T> {
+impl<T: Sync + Send + Scored + Clone> Drop for Nucleo<T> {
     fn drop(&mut self) {
         // we ensure the worker quits before dropping items to ensure that
         // the worker can always assume the items outlive it
