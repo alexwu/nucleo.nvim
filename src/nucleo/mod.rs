@@ -218,6 +218,34 @@ impl<T: Sync + Send + Scored + Clone + 'static> Snapshot<T> {
             .map(|&m| unsafe { self.items.get_unchecked(m.idx) })
     }
 
+    /// Returns an iterator over the items that correspond to a subrange of
+    /// all the matches in this snapshot along with those items' scores.
+    ///
+    /// # Panics
+    /// Panics if `range` has a range bound that is larger than
+    /// the matched item count
+    pub fn matched_items_with_scores(
+        &self,
+        range: impl RangeBounds<u32>,
+    ) -> impl Iterator<Item = (u32, Item<'_, T>)> + ExactSizeIterator + DoubleEndedIterator + '_
+    {
+        // TODO: use TAIT
+        let start = match range.start_bound() {
+            Bound::Included(&start) => start as usize,
+            Bound::Excluded(&start) => start as usize + 1,
+            Bound::Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Bound::Included(&end) => end as usize + 1,
+            Bound::Excluded(&end) => end as usize,
+            Bound::Unbounded => self.matches.len(),
+        };
+        self.matches[start..end].iter().map(|&m| {
+            let item = unsafe { self.items.get_unchecked(m.idx) };
+            (m.score, item)
+        })
+    }
+
     /// Returns a reference to the item at the given index.
     ///
     /// # Safety
@@ -251,6 +279,13 @@ impl<T: Sync + Send + Scored + Clone + 'static> Snapshot<T> {
     #[inline]
     pub fn get_matched_item(&self, n: u32) -> Option<Item<'_, T>> {
         self.get_item(self.matches.get(n as usize)?.idx)
+    }
+
+    #[inline]
+    pub fn get_matched_item_with_score(&self, n: u32) -> Option<(u32, Item<'_, T>)> {
+        let m = self.matches.get(n as usize)?;
+
+        self.get_item(m.idx).map(|item| (m.score, item))
     }
 }
 
