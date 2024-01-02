@@ -35,7 +35,9 @@ local defaults = {
 			cwd = vim.uv.cwd,
 		},
 		---@class Nucleo.Config.Diagnostics: Nucleo.Config.Defaults.Generic
-		["builtin.diagnostics"] = {},
+		["builtin.diagnostics"] = {
+			scope = "workspace",
+		},
 	},
 	---@class Nucleo.Keymaps
 	mappings = {

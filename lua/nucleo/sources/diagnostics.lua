@@ -5,10 +5,11 @@ function M.diagnostics(...)
 	Picker({
 		source = {
 			name = "builtin.diagnostics",
-			-- config = {},
-			config = nil,
-			finder = function()
-				return vim.diagnostic.get(nil)
+			config = {
+				scope = "workspace",
+			},
+			finder = function(bufnr)
+				return vim.diagnostic.get(bufnr, {})
 			end,
 		},
 		on_submit = function(selection)

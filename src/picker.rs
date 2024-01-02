@@ -87,18 +87,23 @@ impl IntoLua<'_> for SortDirection {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display)]
-pub struct Blob(pub serde_json::Value);
+#[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display, Default, Partial)]
+#[partially(derive(Default, Debug, Clone, Serialize, Deserialize, FromLua))]
+pub struct Blob {
+    pub inner: serde_json::Value,
+}
 impl<'a> FromLua<'a> for Blob {
     fn from_lua(value: LuaValue<'a>, _lua: &'a Lua) -> LuaResult<Self> {
         let ty = value.type_name();
-        Ok(Blob(serde_json::to_value(value).map_err(|e| {
-            mlua::Error::FromLuaConversionError {
-                from: ty,
-                to: "Blob",
-                message: Some(format!("{}", e)),
-            }
-        })?))
+        Ok(Blob {
+            inner: serde_json::to_value(value).map_err(|e| {
+                mlua::Error::FromLuaConversionError {
+                    from: ty,
+                    to: "Blob",
+                    message: Some(format!("{}", e)),
+                }
+            })?,
+        })
     }
 }
 
@@ -281,8 +286,6 @@ where
         if last_window_pos != self.window().start() {
             let _ = self.sender.try_send(());
         }
-
-        // log::info!("Cursor position: {}", self.cursor.pos());
     }
 
     pub fn move_cursor_to(&mut self, pos: usize) {
@@ -298,8 +301,6 @@ where
         if last_window_pos != self.window().start() {
             let _ = self.sender.try_send(());
         }
-
-        // log::info!("Cursor position: {}", self.cursor.pos());
     }
 
     pub fn current_matches(&self) -> Vec<Data<T>> {
@@ -437,14 +438,15 @@ where
 impl<T, V, P> Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig,
+    V: InjectorConfig + FromPartial,
+    V::Item: Debug,
     P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
-    pub fn populate<R: Into<V>>(&self, lua: &Lua, config: Option<R>) -> anyhow::Result<()> {
+    pub fn populate(&self, lua: &Lua, config: Option<V::Item>) -> anyhow::Result<()> {
         let injector = self.matcher.injector();
         let mut source = self.source.clone();
         if let Some(config) = config {
-            source.update_config(config.into());
+            source.update_config(V::from_partial(config));
         };
 
         match source.kind() {
@@ -493,8 +495,10 @@ impl From<PartialConfig> for Config {
 impl<T, V, P> UserData for Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig,
+    V: InjectorConfig + FromPartial,
+    V::Item: Debug,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
+    (std::option::Option<<V as partially::Partial>::Item>,): for<'lua> mlua::FromLuaMulti<'lua>,
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
@@ -574,15 +578,7 @@ where
         methods.add_method_mut("window_height", |_lua, this, ()| Ok(this.window_height()));
 
         methods.add_method("current_matches", |lua, this, ()| {
-            if this.multi_sort {
-                let matches = this.current_matches();
-                // TODO: This leads the matches to be out of sync with the indices
-                // matches.par_sort_unstable_by_key(|entry| entry.score);
-
-                Ok(lua.to_value(&matches))
-            } else {
-                Ok(lua.to_value(&this.current_matches()))
-            }
+            Ok(lua.to_value(&this.current_matches()))
         });
 
         methods.add_method("total_items", |_lua, this, ()| Ok(this.total_items()));
@@ -623,7 +619,7 @@ where
             Ok(status)
         });
 
-        methods.add_method_mut("populate", |lua, this, params: (Option<V>,)| {
+        methods.add_method_mut("populate", |lua, this, params: (Option<V::Item>,)| {
             this.populate(lua, params.0).into_lua_err()
         });
 

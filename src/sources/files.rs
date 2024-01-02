@@ -146,7 +146,7 @@ impl FromLua<'_> for Value {
 }
 
 #[derive(Debug, Clone, Partial, Serialize, Deserialize)]
-#[partially(derive(Default, Debug))]
+#[partially(derive(Default, Debug, Serialize, Deserialize))]
 pub struct FileConfig {
     pub cwd: String,
     pub git_ignore: bool,
@@ -212,7 +212,8 @@ pub fn create_picker(
         None => PartialFileConfig::default(),
     };
     let source = Source::builder().config(config).build();
-    let picker: Picker<Value, FileConfig, Source> = Picker::builder().multi_sort(false).source(source).build();
+    let picker: Picker<Value, FileConfig, Source> =
+        Picker::builder().multi_sort(false).source(source).build();
 
     anyhow::Ok(picker)
 }

@@ -64,7 +64,7 @@ impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Partial)]
-#[partially(derive(Default, Debug))]
+#[partially(derive(Default, Debug, Deserialize, Serialize))]
 pub struct StatusConfig {
     cwd: String,
 }

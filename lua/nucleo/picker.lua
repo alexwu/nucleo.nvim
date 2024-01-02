@@ -203,18 +203,7 @@ function Picker:find(opts)
 	local options = override(source_name, opts)
 
 	self.picker:update_config(options)
-
-	if type(self.source) == "string" then
-		self.picker:populate(options)
-		-- elseif type(self.source) == "function" then
-		-- self.picker:populate(self.source)
-	else
-		-- vim.print(self.source)
-		-- self.picker:populate(self.source)
-		-- self.picker:populate_with_lua_source(options)
-		self.picker:populate()
-		-- self.picker:populate_with_lua_source()
-	end
+	self.picker:populate(options)
 
 	self.picker:tick(10)
 

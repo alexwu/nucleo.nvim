@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::{env::current_dir, path::Path, sync::Arc};
 
 use buildstructor::Builder;
@@ -6,16 +7,20 @@ use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
+use strum::{Display, EnumString};
 use url::Url;
 
 use super::{Populator, SourceKind, Sources};
+use crate::injector::FromPartial;
 use crate::{
     entry::{Data, DataKind},
     picker::Picker,
     previewer::{PreviewKind, PreviewOptions},
 };
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, FromLua, Default)]
+#[derive(Debug, EnumString, Display, Clone, Copy, Serialize, Deserialize, FromLua, Default)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum Scope {
     #[default]
     Document,
@@ -23,10 +28,34 @@ pub enum Scope {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromLua, Default, Partial)]
+#[partially(derive(Clone, Debug, Serialize, Deserialize, Default))]
 pub struct Config {
     scope: Scope,
 }
 
+impl FromLua<'_> for PartialConfig {
+    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+        let table = LuaTable::from_lua(value, lua)?;
+        let scope = match table.get::<&str, LuaValue>("scope") {
+            Ok(val) => {
+                if let LuaValue::String(scope) = val {
+                    Some(Scope::from_str(&scope.to_string_lossy()).into_lua_err()?)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+
+        Ok(PartialConfig { scope })
+    }
+}
+
+impl From<PartialConfig> for Config {
+    fn from(value: PartialConfig) -> Self {
+        Config::from_partial(value)
+    }
+}
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct Source {
     config: Config,
@@ -41,26 +70,17 @@ impl FromLua<'_> for Source {
             .ok_or_else(|| anyhow::anyhow!("Source wasn't given a table!"))
             .into_lua_err()?;
 
-        // log::info!("config: {:?}", table.s);
-        table.for_each(|k: String, v: Value| {
-            log::info!("{:?}", k);
-            log::info!("{:?}", v);
-
-            Ok(())
-        })?;
-
         let registry_key = match table.get::<&str, LuaValue>("finder")? {
             LuaValue::Function(thunk) => lua.create_registry_value(thunk)?,
             _ => todo!("Failed to implement finder"),
         };
 
-        // let config: Config = table.get::<_, Config>("config")?;
-        let config: Option<Config> = table.get::<_, Option<Config>>("config")?;
-
-        log::info!("diagnostics config: {:?}", config);
+        let partial_config: PartialConfig = lua.from_value(table.get::<_, LuaValue>("config")?)?;
+        log::info!("diagnostics partial config: {:?}", &partial_config);
+        let config = Config::from_partial(partial_config);
 
         Ok(Source::builder()
-            .config(config.unwrap_or_default())
+            .config(config)
             .finder(Arc::new(registry_key))
             .build())
     }
@@ -85,6 +105,7 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
             .expect("No Lua object given!")
             .registry_value::<Function>(&key)
             .expect("Remember to make it so these return results!");
+        log::info!("here");
         let results = finder.call::<_, Value>(());
         let entries = match results {
             Ok(entries) => lua

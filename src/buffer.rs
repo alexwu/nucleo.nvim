@@ -57,7 +57,6 @@ pub trait Buffer<T: Clone + Debug>: Sized {
     /// Sets the position of the cursor constrained by the window
     fn set_cursor_pos_in_window(&mut self, pos: usize) {
         let max_pos = self.window().end().min(self.len()).saturating_sub(1);
-        log::info!("window max_pos: {}", max_pos);
         let new_pos = pos.saturating_add(self.window().start());
         self.cursor_mut().pos = new_pos.clamp(self.window().start(), max_pos);
     }
@@ -83,13 +82,6 @@ pub trait Buffer<T: Clone + Debug>: Sized {
         }
 
         self.clamp_cursor_pos(Relative::Buffer);
-
-        // log::info!("buffer cursor pos: {}", self.cursor().pos);
-        // log::info!(
-        //     "window cursor pos: {}",
-        //     self.get_cursor_pos(Relative::Window)
-        // );
-        // log::info!("window pos: {}", self.window().pos());
     }
 }
 

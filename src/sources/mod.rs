@@ -69,7 +69,7 @@ impl IntoLua<'_> for Sources {
 pub trait Populator<T, U, V>
 where
     T: Debug + Clone + Serialize + for<'a> Deserialize<'a> + 'static,
-    U: Debug + Clone + Serialize + for<'a> Deserialize<'a> + 'static,
+    U: Debug + Clone + Default + Serialize + for<'a> Deserialize<'a> + 'static,
     V: IntoUtf32String + Clone,
 {
     fn name(&self) -> Sources;

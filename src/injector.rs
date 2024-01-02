@@ -60,7 +60,7 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
 
     pub fn populate_with_source<P, U, V>(self, source: P) -> anyhow::Result<()>
     where
-        U: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+        U: Debug + Clone + Sync + Send + Default + Serialize + for<'a> Deserialize<'a> + 'static,
         V: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
         P: Populator<V, U, T>,
     {
@@ -84,7 +84,7 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
 
     pub fn populate_with_lua_source<P, U, V>(self, lua: &Lua, source: P) -> anyhow::Result<()>
     where
-        U: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+        U: Debug + Clone + Sync + Send + Serialize + Default + for<'a> Deserialize<'a> + 'static,
         V: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
         P: Populator<V, U, T>,
     {
@@ -92,6 +92,7 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
+        log::info!("Before build_injector");
         let injector = source.build_injector(Some(lua));
         log::info!("injector::populate_with_lua_source");
 
@@ -109,12 +110,19 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
 }
 
 pub trait Config:
-    Serialize + Debug + Clone + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send
+    Serialize + Debug + Clone + Default + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send
 {
 }
 
 impl<T> Config for T where
-    T: Serialize + Debug + Clone + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send
+    T: Serialize
+        + Debug
+        + Clone
+        + Default
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + Sync
+        + Send
 {
 }
 
@@ -126,4 +134,9 @@ pub trait FromPartial: Default + Partial {
     }
 }
 
-impl<T> FromPartial for T where T: Partial + Default {}
+impl<T> FromPartial for T
+where
+    T: Partial + Default,
+    T::Item: for<'a> Deserialize<'a>,
+{
+}
