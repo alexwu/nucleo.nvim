@@ -27,8 +27,8 @@ pub enum Scope {
     Workspace,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromLua, Default, Partial)]
-#[partially(derive(Clone, Debug, Serialize, Deserialize, Default))]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, FromLua, Default, Partial)]
+#[partially(derive(Clone, Copy, Debug, Serialize, Deserialize, Default))]
 pub struct Config {
     scope: Scope,
 }
@@ -105,8 +105,11 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
             .expect("No Lua object given!")
             .registry_value::<Function>(&key)
             .expect("Remember to make it so these return results!");
-        log::info!("here");
-        let results = finder.call::<_, Value>(());
+        let bufnr = match self.config.scope {
+            Scope::Document => Some(0),
+            Scope::Workspace => None,
+        };
+        let results = finder.call::<(Option<usize>,), Value>((bufnr,));
         let entries = match results {
             Ok(entries) => lua
                 .expect("No lua!")
