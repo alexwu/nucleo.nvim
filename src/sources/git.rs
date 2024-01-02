@@ -5,8 +5,9 @@ use buildstructor::Builder;
 use git2::Statuses;
 use mlua::prelude::*;
 use partially::Partial;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use strum::EnumIs;
+use url::Url;
 
 use super::{Populator, Sources};
 use crate::{
@@ -50,7 +51,6 @@ impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
             repo.statuses(Some(status_options))
                 .expect("Unable to get statuses")
                 .iter()
-                .par_bridge()
                 .for_each(|entry| {
                     let entry: StatusEntry = entry;
                     let data = Data::from(entry);
@@ -121,7 +121,7 @@ impl<'a> From<git2::StatusEntry<'a>> for StatusEntry {
 }
 
 // Credit: https://github.com/extrawurst/gitui/blob/master/asyncgit/src/sync/status.rs
-#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug, Serialize, Deserialize, EnumIs)]
 pub enum Status {
     ///
     New,
@@ -240,18 +240,26 @@ impl From<StatusEntry> for Data<StatusEntry> {
     fn from(value: StatusEntry) -> Self {
         let file_path = value.path().expect("Invalid utf8");
         let path = Path::new(&file_path);
+        let full_path = path.canonicalize().expect("Unable to canonicalize path");
         let file_extension = path
             .extension()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
 
-        let preview_kind = PreviewKind::Diff;
+        let preview_kind = if value.status().is_new() {
+            PreviewKind::File
+        } else {
+            PreviewKind::Diff
+        };
 
+        let uri = Url::from_file_path(full_path).ok();
         let preview_options = PreviewOptions::builder()
             .kind(preview_kind)
             .line_start(0)
             .col_start(0)
+            .and_uri(uri)
+            .path(path.display().to_string())
             .file_extension(file_extension)
             .build();
 

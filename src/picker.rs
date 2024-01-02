@@ -122,7 +122,6 @@ where
     receiver: crossbeam_channel::Receiver<()>,
     config: Config,
     source: P,
-    multi_sort: bool,
     _marker: std::marker::PhantomData<V>,
 }
 
@@ -161,7 +160,6 @@ where
             sender,
             config,
             source,
-            multi_sort: multi_sort.unwrap_or_default(),
             cursor: Cursor::default(),
             previous_query: String::new(),
             selections: HashMap::new(),
@@ -246,9 +244,10 @@ where
             self.previous_query = query.to_string();
             // TODO: Debounce this tick? This whole function?
             // TODO: I feel like this can make this hitch scenarios where there's lots of matches...
-            self.tick(10);
             if self.config.selection_strategy.is_reset() {
                 self.move_cursor_to(0);
+            } else {
+                self.tick(10);
             }
             self.force_rerender();
         }

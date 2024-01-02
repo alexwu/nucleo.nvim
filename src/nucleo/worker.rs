@@ -99,8 +99,9 @@ impl<T: Sync + Send + Scored + Clone + 'static> Worker<T> {
             };
             if let Some(score) = pattern.score(item.matcher_columns, matchers.get(), item.score()) {
                 self.matches.push(Match { score, idx });
-                self.cached_matches.push(Match { score, idx });
-                self.cached_matches.truncate(50);
+                if self.multi_sort {
+                    self.cached_matches.push(Match { score, idx });
+                }
             };
             false
         });
@@ -136,8 +137,9 @@ impl<T: Sync + Send + Scored + Clone + 'static> Worker<T> {
                 .collect();
 
             self.matches.par_extend(items.clone());
-            self.cached_matches.par_extend(items);
-            self.cached_matches.truncate(50);
+            if self.multi_sort {
+                self.cached_matches.par_extend(items);
+            }
             self.last_snapshot = end;
         }
     }
@@ -172,8 +174,9 @@ impl<T: Sync + Send + Scored + Clone + 'static> Worker<T> {
                 .collect();
 
             self.matches.extend(items.clone());
-            self.cached_matches.extend(items);
-            self.cached_matches.truncate(50);
+            if self.multi_sort {
+                self.cached_matches.extend(items);
+            }
             self.last_snapshot = end;
         }
     }

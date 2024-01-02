@@ -70,6 +70,11 @@ Previewer.render = a.void(function(self, entry)
 		if fname then
 			path = fname
 		end
+	elseif preview_options.uri then
+		local fname = vim.uri_to_fname(preview_options.uri)
+		if fname then
+			path = fname
+		end
 	else
 		path = preview_options.path or entry.value.path
 	end
@@ -102,11 +107,7 @@ Previewer.render = a.void(function(self, entry)
 	end
 
 	local name = vim.fs.basename(path)
-	if preview_options.kind == "diff" then
-		ft = "diff"
-	else
-		ft = vim.filetype.match({ filename = name, content = content })
-	end
+	ft = vim.filetype.match({ filename = name, content = content })
 
 	if not ft or ft == "" then
 		return
@@ -117,7 +118,13 @@ Previewer.render = a.void(function(self, entry)
 		if lang and has_ts_parser(lang) then
 			vim.treesitter.start(self.bufnr, lang)
 		else
+			vim.treesitter.stop(self.bufnr)
 			vim.bo[self.bufnr].syntax = ft
+		end
+
+		if preview_options.kind == "diff" then
+			vim.treesitter.start(self.bufnr, "diff")
+			vim.bo[self.bufnr].syntax = "diff"
 		end
 
 		highlight_match(self.bufnr, preview_options, offset)
