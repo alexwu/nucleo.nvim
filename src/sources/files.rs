@@ -114,13 +114,28 @@ impl Value {
             file_type: file_extension.clone(),
         };
 
+        let metadata = path.metadata().ok();
+
+        // TODO: Make this configurable
+        let max_size = 1024 * 1024 * 5;
+
+        let preview_kind = match metadata.clone() {
+            Some(metadata) if metadata.is_dir() => PreviewKind::Folder,
+            Some(metadata) if metadata.is_file() && metadata.len() < max_size => PreviewKind::File,
+            _ => PreviewKind::Skip,
+        };
+
+        let file_size = metadata.map(|m| m.len() as usize);
+        log::info!("{:?}", file_size);
+
         let preview_options = PreviewOptions::builder()
-            .kind(PreviewKind::File)
+            .kind(preview_kind)
             .line_start(0)
             .col_start(0)
             .file_extension(file_extension)
             .path(full_path)
             .uri(uri)
+            .and_file_size(file_size)
             .build();
 
         Data {
