@@ -4,7 +4,7 @@ use std::{
 };
 
 use directories::ProjectDirs;
-use log::LevelFilter;
+use injector::FromPartial;
 use mlua::prelude::*;
 use simplelog::{Config, WriteLogger};
 use sources::{
@@ -16,6 +16,7 @@ use sources::{
 use crate::util::align_str;
 
 mod buffer;
+mod config;
 mod entry;
 mod error;
 mod injector;
@@ -31,22 +32,37 @@ mod sources;
 mod util;
 mod window;
 
-#[mlua::lua_module]
-fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
+fn setup(opts: Option<config::PartialConfig>) -> anyhow::Result<()> {
+    let config = config::Config::from_partial(opts.unwrap_or_default());
+
     let proj_dirs = ProjectDirs::from("", "bombeelu-labs", "nucleo")
         .expect("Unable to determine project directory");
     fs::create_dir_all(proj_dirs.cache_dir())?;
     let _ = WriteLogger::init(
-        LevelFilter::Info,
+        config.log_level().into(),
         Config::default(),
         File::create(proj_dirs.cache_dir().join("nucleo.log")).unwrap(),
     );
     log::info!(
-        "Initialized logger at: {}",
+        "Initialized logger with level {:?} at: {}",
+        config.log_level(),
         current_dir().expect("Unable get current dir").display()
     );
 
+    Ok(())
+}
+
+#[mlua::lua_module]
+fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
+
+    exports.set(
+        "setup",
+        LuaFunction::wrap(|lua, params: (LuaValue,)| {
+            let options: Option<config::PartialConfig> = lua.from_value(params.0)?;
+            setup(options).into_lua_err()
+        }),
+    )?;
 
     exports.set(
         "FilePicker",

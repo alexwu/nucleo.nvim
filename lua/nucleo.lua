@@ -11,7 +11,11 @@ M._rust = {
 }
 
 function M.setup(...)
-	require("nucleo.config").setup(...)
+	local config = require("nucleo.config")
+	config.setup(...)
+
+	require("nucleo_rs").setup(config.get("defaults"))
+
 	api.nvim_create_user_command("Nucleo", function()
 		M.find()
 	end, {})

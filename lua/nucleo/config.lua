@@ -16,6 +16,7 @@ local defaults = {
 	---@field selection_caret string
 	---@field multi_icon string
 	defaults = {
+		log_level = vim.log.levels.INFO,
 		sort_direction = "descending",
 		selection_strategy = "reset",
 		selection_caret = "> ",
