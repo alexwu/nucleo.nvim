@@ -52,6 +52,7 @@ pub struct PreviewOptions {
     pub path: Option<String>,
     pub uri: Option<String>,
     pub file_extension: Option<String>,
+    pub file_size: Option<usize>,
 }
 
 impl<'a> FromLua<'a> for PreviewOptions {

@@ -15,7 +15,6 @@
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 
-use is_sorted::IsSorted;
 use serde::{de::value::SeqDeserializer, Deserialize, Deserializer, Serialize};
 
 /// Forward sorted vector
