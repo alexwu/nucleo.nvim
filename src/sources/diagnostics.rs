@@ -211,7 +211,7 @@ impl From<Diagnostic> for Data<Diagnostic> {
             .ordinal(ordinal)
             .value(value)
             // Higher severities have lower values
-            .score(((5 - severity) * 100) as u32)
+            .score(((5 - severity) * 10) as u32)
             .preview_options(preview_options)
             .build()
     }
