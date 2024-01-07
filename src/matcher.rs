@@ -1,9 +1,14 @@
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use derive_deref::Deref;
 use mlua::{UserData, UserDataFields};
+use nucleo_matcher::pattern::Pattern;
+use nucleo_matcher::Utf32Str;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use range_rover::range_rover;
+use rayon::prelude::*;
 use rvstruct::ValueStruct;
 
 use crate::entry::Scored;
@@ -67,5 +72,22 @@ impl FuzzyMatcher {
 
     pub fn update_config(&mut self, config: nucleo::Config) {
         self.0.config = config;
+    }
+
+    pub fn fuzzy_indices(
+        &mut self,
+        pattern: &Pattern,
+        haystack: Utf32Str,
+        indices: &mut Vec<u32>,
+    ) -> Vec<(u32, u32)> {
+        pattern.indices(haystack, self.as_inner_mut(), indices);
+
+        indices.par_sort_unstable();
+        indices.dedup();
+
+        range_rover(indices.drain(..))
+            .into_par_iter()
+            .map(RangeInclusive::into_inner)
+            .collect()
     }
 }

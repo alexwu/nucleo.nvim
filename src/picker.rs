@@ -13,6 +13,7 @@ use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
     FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
 };
+use nucleo_matcher::Utf32Str;
 use partially::Partial;
 use range_rover::range_rover;
 use rayon::prelude::*;
@@ -302,13 +303,27 @@ where
         }
     }
 
+    pub fn current_match_indices(&self, haystack: &str) -> Vec<(u32, u32)> {
+        let mut match_indices = Vec::new();
+        let snapshot = self.matcher.snapshot();
+        let pattern = snapshot.pattern().column_pattern(0);
+        let matcher = &mut MATCHER.lock();
+        let mut buf = Vec::new();
+        let indices = matcher.fuzzy_indices(
+            pattern,
+            Utf32Str::new(haystack, &mut buf),
+            &mut match_indices,
+        );
+
+        indices
+    }
+
     pub fn current_matches(&self) -> Vec<Data<T>> {
-        let mut indices = Vec::new();
+        let mut match_indices = Vec::new();
         let snapshot = self.matcher.snapshot();
         log::info!("Item count: {:?}", snapshot.item_count());
         log::info!("Match count: {:?}", snapshot.matched_item_count());
         let matcher = &mut MATCHER.lock();
-        let string_matcher = matcher.as_inner_mut();
 
         let lower_bound = self.lower_bound();
         let upper_bound = self.upper_bound();
@@ -316,18 +331,12 @@ where
         snapshot
             .matched_items(lower_bound..upper_bound)
             .map(|item| {
-                snapshot.pattern().column_pattern(0).indices(
+                let pattern = snapshot.pattern().column_pattern(0);
+                let indices = matcher.fuzzy_indices(
+                    pattern,
                     item.matcher_columns[0].slice(..),
-                    string_matcher,
-                    &mut indices,
+                    &mut match_indices,
                 );
-                indices.par_sort_unstable();
-                indices.dedup();
-
-                let ranges: Vec<(u32, u32)> = range_rover(indices.drain(..))
-                    .into_par_iter()
-                    .map(RangeInclusive::into_inner)
-                    .collect();
 
                 let selected = self.selections.contains_key(&item.data.ordinal());
                 if selected {
@@ -335,7 +344,7 @@ where
                 }
                 item.data
                     .clone()
-                    .with_indices(ranges)
+                    .with_indices(indices)
                     .with_selected(selected)
             })
             .collect::<Vec<_>>()
@@ -575,6 +584,14 @@ where
         });
 
         methods.add_method_mut("window_height", |_lua, this, ()| Ok(this.window_height()));
+
+        methods.add_method("fuzzy_indices", |lua, this, params: (String,)| {
+            let indices = this.current_match_indices(&params.0);
+
+            log::info!("indices? {:?}", &indices);
+
+            Ok(lua.to_value(&indices))
+        });
 
         methods.add_method("current_matches", |lua, this, ()| {
             Ok(lua.to_value(&this.current_matches()))
