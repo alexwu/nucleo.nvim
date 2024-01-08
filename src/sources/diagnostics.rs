@@ -191,7 +191,6 @@ impl From<Diagnostic> for Data<Diagnostic> {
             relative,
         );
         let uri = Url::from_file_path(path).expect("Unable to create uri");
-        log::info!("{:?}", &value);
         let preview_options = PreviewOptions::builder()
             .kind(PreviewKind::File)
             .path(path.display().to_string())

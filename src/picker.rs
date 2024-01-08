@@ -1,7 +1,6 @@
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::ops::RangeInclusive;
 use std::str::FromStr;
 use std::string::ToString;
 use std::sync::Arc;
@@ -15,8 +14,6 @@ use mlua::{
 };
 use nucleo_matcher::Utf32Str;
 use partially::Partial;
-use range_rover::range_rover;
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIs, EnumString};
 

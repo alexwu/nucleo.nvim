@@ -15,7 +15,7 @@
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 
-use serde::{de::value::SeqDeserializer, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
 /// Forward sorted vector
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
