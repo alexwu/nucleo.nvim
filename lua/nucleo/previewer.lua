@@ -1,9 +1,11 @@
 local Popup = require("nui.popup")
 local a = require("nucleo.async").a
+local await_schedule = require("nucleo.async").scheduler
 local api = vim.api
 
 local ns_preview_match = api.nvim_create_namespace("nucleo/preview_match")
 
+---@diagnostic disable-next-line: undefined-field
 local Previewer = Popup:extend("Previewer")
 
 local function highlight_match(bufnr, preview_options, offset)
@@ -56,6 +58,7 @@ Previewer.render = a.void(function(self, entry)
 
 	local preview_options = entry.preview_options or {}
 	if preview_options.kind == "skip" then
+		self:clear()
 		return
 	end
 
@@ -113,22 +116,23 @@ Previewer.render = a.void(function(self, entry)
 		return
 	end
 
-	vim.schedule(function()
-		local lang = vim.treesitter.language.get_lang(ft)
-		if lang and has_ts_parser(lang) then
-			vim.treesitter.start(self.bufnr, lang)
-		else
-			vim.treesitter.stop(self.bufnr)
-			vim.bo[self.bufnr].syntax = ft
-		end
+	await_schedule()
+	-- vim.schedule(function()
+	local lang = vim.treesitter.language.get_lang(ft)
+	if lang and has_ts_parser(lang) then
+		vim.treesitter.start(self.bufnr, lang)
+	else
+		vim.treesitter.stop(self.bufnr)
+		vim.bo[self.bufnr].syntax = ft
+	end
 
-		if preview_options.kind == "diff" then
-			vim.treesitter.start(self.bufnr, "diff")
-			vim.bo[self.bufnr].syntax = "diff"
-		end
+	if preview_options.kind == "diff" then
+		vim.treesitter.start(self.bufnr, "diff")
+		vim.bo[self.bufnr].syntax = "diff"
+	end
 
-		highlight_match(self.bufnr, preview_options, offset)
-	end)
+	highlight_match(self.bufnr, preview_options, offset)
+	-- end)
 end)
 
 return Previewer

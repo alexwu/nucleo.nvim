@@ -22,7 +22,6 @@ mod error;
 mod injector;
 mod matcher;
 mod nucleo;
-mod nvim;
 mod pattern;
 mod picker;
 mod previewer;

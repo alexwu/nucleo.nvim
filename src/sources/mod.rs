@@ -11,6 +11,7 @@ pub mod files;
 pub mod git;
 mod lua_function;
 pub mod lua_tables;
+mod git_hunks;
 
 #[derive(
     Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display, EnumIs, Eq,
@@ -29,6 +30,8 @@ pub enum Sources {
     Files,
     #[strum(serialize = "builtin.git_status")]
     GitStatus,
+    #[strum(serialize = "builtin.git_hunks")]
+    GitHunks,
     #[strum(serialize = "builtin.diagnostics")]
     Diagnostics,
     #[strum(default)]

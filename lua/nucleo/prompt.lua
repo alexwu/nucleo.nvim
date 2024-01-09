@@ -10,6 +10,8 @@ local api = vim.api
 local ns_match_count = vim.api.nvim_create_namespace("nucleo_match_count")
 
 ---@class Prompt: NuiInput
+---@field super NuiInput
+---@diagnostic disable-next-line: undefined-field
 local Prompt = Input:extend("Prompt")
 
 ---@class PromptConfig

@@ -77,6 +77,17 @@ impl Previewer {
         }
     }
 
+    // pub fn preview(&mut self, options: PreviewOptions) -> (String, usize) {
+    //     match options.kind {
+    //         PreviewKind::Skip => (String::new(), 0),
+    //         PreviewKind::File => {
+    //             self.preview_file(path, start_line, end_line)
+    //         },
+    //         PreviewKind::Folder => todo!(),
+    //         PreviewKind::Diff => todo!(),
+    //     }
+    // }
+
     pub fn preview_file(
         &mut self,
         path: &str,

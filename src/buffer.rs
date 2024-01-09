@@ -91,7 +91,7 @@ pub enum Relative {
     Window,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct Cursor {
     pos: usize,
 }

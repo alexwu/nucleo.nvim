@@ -88,6 +88,14 @@ impl Repository {
             Err(err) => bail!(err),
         }
     }
+
+    pub fn diff_index_to_workdir(
+        &self,
+        index: Option<&git2::Index>,
+        opts: Option<&mut git2::DiffOptions>,
+    ) -> Result<git2::Diff<'_>, git2::Error> {
+        self.0.diff_index_to_workdir(index, opts)
+    }
 }
 
 pub struct FileStatuses<'a>(Statuses<'a>);

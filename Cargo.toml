@@ -43,6 +43,9 @@ smol_str = { version = "0.2", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
 libc = "0.2"
 thiserror = "1"
+oxi-types = "0.4"
+oxi-luajit = "0.4"
+oxi-api = { version = "0.4", features = ["neovim-nightly"] }
 
 tokio-stream = "0.1"
 tracing = "0.1"

@@ -4,6 +4,7 @@ use std::{env::current_dir, path::Path, sync::Arc};
 use buildstructor::Builder;
 use mlua::prelude::*;
 use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
+use oxi_api::Buffer;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
@@ -160,9 +161,14 @@ impl<'lua> IntoLua<'lua> for Diagnostic {
 impl From<Diagnostic> for Data<Diagnostic> {
     fn from(value: Diagnostic) -> Self {
         let bufnr = value.bufnr.unwrap_or_default();
-        let file_path: String = unsafe {
-            let mut error = crate::nvim::Error::new();
-            crate::nvim::nvim_buf_get_name(bufnr as i32, core::ptr::null_mut(), &mut error)
+        let file_path: String = {
+            // let mut error = crate::nvim::Error::new();
+            let buffer = Buffer::from(bufnr as i32);
+            buffer
+                .get_name()
+                .expect("Failed getting buffer name")
+                // buffer.get_name(bufnr as i32, core::ptr::null_mut(), &mut error)
+                // crate::nvim::nvim_buf_get_name(bufnr as i32, core::ptr::null_mut(), &mut error)
                 .to_string_lossy()
                 .clone()
                 .to_string()
