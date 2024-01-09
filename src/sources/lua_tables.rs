@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{Populator, Sources};
 use crate::{
     entry::Data,
-    picker::{self, Blob, Picker},
+    picker::{Blob, Picker},
 };
 
 #[derive(FromLua, Debug, Clone, Serialize, Deserialize, buildstructor::Builder)]
@@ -18,7 +18,7 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn picker(source: Self, config: picker::Config) -> Picker<Blob, Blob, Source> {
+    pub fn picker(source: Self, config: crate::config::Config) -> Picker<Blob, Blob, Source> {
         Picker::builder().source(source).config(config).build()
     }
 }

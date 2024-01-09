@@ -8,7 +8,7 @@ use buildstructor::buildstructor;
 use crossbeam_channel::bounded;
 use mlua::ExternalResult;
 use mlua::{
-    prelude::{Lua, LuaResult, LuaTable, LuaValue},
+    prelude::{Lua, LuaResult, LuaValue},
     FromLua, LuaSerdeExt, UserData, UserDataMethods,
 };
 use nucleo_matcher::Utf32Str;
@@ -16,7 +16,7 @@ use partially::Partial;
 use serde::{Deserialize, Serialize};
 
 use crate::buffer::{Buffer, Cursor, Relative};
-use crate::config::{SelectionStrategy, SortDirection};
+use crate::config::{Config, PartialConfig, SortDirection};
 use crate::entry::{Data, Entry};
 use crate::injector::{Config as InjectorConfig, FromPartial};
 use crate::matcher::{Matcher, Status, MATCHER};
@@ -77,7 +77,7 @@ where
     P: Populator<T, V, Data<T>> + Clone,
 {
     #[builder]
-    pub fn new(source: P, config: Option<Config>, multi_sort: Option<bool>) -> Self {
+    pub fn new(source: P, config: Option<crate::config::Config>, multi_sort: Option<bool>) -> Self {
         let config = config.unwrap_or_default();
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
@@ -188,7 +188,7 @@ where
             self.previous_query = query.to_string();
             // TODO: Debounce this tick? This whole function?
             // TODO: I feel like this can make this hitch scenarios where there's lots of matches...
-            if self.config.selection_strategy.is_reset() {
+            if self.config.selection_strategy().is_reset() {
                 self.move_cursor_to(0);
             } else {
                 self.tick(10);
@@ -419,30 +419,6 @@ where
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, Partial, Default)]
-#[partially(derive(Default, Debug, Clone, Serialize, Deserialize))]
-pub struct Config {
-    pub sort_direction: SortDirection,
-    pub selection_strategy: SelectionStrategy,
-}
-
-impl FromLua<'_> for PartialConfig {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        let table = LuaTable::from_lua(value, lua)?;
-
-        Ok(PartialConfig {
-            sort_direction: table.get("sort_direction")?,
-            selection_strategy: table.get("selection_strategy")?,
-        })
-    }
-}
-
-impl From<PartialConfig> for Config {
-    fn from(value: PartialConfig) -> Self {
-        Config::from_partial(value)
-    }
-}
-
 impl<T, V, P> UserData for Picker<T, V, P>
 where
     T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
@@ -463,12 +439,12 @@ where
         });
 
         methods.add_method("sort_direction", |_lua, this, ()| {
-            Ok(this.config.sort_direction)
+            Ok(this.config.sort_direction())
         });
 
         methods.add_method_mut("move_cursor_up", |_lua, this, params: (Option<u32>,)| {
             let delta = params.0.unwrap_or(1);
-            match this.config.sort_direction {
+            match this.config.sort_direction() {
                 SortDirection::Descending => {
                     this.move_cursor(Movement::Up, delta);
                 }
@@ -481,7 +457,7 @@ where
 
         methods.add_method_mut("move_cursor_down", |_lua, this, params: (Option<u32>,)| {
             let delta = params.0.unwrap_or(1);
-            match this.config.sort_direction {
+            match this.config.sort_direction() {
                 SortDirection::Descending => {
                     this.move_cursor(Movement::Down, delta);
                 }
@@ -493,7 +469,7 @@ where
         });
 
         methods.add_method_mut("move_to_top", |_lua, this, ()| {
-            match this.config.sort_direction {
+            match this.config.sort_direction() {
                 SortDirection::Descending => {
                     this.move_cursor_to(0);
                 }
@@ -505,7 +481,7 @@ where
         });
 
         methods.add_method_mut("move_to_bottom", |_lua, this, ()| {
-            match this.config.sort_direction {
+            match this.config.sort_direction() {
                 SortDirection::Descending => {
                     this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
                 }
