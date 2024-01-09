@@ -240,7 +240,6 @@ impl From<StatusEntry> for Data<StatusEntry> {
     fn from(value: StatusEntry) -> Self {
         let file_path = value.path().expect("Invalid utf8");
         let path = Path::new(&file_path);
-        let full_path = path.canonicalize().expect("Unable to canonicalize path");
         let file_extension = path
             .extension()
             .unwrap_or_default()
@@ -253,7 +252,8 @@ impl From<StatusEntry> for Data<StatusEntry> {
             PreviewKind::Diff
         };
 
-        let uri = Url::from_file_path(full_path).ok();
+        let full_path = path.canonicalize().ok();
+        let uri = full_path.and_then(|fpath| Url::from_file_path(fpath).ok());
         let preview_options = PreviewOptions::builder()
             .kind(preview_kind)
             .line_start(0)

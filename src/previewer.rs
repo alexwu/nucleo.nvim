@@ -118,7 +118,7 @@ impl Previewer {
         };
 
         let output = Command::new("git")
-            .args(["--no-pager", "diff", path])
+            .args(["--no-pager", "diff", "--", path])
             .output()
             .expect("Failed to execute git diff");
 
