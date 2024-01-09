@@ -1,7 +1,6 @@
 use std::cmp::{max, min};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::str::FromStr;
 use std::string::ToString;
 use std::sync::Arc;
 
@@ -10,14 +9,14 @@ use crossbeam_channel::bounded;
 use mlua::ExternalResult;
 use mlua::{
     prelude::{Lua, LuaResult, LuaTable, LuaValue},
-    FromLua, IntoLua, LuaSerdeExt, UserData, UserDataMethods,
+    FromLua, LuaSerdeExt, UserData, UserDataMethods,
 };
 use nucleo_matcher::Utf32Str;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumIs, EnumString};
 
 use crate::buffer::{Buffer, Cursor, Relative};
+use crate::config::{SelectionStrategy, SortDirection};
 use crate::entry::{Data, Entry};
 use crate::injector::{Config as InjectorConfig, FromPartial};
 use crate::matcher::{Matcher, Status, MATCHER};
@@ -30,59 +29,6 @@ use crate::window::Window;
 pub enum Movement {
     Up,
     Down,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display)]
-#[strum(serialize_all = "snake_case")]
-pub enum SortDirection {
-    Ascending,
-    #[default]
-    Descending,
-}
-
-#[derive(
-    Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display, EnumIs,
-)]
-#[strum(serialize_all = "snake_case")]
-pub enum SelectionStrategy {
-    #[default]
-    Reset,
-    Follow,
-}
-
-impl FromLua<'_> for SelectionStrategy {
-    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
-        match value {
-            mlua::Value::String(str) => {
-                let direction = match SelectionStrategy::from_str(str.to_str()?) {
-                    Ok(direction) => direction,
-                    Err(_) => SelectionStrategy::default(),
-                };
-                Ok(direction)
-            }
-            _ => Ok(SelectionStrategy::default()),
-        }
-    }
-}
-impl FromLua<'_> for SortDirection {
-    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
-        match value {
-            mlua::Value::String(str) => {
-                let direction = match SortDirection::from_str(str.to_str()?) {
-                    Ok(direction) => direction,
-                    Err(_) => SortDirection::Descending,
-                };
-                Ok(direction)
-            }
-            _ => Ok(SortDirection::Descending),
-        }
-    }
-}
-
-impl IntoLua<'_> for SortDirection {
-    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
-        self.to_string().into_lua(lua)
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display, Default, Partial)]

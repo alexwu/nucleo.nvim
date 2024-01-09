@@ -1,9 +1,11 @@
+use std::str::FromStr;
+
 use log::LevelFilter;
-use mlua::FromLua;
+use mlua::{prelude::*, FromLua};
 use partially::Partial;
 use serde::{Deserialize, Serialize};
 use serde_repr::*;
-use strum::EnumIs;
+use strum::{Display, EnumIs, EnumString};
 
 /// These match vim.log.levels
 #[derive(Clone, Debug, Default, Copy, EnumIs, Serialize_repr, Deserialize_repr)]
@@ -28,6 +30,59 @@ impl From<LogLevel> for LevelFilter {
             LogLevel::Error => LevelFilter::Error,
             LogLevel::Off => LevelFilter::Off,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum SortDirection {
+    Ascending,
+    #[default]
+    Descending,
+}
+
+#[derive(
+    Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display, EnumIs,
+)]
+#[strum(serialize_all = "snake_case")]
+pub enum SelectionStrategy {
+    #[default]
+    Reset,
+    Follow,
+}
+
+impl FromLua<'_> for SelectionStrategy {
+    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
+        match value {
+            mlua::Value::String(str) => {
+                let direction = match SelectionStrategy::from_str(str.to_str()?) {
+                    Ok(direction) => direction,
+                    Err(_) => SelectionStrategy::default(),
+                };
+                Ok(direction)
+            }
+            _ => Ok(SelectionStrategy::default()),
+        }
+    }
+}
+impl FromLua<'_> for SortDirection {
+    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
+        match value {
+            mlua::Value::String(str) => {
+                let direction = match SortDirection::from_str(str.to_str()?) {
+                    Ok(direction) => direction,
+                    Err(_) => SortDirection::Descending,
+                };
+                Ok(direction)
+            }
+            _ => Ok(SortDirection::Descending),
+        }
+    }
+}
+
+impl IntoLua<'_> for SortDirection {
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+        self.to_string().into_lua(lua)
     }
 }
 
