@@ -1,12 +1,10 @@
-use std::{env::current_dir, path::Path, sync::Arc};
+use std::{env::current_dir, path::PathBuf, sync::Arc};
 
-use anyhow::bail;
 use buildstructor::Builder;
-use git2::{DiffDelta, Statuses};
+use git2::DiffDelta;
 use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
-use strum::EnumIs;
 use url::Url;
 
 use super::{git::Repository, Populator, Sources};
@@ -40,10 +38,16 @@ impl Source {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
-pub struct Hunk {}
+pub struct Hunk {
+    path: PathBuf,
+    old_start: usize,
+    new_start: usize,
+    old_lines: usize,
+    new_lines: usize,
+}
 
-fn file_cb(delta: DiffDelta, _: f32) -> bool {
-    log::info!("delta {:?}", delta);
+fn file_cb(_delta: DiffDelta, _: f32) -> bool {
+    // log::info!("delta {:?}", delta);
     true
 }
 
@@ -65,28 +69,73 @@ impl Populator<Hunk, HunkConfig, Data<Hunk>> for Source {
         let repo = Repository::open(config.cwd).expect("Unable to open repository");
 
         Arc::new(move |tx| {
-            // let status_options = &mut git2::StatusOptions::new();
-            // status_options
-            //     .show(git2::StatusShow::Workdir)
-            //     .update_index(true)
-            //     .recurse_untracked_dirs(true)
-            //     .include_ignored(false)
-            //     .include_untracked(true);
-            //
-            repo.diff_index_to_workdir(None, None)?
-                .foreach(&mut file_cb, None, None, None)?;
-            // repo.statuses(Some(status_options))
-            //     .expect("Unable to get statuses")
-            //     .iter()
-            //     .for_each(|entry| {
-            //         let entry: StatusEntry = entry;
-            //         let data = Data::from(entry);
-            //         log::info!("{:?}", &data);
-            //         let _ = tx.send(data);
-            //     });
+            let mut diff_options = git2::DiffOptions::new();
+            diff_options.context_lines(0);
+            repo.diff_index_to_workdir(None, Some(&mut diff_options))?
+                .foreach(
+                    &mut file_cb,
+                    None,
+                    Some(&mut |delta, hunk| {
+                        log::info!(
+                            "delta {:?}",
+                            delta.new_file().path().map(|p| p.to_path_buf())
+                        );
+                        log::info!("hunk {:?}", hunk);
+                        if let Some(path) = delta.new_file().path() {
+                            let entry = Hunk::builder()
+                                .path(path.to_path_buf())
+                                .old_start(hunk.old_start() as usize)
+                                .new_start(hunk.new_start() as usize)
+                                .old_lines(hunk.old_lines() as usize)
+                                .new_lines(hunk.new_lines() as usize)
+                                .build();
+
+                            tx.send(entry.into());
+                        }
+                        true
+                    }),
+                    None,
+                )?;
 
             Ok(())
         })
+    }
+}
+
+impl From<Hunk> for Data<Hunk> {
+    fn from(value: Hunk) -> Self {
+        let file_extension = value
+            .path
+            .extension()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        let preview_kind = PreviewKind::File;
+
+        let line_start = value.new_start.saturating_sub(1);
+        let new_end = (line_start + value.new_lines).max(line_start);
+
+        let full_path = value.path.canonicalize().ok();
+        let uri = full_path.and_then(|fpath| Url::from_file_path(fpath).ok());
+        let preview_options = PreviewOptions::builder()
+            .kind(preview_kind)
+            .line_start(line_start)
+            .line_end(new_end)
+            .col_start(0)
+            .and_uri(uri)
+            .path(value.path.display().to_string())
+            .file_extension(file_extension)
+            .build();
+
+        let ordinal = format!("{}:{} {}", value.new_start, new_end, value.path.display());
+
+        Data::builder()
+            .kind(DataKind::File)
+            .ordinal(ordinal)
+            .value(value.clone())
+            .preview_options(preview_options)
+            .build()
     }
 }
 

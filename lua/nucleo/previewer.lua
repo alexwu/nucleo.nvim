@@ -9,7 +9,7 @@ local ns_preview_match = api.nvim_create_namespace("nucleo/preview_match")
 local Previewer = Popup:extend("Previewer")
 
 local function highlight_match(bufnr, preview_options, offset)
-	if not preview_options.line_end or not preview_options.col_end then
+	if not preview_options.line_end and not preview_options.col_end then
 		return
 	end
 

@@ -9,9 +9,9 @@ use crate::{entry::IntoUtf32String, injector::FinderFn};
 pub mod diagnostics;
 pub mod files;
 pub mod git;
+pub mod git_hunks;
 mod lua_function;
 pub mod lua_tables;
-mod git_hunks;
 
 #[derive(
     Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display, EnumIs, Eq,

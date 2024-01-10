@@ -4,8 +4,12 @@ local M = {}
 
 function M.git_status(...)
 	Picker({
-		source = "builtin.git_status",
-		cwd = vim.uv.cwd,
+		source = {
+			name = "builtin.git_status",
+			config = {
+				cwd = vim.uv.cwd,
+			},
+		},
 		on_submit = function(selection)
 			local path = selection.value.path
 			if path then
@@ -19,8 +23,12 @@ end
 
 function M.git_hunks(...)
 	Picker({
-		source = "builtin.git_hunks",
-		cwd = vim.uv.cwd,
+		source = {
+			name = "builtin.git_hunks",
+			config = {
+				cwd = vim.uv.cwd,
+			},
+		},
 		on_submit = function(selection)
 			local path = selection.value.path
 			if path then

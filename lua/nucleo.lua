@@ -20,8 +20,8 @@ function M.setup(...)
 		M.find()
 	end, {})
 
-	api.nvim_create_user_command("Diag", function()
-		require("nucleo.sources.diagnostics").diagnostics()
+	api.nvim_create_user_command("Hunks", function()
+		require("nucleo.sources.git").git_hunks()
 	end, {})
 end
 

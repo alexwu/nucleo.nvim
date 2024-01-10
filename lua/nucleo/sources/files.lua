@@ -4,7 +4,9 @@ local M = {}
 
 function M.find_files(...)
 	Picker({
-		source = "builtin.files",
+		source = {
+			name = "builtin.files",
+		},
 		on_submit = function(selection)
 			local path = selection.value.path
 			if path then

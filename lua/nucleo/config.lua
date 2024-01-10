@@ -31,7 +31,10 @@ local defaults = {
 			ignore = true,
 			hidden = false,
 		},
-		---@class Nucleo.Config.GitStatus: Nucleo.Config.Defaults.Generic
+		---@class Nucleo.Config.GitHunks: Nucleo.Config.Defaults.Generic
+		["builtin.git_hunks"] = {
+			cwd = vim.uv.cwd,
+		},
 		["builtin.git_status"] = {
 			cwd = vim.uv.cwd,
 		},

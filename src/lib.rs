@@ -11,6 +11,7 @@ use sources::{
     diagnostics,
     files::{self, PartialFileConfig},
     git::{self, PartialStatusConfig},
+    git_hunks, Sources,
 };
 
 use crate::util::align_str;
@@ -60,6 +61,46 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
         LuaFunction::wrap(|lua, params: (LuaValue,)| {
             let options: Option<config::PartialConfig> = lua.from_value(params.0)?;
             setup(options).into_lua_err()
+        }),
+    )?;
+
+    exports.set(
+        "Picker",
+        LuaFunction::wrap(|lua, params: (LuaValue,)| {
+            let table = LuaTable::from_lua(params.0.clone(), lua)?;
+            let name: Sources = table.get("name")?;
+            let config: Option<LuaValue> = table.get("config")?;
+
+            match name {
+                Sources::Files => {
+                    let opts: Option<sources::files::PartialFileConfig> =
+                        config.and_then(|c| lua.from_value(c).ok()?);
+
+                    files::create_picker(opts).into_lua_err()?.into_lua(lua)
+                }
+                Sources::GitStatus => {
+                    let opts: Option<PartialStatusConfig> =
+                        config.and_then(|c| lua.from_value(c).ok()?);
+
+                    git::create_picker(opts).into_lua_err()?.into_lua(lua)
+                }
+                Sources::GitHunks => {
+                    let opts: Option<git_hunks::PartialHunkConfig> =
+                        config.and_then(|c| lua.from_value(c).ok()?);
+
+                    git_hunks::Source::picker(opts)
+                        .into_lua_err()?
+                        .into_lua(lua)
+                }
+                Sources::Diagnostics => {
+                    let source = diagnostics::Source::from_lua(params.0, lua)?;
+
+                    diagnostics::create_picker(source)
+                        .into_lua_err()?
+                        .into_lua(lua)
+                }
+                Sources::Custom(_) => todo!(),
+            }
         }),
     )?;
 

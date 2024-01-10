@@ -73,15 +73,17 @@ function Picker:new(opts)
 	---@type Sender, Receiver
 	self.tx, self.rx = channel.counter()
 	---@type PickerBackend
-	if opts.source == "builtin.files" then
-		self.picker = nu.FilePicker(opts)
-	elseif opts.source == "builtin.git_status" then
-		self.picker = nu.GitStatusPicker(opts)
-	elseif type(opts.source) == "table" and opts.source.name == "builtin.diagnostics" then
-		self.picker = nu.DiagnosticsPicker(opts.source)
-	else
-		-- self.picker = nu.CustomPicker(opts.source)
-	end
+	-- if opts.source == "builtin.files" then
+	-- 	self.picker = nu.FilePicker(opts)
+	-- elseif opts.source == "builtin.git_status" then
+	-- 	self.picker = nu.GitStatusPicker(opts)
+	-- elseif type(opts.source) == "table" and opts.source.name == "builtin.diagnostics" then
+	-- 	self.picker = nu.DiagnosticsPicker(opts.source)
+	-- else
+	-- 	-- self.picker = nu.CustomPicker(opts.source)
+	-- end
+
+	self.picker = nu.Picker(opts.source)
 
 	self.results = Results()
 	self.previewer = Previewer()
