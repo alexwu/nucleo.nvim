@@ -1,4 +1,5 @@
 local Picker = require("nucleo.picker")
+local presets = require("nucleo.presets")
 
 local M = {}
 
@@ -7,6 +8,7 @@ function M.find_files(...)
 		source = {
 			name = "builtin.files",
 		},
+		layout = presets.horizontal(),
 		on_submit = function(selection)
 			local path = selection.value.path
 			if path then

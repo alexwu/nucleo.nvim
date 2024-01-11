@@ -1,6 +1,6 @@
-local Layout = require("nui.layout")
 local actions = require("nucleo.actions")
 local extensions = require("nucleo.extensions")
+local presets = require("nucleo.presets")
 
 ---@class Nucleo.Config
 local M = {}
@@ -23,29 +23,8 @@ local defaults = {
 		selection_caret = "> ",
 		multi_icon = "+",
 	},
-	---@param prompt Nucleo.Prompt
-	---@param results Nucleo.Results
-	---@param previewer Nucleo.Previewer
-	---@return NuiLayout
-	default_layout = function(prompt, results, previewer)
-		return Layout(
-			{
-				relative = "editor",
-				position = "50%",
-				size = {
-					width = "80%",
-					height = "80%",
-				},
-			},
-			Layout.Box({
-				Layout.Box(prompt, { size = { width = "100%", height = "3" } }),
-				Layout.Box({
-					Layout.Box(results, { size = "40%" }),
-					Layout.Box(previewer, { size = "60%" }),
-				}, { dir = "row", size = "100%" }),
-			}, { dir = "col" })
-		)
-	end,
+	---@type fun(prompt: Nucleo.Prompt, results: Nucleo.Results, preview: Nucleo.Previewer)
+	default_layout = presets.horizontal(),
 	sources = {
 		---@class Nucleo.Config.Files: Nucleo.Config.Defaults.Generic
 		---@field cwd fun()|string
