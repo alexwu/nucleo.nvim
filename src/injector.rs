@@ -38,7 +38,7 @@ impl<T: IntoUtf32String + Clone + Scored> Injector<T> {
 
 impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
     pub fn populate(self, entries: Vec<T>) {
-        log::info!("Populating picker with {} entries", entries.len());
+        log::debug!("Populating picker with {} entries", entries.len());
         let rt = Runtime::new().expect("Failed to create runtime");
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
@@ -69,7 +69,7 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
         let injector = source.build_injector(None);
-        log::info!("injector::populate_with_source");
+        log::debug!("injector::populate_with_source");
         rt.block_on(async {
             let _f: JoinHandle<Result<(), _>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
@@ -92,9 +92,9 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
-        log::info!("Before build_injector");
+        log::debug!("Before build_injector");
         let injector = source.build_injector(Some(lua));
-        log::info!("injector::populate_with_lua_source");
+        log::debug!("injector::populate_with_lua_source");
 
         rt.block_on(async {
             let _f: JoinHandle<Result<(), _>> = rt.spawn(async move {

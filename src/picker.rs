@@ -177,7 +177,7 @@ where
     pub fn update_query(&mut self, query: &str) {
         let previous_query = self.previous_query.clone();
         if query != previous_query {
-            log::info!("Updating query: {}", &query);
+            log::debug!("Updating query: {}", &query);
             self.matcher.pattern().reparse(
                 0,
                 query,
@@ -198,12 +198,12 @@ where
     }
 
     pub fn update_config(&mut self, config: PartialConfig) {
-        // log::info!("Updating config to: {:?}", config);
+        log::debug!("Updating config to: {:?}", config);
         self.config.apply_some(config);
     }
 
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
-        log::info!("Moving cursor {:?} by {}", direction, change);
+        log::debug!("Moving cursor {:?} by {}", direction, change);
         self.tick(10);
 
         if self.total_matches() == 0 {
@@ -232,7 +232,7 @@ where
     }
 
     pub fn move_cursor_to(&mut self, pos: usize) {
-        log::info!("Moving cursor to {}", pos);
+        log::debug!("Moving cursor to {}", pos);
         self.tick(10);
 
         if self.total_matches() == 0 {
@@ -264,8 +264,8 @@ where
     pub fn current_matches(&self) -> Vec<Data<T>> {
         let mut match_indices = Vec::new();
         let snapshot = self.matcher.snapshot();
-        log::info!("Item count: {:?}", snapshot.item_count());
-        log::info!("Match count: {:?}", snapshot.matched_item_count());
+        log::debug!("Item count: {:?}", snapshot.item_count());
+        log::debug!("Match count: {:?}", snapshot.matched_item_count());
         let matcher = &mut MATCHER.lock();
 
         let lower_bound = self.lower_bound();
@@ -283,7 +283,7 @@ where
 
                 let selected = self.selections.contains_key(&item.data.ordinal());
                 if selected {
-                    log::info!("{:?} is selected", &item.data);
+                    log::debug!("{:?} is selected", &item.data);
                 }
                 item.data
                     .clone()
@@ -313,10 +313,10 @@ where
                 // WARN: This worries me...can these become out of sync?
                 self.selections
                     .insert(entry.data.ordinal(), entry.data.clone());
-                log::info!("multi-selections: {:?}", &self.selections);
+                log::debug!("multi-selections: {:?}", &self.selections);
             }
             None => {
-                log::info!("Error multi-selecting index: {}", index);
+                log::error!("Error multi-selecting index: {}", index);
             }
         };
     }
@@ -337,10 +337,10 @@ where
                 } else {
                     self.deselect(entry.data.ordinal());
                 }
-                log::info!("multi-selections: {:?}", &self.selections);
+                log::debug!("multi-selections: {:?}", &self.selections);
             }
             None => {
-                log::info!("Error multi-selecting index: {}", index);
+                log::error!("Error multi-selecting index: {}", index);
             }
         };
     }
@@ -439,6 +439,7 @@ where
         });
 
         methods.add_method("sort_direction", |_lua, this, ()| {
+            log::debug!("{:?}", this.config.sort_direction());
             Ok(this.config.sort_direction())
         });
 
@@ -506,8 +507,6 @@ where
 
         methods.add_method("fuzzy_indices", |lua, this, params: (String,)| {
             let indices = this.current_match_indices(&params.0);
-
-            log::info!("indices? {:?}", &indices);
 
             Ok(lua.to_value(&indices))
         });

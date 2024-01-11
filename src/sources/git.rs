@@ -54,7 +54,6 @@ impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
                 .for_each(|entry| {
                     let entry: StatusEntry = entry;
                     let data = Data::from(entry);
-                    log::info!("{:?}", &data);
                     let _ = tx.send(data);
                 });
 
@@ -220,11 +219,11 @@ where
     let table = LuaTable::from_lua(val, lua)?;
     match table.get(field)? {
         LuaValue::Function(func) => {
-            log::info!("in the function section");
+            log::debug!("in the function section");
             func.call::<_, T>(())
         }
         val => {
-            log::info!("val: {:?}", &val);
+            log::debug!("val: {:?}", &val);
             lua.from_value(val)
         }
     }
@@ -233,7 +232,6 @@ where
 impl FromLua<'_> for PartialStatusConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let cwd: Option<String> = call_or_get(lua, value, "cwd")?;
-        log::info!("{:?}", &cwd);
 
         Ok(PartialStatusConfig { cwd })
     }

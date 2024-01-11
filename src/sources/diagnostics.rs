@@ -77,7 +77,7 @@ impl FromLua<'_> for Source {
         };
 
         let partial_config: PartialConfig = lua.from_value(table.get::<_, LuaValue>("config")?)?;
-        log::info!("diagnostics partial config: {:?}", &partial_config);
+        log::debug!("diagnostics partial config: {:?}", &partial_config);
         let config = Config::from_partial(partial_config);
 
         Ok(Source::builder()

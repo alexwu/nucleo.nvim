@@ -126,7 +126,6 @@ impl Value {
         };
 
         let file_size = metadata.map(|m| m.len() as usize);
-        log::info!("{:?}", file_size);
 
         let preview_options = PreviewOptions::builder()
             .kind(preview_kind)
@@ -222,10 +221,8 @@ impl From<PartialFileConfig> for FileConfig {
 pub fn create_picker(
     file_options: Option<PartialFileConfig>,
 ) -> anyhow::Result<Picker<Value, FileConfig, Source>> {
-    let config = match file_options {
-        Some(config) => config,
-        None => PartialFileConfig::default(),
-    };
+    log::debug!("file options {:?}", file_options);
+    let config = file_options.unwrap_or_default();
     let source = Source::builder().config(config).build();
     let picker: Picker<Value, FileConfig, Source> =
         Picker::builder().multi_sort(false).source(source).build();

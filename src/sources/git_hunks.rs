@@ -76,11 +76,11 @@ impl Populator<Hunk, HunkConfig, Data<Hunk>> for Source {
                     &mut file_cb,
                     None,
                     Some(&mut |delta, hunk| {
-                        log::info!(
+                        log::debug!(
                             "delta {:?}",
                             delta.new_file().path().map(|p| p.to_path_buf())
                         );
-                        log::info!("hunk {:?}", hunk);
+                        log::debug!("hunk {:?}", hunk);
                         if let Some(path) = delta.new_file().path() {
                             let entry = Hunk::builder()
                                 .path(path.to_path_buf())
@@ -156,7 +156,6 @@ impl From<PartialHunkConfig> for HunkConfig {
 impl FromLua<'_> for PartialHunkConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let cwd: Option<String> = call_or_get(lua, value, "cwd")?;
-        log::info!("{:?}", &cwd);
 
         Ok(Self { cwd })
     }
