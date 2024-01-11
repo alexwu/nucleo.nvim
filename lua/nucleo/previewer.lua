@@ -5,6 +5,8 @@ local api = vim.api
 
 local ns_preview_match = api.nvim_create_namespace("nucleo/preview_match")
 
+---@class Nucleo.Previewer: NuiPopup
+---@field super NuiPopup
 ---@diagnostic disable-next-line: undefined-field
 local Previewer = Popup:extend("Previewer")
 

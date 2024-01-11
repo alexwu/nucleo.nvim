@@ -1,6 +1,5 @@
 local Highlighter = require("nucleo.highlighter")
 local debounce = require("nucleo.debounce").debounce_trailing
-local Layout = require("nui.layout")
 local log = require("nucleo.log")
 local channel = require("nucleo.async").channel
 local Previewer = require("nucleo.previewer")
@@ -61,6 +60,13 @@ local api = vim.api
 ---@field picker PickerBackend
 local Picker = require("plenary.class"):extend()
 
+---@class PickerOptions
+---@field on_submit function
+---@field on_close function
+---@field source table
+---@field layout? fun(prompt: Nucleo.Prompt, results: Nucleo.Results, previewer: Nucleo.Previewer): NuiLayout
+
+---@param opts? PickerOptions
 function Picker:new(opts)
 	opts = opts or {}
 	vim.validate({
@@ -120,23 +126,26 @@ function Picker:new(opts)
 	self._on_close = opts.on_close
 	self._on_submit = opts.on_submit
 
-	self.layout = Layout(
-		{
-			relative = "editor",
-			position = "50%",
-			size = {
-				width = "80%",
-				height = "80%",
-			},
-		},
-		Layout.Box({
-			Layout.Box(self.prompt, { size = { width = "100%", height = "3" } }),
-			Layout.Box({
-				Layout.Box(self.results, { size = "40%" }),
-				Layout.Box(self.previewer, { size = "60%" }),
-			}, { dir = "row", size = "100%" }),
-		}, { dir = "col" })
-	)
+	local layout_builder = opts.layout or config.get("default_layout")
+
+	self.layout = layout_builder(self.prompt, self.results, self.previewer)
+	-- self.layout = Layout(
+	-- 	{
+	-- 		relative = "editor",
+	-- 		position = "50%",
+	-- 		size = {
+	-- 			width = "80%",
+	-- 			height = "80%",
+	-- 		},
+	-- 	},
+	-- 	Layout.Box({
+	-- 		Layout.Box(self.prompt, { size = { width = "100%", height = "3" } }),
+	-- 		Layout.Box({
+	-- 			Layout.Box(self.results, { size = "40%" }),
+	-- 			Layout.Box(self.previewer, { size = "60%" }),
+	-- 		}, { dir = "row", size = "100%" }),
+	-- 	}, { dir = "col" })
+	-- )
 
 	local default_mappings = config.get("mappings")
 
