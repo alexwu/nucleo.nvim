@@ -90,7 +90,9 @@ impl Populator<Hunk, HunkConfig, Data<Hunk>> for Source {
                                 .new_lines(hunk.new_lines() as usize)
                                 .build();
 
-                            tx.send(entry.into());
+                            if tx.send(entry.into()).is_err() {
+                                return false;
+                            }
                         }
                         true
                     }),
