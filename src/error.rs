@@ -6,6 +6,8 @@ pub enum Error {
     TryRecvError(#[from] crossbeam_channel::TryRecvError),
     #[error("{0}")]
     Git(#[from] git2::Error),
+    #[error("{0}")]
+    IoError(#[from] std::io::Error),
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
