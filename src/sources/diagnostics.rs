@@ -12,6 +12,8 @@ use strum::{Display, EnumString};
 use url::Url;
 
 use super::{Populator, SourceKind, Sources};
+use crate::config;
+use crate::error::Result;
 use crate::injector::FromPartial;
 use crate::{
     entry::{Data, DataKind},
@@ -28,15 +30,17 @@ pub enum Scope {
     Workspace,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, FromLua, Default, Partial)]
-#[partially(derive(Clone, Copy, Debug, Serialize, Deserialize, Default))]
+#[derive(Debug, Clone, Serialize, Deserialize, FromLua, Default, Partial)]
+#[partially(derive(Clone, Debug, Serialize, Deserialize, Default))]
 pub struct Config {
     scope: Scope,
+    #[serde(flatten, default)]
+    picker_config: config::PartialConfig,
 }
 
 impl FromLua<'_> for PartialConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        let table = LuaTable::from_lua(value, lua)?;
+        let table = LuaTable::from_lua(value.clone(), lua)?;
         let scope = match table.get::<&str, LuaValue>("scope") {
             Ok(val) => {
                 if let LuaValue::String(scope) = val {
@@ -48,7 +52,10 @@ impl FromLua<'_> for PartialConfig {
             _ => None,
         };
 
-        Ok(PartialConfig { scope })
+        Ok(PartialConfig {
+            scope,
+            picker_config: lua.from_value(value)?,
+        })
     }
 }
 
@@ -222,6 +229,11 @@ impl From<Diagnostic> for Data<Diagnostic> {
     }
 }
 
-pub fn create_picker(source: Source) -> anyhow::Result<Picker<Diagnostic, Config, Source>> {
-    anyhow::Ok(Picker::builder().multi_sort(true).source(source).build())
+pub fn create_picker(source: Source) -> Result<Picker<Diagnostic, Config, Source>> {
+    let picker_config = source.config.picker_config.clone();
+    Ok(Picker::builder()
+        .multi_sort(true)
+        .source(source)
+        .config(picker_config)
+        .build())
 }

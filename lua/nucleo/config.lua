@@ -38,6 +38,7 @@ local defaults = {
 		["builtin.git_hunks"] = {
 			cwd = vim.uv.cwd,
 		},
+		---@class Nucleo.Config.GitStatus: Nucleo.Config.Defaults.Generic
 		["builtin.git_status"] = {
 			cwd = vim.uv.cwd,
 		},

@@ -45,6 +45,17 @@ function Results:render_entries(picker)
 	if not self.winid then
 		return
 	end
+	local height = vim.api.nvim_win_get_height(self.winid)
+
+	if vim.tbl_isempty(self._entries) then
+		log.info("Trying to fill buffer to height: ", height)
+		for i = 1, height do
+			self._entries[i] = Entry(i, nil, self.bufnr, ns_multiselection, self.winid)
+			self._entries[i]:render()
+		end
+		log.info("entries: ", #self._entries)
+		log.info("buf_line_count: ", vim.api.nvim_buf_line_count(self.bufnr))
+	end
 
 	api.nvim_buf_clear_namespace(self.bufnr, ns_multiselection, 0, -1)
 	if picker:total_matches() == 0 then
@@ -52,7 +63,7 @@ function Results:render_entries(picker)
 			self:clear_buffer()
 		end
 	else
-		local height = vim.api.nvim_win_get_height(self.winid)
+		log.info("trying to render index at height: ", height)
 		local results = picker:current_matches()
 
 		for i = 1, height do
@@ -63,8 +74,11 @@ function Results:render_entries(picker)
 			end
 
 			local result = nil
-			if index <= #results then
-				result = results[index]
+			-- if index <= #results then
+			-- 	result = results[index]
+			-- end
+			if i <= #results then
+				result = results[i]
 			end
 
 			if not self._entries[index] then

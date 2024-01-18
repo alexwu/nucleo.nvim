@@ -20,6 +20,10 @@ local api = vim.api
 ---@class Sender
 ---@field send fun()
 
+---@class PickerSource
+---@field name string
+---@field config? table
+
 ---@class PickerStatus
 ---@field running boolean
 ---@field changed boolean
@@ -63,7 +67,7 @@ local Picker = require("plenary.class"):extend()
 ---@class PickerOptions
 ---@field on_submit function
 ---@field on_close function
----@field source table
+---@field source PickerSource|string
 ---@field layout? fun(prompt: Nucleo.Prompt, results: Nucleo.Results, previewer: Nucleo.Previewer): NuiLayout
 
 ---@param opts? PickerOptions
@@ -97,7 +101,14 @@ function Picker:new(opts)
 		picker = self.picker,
 		results = self.results,
 	})
-	self.source = opts.source
+
+	if type(opts.source) == "string" then
+		self.source = {
+			name = opts.source,
+		}
+	else
+		self.source = opts.source
+	end
 
 	self.prompt = Prompt({
 		picker = self.picker,
@@ -177,10 +188,8 @@ end
 ---@param source_name string
 ---@param opts? Nucleo.Config.Files
 ---@return Nucleo.Config.Files|Nucleo.Config.GitStatus
-local function override(source_name, opts)
-	opts = opts or {}
-
-	local configs = { config.get("defaults"), config.get("sources", source_name) or {}, opts }
+local function override(source_name, ...)
+	local configs = { config.get("defaults"), config.get("sources", source_name) or {}, ... }
 
 	return vim.tbl_deep_extend("force", unpack(configs))
 end
@@ -204,16 +213,12 @@ end
 ---@param opts? Nucleo.Config.Files
 function Picker:find(opts)
 	opts = opts or {}
-	local source_name = "defaults"
-	if type(self.source) == "string" then
-		source_name = self.source
-	elseif type(self.source) == "table" and type(self.source.name) == "string" then
-		source_name = self.source.name
-	end
+	local source_name = self.source.name
 
-	local options = override(source_name, opts)
+	local options = override(source_name, self.source.config, opts)
+	log.info("config: ", options)
 
-	self.picker:update_config(options)
+	-- self.picker:update_config(options)
 	self.picker:populate(options)
 
 	self.picker:tick(10)

@@ -116,22 +116,13 @@ impl FromLua<'_> for SelectionStrategy {
     }
 }
 impl FromLua<'_> for SortDirection {
-    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
-        match value {
-            mlua::Value::String(str) => {
-                let direction = match SortDirection::from_str(str.to_str()?) {
-                    Ok(direction) => direction,
-                    Err(_) => SortDirection::Descending,
-                };
-                Ok(direction)
-            }
-            _ => Ok(SortDirection::Descending),
-        }
+    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+        lua.from_value(value)
     }
 }
 
 impl IntoLua<'_> for SortDirection {
     fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
-        self.to_string().into_lua(lua)
+        lua.to_value(&self)
     }
 }

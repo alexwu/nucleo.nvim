@@ -27,6 +27,21 @@ impl<T: Entry> IntoUtf32String for T {
     }
 }
 
+pub trait IntoData<T>
+where
+    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+{
+    fn into_data(self) -> Data<T>;
+}
+
+// impl<T:> IntoData<T> for T
+// where
+//     T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+// {
+//     fn into_data(self) -> Data<T> {
+//         todo!()
+//     }
+// }
 pub trait Scored {
     fn score(&self) -> u32;
 }
@@ -71,7 +86,7 @@ impl IntoLua<'_> for DataKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Data<T>
 where
     T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
@@ -87,6 +102,17 @@ where
     pub value: T,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_options: Option<PreviewOptions>,
+}
+
+impl<T: Eq> Eq for Data<T> where T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static {}
+
+impl<T: Ord> Ord for Data<T>
+where
+    T: Clone + Debug + Serialize + Ord + for<'a> Deserialize<'a> + 'static,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.score.cmp(&other.score)
+    }
 }
 
 #[buildstructor::buildstructor]

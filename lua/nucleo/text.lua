@@ -1,4 +1,5 @@
 local NuiText = require("nui.text")
+local log = require("nucleo.log")
 
 ---@type integer
 local fallback_namespace_id = vim.api.nvim_create_namespace("nucleo.nvim")

@@ -9,11 +9,11 @@ use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
 
 use crate::{
     entry::{IntoUtf32String, Scored},
+    error::Result,
     sources::Populator,
 };
 
-pub type FinderFn<T> =
-    Arc<dyn Fn(UnboundedSender<T>) -> anyhow::Result<()> + Sync + Send + 'static>;
+pub type FinderFn<T> = Arc<dyn Fn(UnboundedSender<T>) -> Result<()> + Sync + Send + 'static>;
 
 pub struct Injector<T: IntoUtf32String + Scored + Clone>(crate::nucleo::Injector<T>);
 
@@ -45,11 +45,11 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
 
         let sender = tx.clone();
         rt.block_on(async {
-            let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
+            let _add_to_injector_thread: JoinHandle<Result<()>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
                     self.push(val.clone());
                 }
-                anyhow::Ok(())
+                Ok(())
             });
 
             entries.into_par_iter().for_each(|entry| {
@@ -58,7 +58,7 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
         });
     }
 
-    pub fn populate_with_source<P, U, V>(self, source: P) -> anyhow::Result<()>
+    pub fn populate_with_source<P, U, V>(self, source: P) -> Result<()>
     where
         U: Debug + Clone + Sync + Send + Default + Serialize + for<'a> Deserialize<'a> + 'static,
         V: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
@@ -71,18 +71,18 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
         let injector = source.build_injector(None);
         log::debug!("injector::populate_with_source");
         rt.block_on(async {
-            let _f: JoinHandle<Result<(), _>> = rt.spawn(async move {
+            let _f: JoinHandle<Result<()>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
                     self.push(val.clone());
                 }
-                anyhow::Ok(())
+                Ok(())
             });
 
             injector(tx)
         })
     }
 
-    pub fn populate_with_lua_source<P, U, V>(self, lua: &Lua, source: P) -> anyhow::Result<()>
+    pub fn populate_with_lua_source<P, U, V>(self, lua: &Lua, source: P) -> Result<()>
     where
         U: Debug + Clone + Sync + Send + Serialize + Default + for<'a> Deserialize<'a> + 'static,
         V: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
@@ -97,11 +97,11 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
         log::debug!("injector::populate_with_lua_source");
 
         rt.block_on(async {
-            let _f: JoinHandle<Result<(), _>> = rt.spawn(async move {
+            let _f: JoinHandle<Result<()>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
                     self.push(val.clone());
                 }
-                anyhow::Ok(())
+                Ok(())
             });
 
             injector(tx)

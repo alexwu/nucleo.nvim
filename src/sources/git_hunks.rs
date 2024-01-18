@@ -10,10 +10,11 @@ use url::Url;
 use super::{git::Repository, Populator, Sources};
 use crate::{
     entry::{Data, DataKind},
+    error::Result,
     injector::{FinderFn, FromPartial},
+    lua::call_or_get,
     picker::Picker,
     previewer::{PreviewKind, PreviewOptions},
-    sources::git::call_or_get,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
@@ -22,9 +23,7 @@ pub struct Source {
 }
 
 impl Source {
-    pub fn picker(
-        options: Option<PartialHunkConfig>,
-    ) -> anyhow::Result<Picker<Hunk, HunkConfig, Source>> {
+    pub fn picker(options: Option<PartialHunkConfig>) -> Result<Picker<Hunk, HunkConfig, Source>> {
         let config = match options {
             Some(config) => config,
             None => PartialHunkConfig::default(),
@@ -33,7 +32,12 @@ impl Source {
         let picker: Picker<Hunk, HunkConfig, Source> =
             Picker::builder().multi_sort(false).source(source).build();
 
-        anyhow::Ok(picker)
+        Ok(picker)
+    }
+
+    pub fn lua_picker<'a>(lua: &'a Lua, options: Option<LuaValue>) -> mlua::Result<LuaValue<'a>> {
+        let opts: Option<PartialHunkConfig> = options.and_then(|c| lua.from_value(c).ok()?);
+        Source::picker(opts).into_lua_err()?.into_lua(lua)
     }
 }
 

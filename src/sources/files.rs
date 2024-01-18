@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::{env::current_dir, path::Path};
 
@@ -8,10 +9,14 @@ use ignore::WalkBuilder;
 use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::UnboundedSender;
 use url::Url;
 
+use super::source::{self, Finder, SimpleData};
 use super::{Populator, Sources};
-use crate::entry::{Data, DataKind};
+use crate::config;
+use crate::entry::{Data, DataKind, Entry, IntoData};
+use crate::error::Result;
 use crate::injector::{FinderFn, FromPartial};
 use crate::picker::Picker;
 use crate::previewer::{PreviewKind, PreviewOptions};
@@ -40,6 +45,7 @@ impl Populator<Value, FileConfig, Data<Value>> for Source {
             hidden,
             git_ignore,
             ignore,
+            ..
         } = self.config.clone();
 
         let dir = Path::new(&cwd);
@@ -85,6 +91,82 @@ impl Populator<Value, FileConfig, Data<Value>> for Source {
         })
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileFinder {
+    config: FileConfig,
+}
+
+impl Finder for FileFinder {
+    fn run(&self, _lua: &Lua, tx: UnboundedSender<SimpleData>) -> Result<()> {
+        let FileConfig {
+            cwd,
+            hidden,
+            git_ignore,
+            ignore,
+            ..
+        } = self.config.clone();
+
+        let dir = Path::new(&cwd);
+        log::info!("Spawning sorted file searcher at: {:?}", &dir);
+        let mut walk_builder = WalkBuilder::new(dir);
+        walk_builder
+            .hidden(hidden)
+            .follow_links(true)
+            .git_ignore(git_ignore)
+            .ignore(ignore)
+            .sort_by_file_name(std::cmp::Ord::cmp);
+
+        let mut type_builder = TypesBuilder::new();
+        type_builder
+            .add(
+                "compressed",
+                "*.{zip,gz,bz2,zst,lzo,sz,tgz,tbz2,lz,lz4,lzma,lzo,z,Z,xz,7z,rar,cab}",
+            )
+            .expect("Invalid type definition");
+        type_builder.negate("all");
+        let excluded_types = type_builder
+            .build()
+            .expect("failed to build excluded_types");
+        walk_builder.types(excluded_types);
+
+        for path in walk_builder.build() {
+            let cwd = cwd.clone();
+            match path {
+                Ok(file) if file.path().is_file() => {
+                    if tx
+                        // .send(Value::from_path(file.path(), Some(cwd.clone())))
+                        .send(file.path().to_path_buf().into())
+                        .is_ok()
+                    {
+                        // log::info!("Sending {:?}", file.path());
+                    }
+                }
+                _ => (),
+            };
+        }
+
+        Ok(())
+    }
+}
+
+impl From<PathBuf> for SimpleData {
+    fn from(value: PathBuf) -> Self {
+        Self::builder()
+            .kind(source::Kind::File)
+            .score(0)
+            .ordinal(value.clone().display().to_string())
+            .location(value.clone())
+            .preview_options(value)
+            .build()
+    }
+}
+
+// impl From<SimpleData> for PathBuf {
+//     fn from(value: SimpleData) -> Self {
+//         Self::default()
+//     }
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -162,10 +244,13 @@ impl FromLua<'_> for Value {
 #[derive(Debug, Clone, Partial, Serialize, Deserialize)]
 #[partially(derive(Default, Debug, Serialize, Deserialize))]
 pub struct FileConfig {
+    #[serde(skip_deserializing)]
     pub cwd: String,
     pub git_ignore: bool,
     pub ignore: bool,
     pub hidden: bool,
+    #[serde(flatten, default)]
+    picker_config: config::PartialConfig,
 }
 
 impl<'a> FromLua<'a> for FileConfig {
@@ -187,13 +272,14 @@ impl Default for FileConfig {
             git_ignore: true,
             ignore: true,
             hidden: false,
+            picker_config: config::PartialConfig::default(),
         }
     }
 }
 
 impl FromLua<'_> for PartialFileConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        let table = LuaTable::from_lua(value, lua)?;
+        let table = LuaTable::from_lua(value.clone(), lua)?;
         let cwd = match table.get::<&str, LuaValue>("cwd") {
             Ok(val) => match val {
                 LuaValue::String(cwd) => Some(cwd.to_string_lossy().to_string()),
@@ -203,11 +289,16 @@ impl FromLua<'_> for PartialFileConfig {
             _ => None,
         };
 
+        table.set("cwd", cwd.clone())?;
+
+        let normalized_value = lua.to_value(&table)?;
+
         Ok(PartialFileConfig {
             cwd,
             git_ignore: table.get("git_ignore")?,
             ignore: table.get("ignore")?,
             hidden: table.get("hidden")?,
+            picker_config: lua.from_value(normalized_value)?,
         })
     }
 }
@@ -220,12 +311,16 @@ impl From<PartialFileConfig> for FileConfig {
 
 pub fn create_picker(
     file_options: Option<PartialFileConfig>,
-) -> anyhow::Result<Picker<Value, FileConfig, Source>> {
+) -> Result<Picker<Value, FileConfig, Source>> {
     log::debug!("file options {:?}", file_options);
     let config = file_options.unwrap_or_default();
     let source = Source::builder().config(config).build();
-    let picker: Picker<Value, FileConfig, Source> =
-        Picker::builder().multi_sort(false).source(source).build();
+    let picker_config = source.config.picker_config.clone();
+    let picker: Picker<Value, FileConfig, Source> = Picker::builder()
+        .multi_sort(false)
+        .source(source)
+        .config(picker_config)
+        .build();
 
-    anyhow::Ok(picker)
+    Ok(picker)
 }

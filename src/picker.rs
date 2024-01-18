@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::buffer::{Buffer, Cursor, Relative};
 use crate::config::{Config, PartialConfig, SortDirection};
 use crate::entry::{Data, Entry};
+use crate::error::Result;
 use crate::injector::{Config as InjectorConfig, FromPartial};
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::nucleo::pattern::{CaseMatching, Normalization};
@@ -84,8 +85,8 @@ where
         // let notifier = sender.clone();
         // TODO: This hammers re-renders when loading lots of files. Is this even necessary?
         let notify = Arc::new(move || {
-            // if notifier.try_send(()).is_ok() {
-            //     log::info!("Message sent!")
+            // if let Err(err) = sender.try_send(()) {
+            //     log::error!("Error sending notification: {:?}", err)
             // };
         });
 
@@ -129,8 +130,8 @@ where
         status
     }
 
-    fn try_recv(&self) -> Result<(), crossbeam_channel::TryRecvError> {
-        self.receiver.try_recv()
+    fn try_recv(&self) -> Result<()> {
+        Ok(self.receiver.try_recv()?)
     }
 
     pub fn should_rerender(&self) -> bool {
@@ -297,7 +298,7 @@ where
         self.matcher.restart(true);
     }
 
-    pub fn populate_with(&mut self, entries: Vec<Data<T>>) -> anyhow::Result<()> {
+    pub fn populate_with(&mut self, entries: Vec<Data<T>>) -> Result<()> {
         let injector = self.matcher.injector();
         rayon::spawn(move || {
             injector.populate(entries);
@@ -393,7 +394,7 @@ where
     V::Item: Debug,
     P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
-    pub fn populate(&self, lua: &Lua, config: Option<V::Item>) -> anyhow::Result<()> {
+    pub fn populate(&self, lua: &Lua, config: Option<V::Item>) -> Result<()> {
         let injector = self.matcher.injector();
         let mut source = self.source.clone();
         if let Some(config) = config {

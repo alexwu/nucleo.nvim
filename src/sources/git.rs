@@ -1,6 +1,5 @@
 use std::{env::current_dir, path::Path, sync::Arc};
 
-use anyhow::bail;
 use buildstructor::Builder;
 use git2::Statuses;
 use mlua::prelude::*;
@@ -12,7 +11,9 @@ use url::Url;
 use super::{Populator, Sources};
 use crate::{
     entry::{Data, DataKind},
+    error::Result,
     injector::FinderFn,
+    lua::call_or_get,
     picker::Picker,
     previewer::{PreviewKind, PreviewOptions},
 };
@@ -71,29 +72,20 @@ pub struct StatusConfig {
 pub struct Repository(git2::Repository);
 
 impl Repository {
-    pub fn statuses(
-        &self,
-        options: Option<&mut git2::StatusOptions>,
-    ) -> Result<FileStatuses<'_>, anyhow::Error> {
-        match self.0.statuses(options) {
-            Ok(statuses) => Ok(FileStatuses(statuses)),
-            Err(err) => bail!(err),
-        }
+    pub fn statuses(&self, options: Option<&mut git2::StatusOptions>) -> Result<FileStatuses<'_>> {
+        Ok(self.0.statuses(options).map(FileStatuses)?)
     }
 
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
-        match git2::Repository::discover(path) {
-            Ok(repo) => Ok(Self(repo)),
-            Err(err) => bail!(err),
-        }
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        Ok(git2::Repository::discover(path).map(Self)?)
     }
 
     pub fn diff_index_to_workdir(
         &self,
         index: Option<&git2::Index>,
         opts: Option<&mut git2::DiffOptions>,
-    ) -> Result<git2::Diff<'_>, git2::Error> {
-        self.0.diff_index_to_workdir(index, opts)
+    ) -> Result<git2::Diff<'_>> {
+        Ok(self.0.diff_index_to_workdir(index, opts)?)
     }
 }
 
@@ -212,23 +204,6 @@ impl FromLua<'_> for StatusConfig {
     }
 }
 
-pub fn call_or_get<T>(lua: &Lua, val: LuaValue, field: &str) -> LuaResult<T>
-where
-    T: for<'a> IntoLua<'a> + for<'a> FromLua<'a> + for<'a> Deserialize<'a>,
-{
-    let table = LuaTable::from_lua(val, lua)?;
-    match table.get(field)? {
-        LuaValue::Function(func) => {
-            log::debug!("in the function section");
-            func.call::<_, T>(())
-        }
-        val => {
-            log::debug!("val: {:?}", &val);
-            lua.from_value(val)
-        }
-    }
-}
-
 impl FromLua<'_> for PartialStatusConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let cwd: Option<String> = call_or_get(lua, value, "cwd")?;
@@ -281,7 +256,7 @@ impl From<StatusEntry> for Data<StatusEntry> {
 
 pub fn create_picker(
     file_options: Option<PartialStatusConfig>,
-) -> anyhow::Result<Picker<StatusEntry, StatusConfig, Source>> {
+) -> Result<Picker<StatusEntry, StatusConfig, Source>> {
     let config = match file_options {
         Some(config) => config,
         None => PartialStatusConfig::default(),
@@ -291,5 +266,5 @@ pub fn create_picker(
     let picker: Picker<StatusEntry, StatusConfig, Source> =
         Picker::builder().source(source).build();
 
-    anyhow::Ok(picker)
+    Ok(picker)
 }

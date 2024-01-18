@@ -7,13 +7,13 @@ use directories::ProjectDirs;
 use injector::FromPartial;
 use mlua::prelude::*;
 use simplelog::{Config, WriteLogger};
-use sources::{
-    diagnostics,
-    files::{self, PartialFileConfig},
+
+use crate::error::Result;
+use crate::sources::{
+    diagnostics, files,
     git::{self, PartialStatusConfig},
     git_hunks, Sources,
 };
-
 use crate::util::align_str;
 
 mod buffer;
@@ -21,6 +21,7 @@ mod config;
 mod entry;
 mod error;
 mod injector;
+mod lua;
 mod matcher;
 mod nucleo;
 mod pattern;
@@ -32,7 +33,7 @@ mod sources;
 mod util;
 mod window;
 
-fn setup(opts: Option<config::PartialConfig>) -> anyhow::Result<()> {
+fn setup(opts: Option<config::PartialConfig>) -> Result<()> {
     let config = config::Config::from_partial(opts.unwrap_or_default());
 
     let proj_dirs = ProjectDirs::from("", "bombeelu-labs", "nucleo")
@@ -73,8 +74,8 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
 
             match name {
                 Sources::Files => {
-                    let opts: Option<sources::files::PartialFileConfig> =
-                        config.and_then(|c| lua.from_value(c).ok()?);
+                    let opts: Option<files::PartialFileConfig> =
+                        config.and_then(|c| files::PartialFileConfig::from_lua(c, lua).ok());
 
                     files::create_picker(opts).into_lua_err()?.into_lua(lua)
                 }
@@ -105,12 +106,6 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
     )?;
 
     exports.set(
-        "FilePicker",
-        LuaFunction::wrap(|_, params: (Option<PartialFileConfig>,)| {
-            files::create_picker(params.0).into_lua_err()
-        }),
-    )?;
-    exports.set(
         "CustomPicker",
         LuaFunction::wrap(|_, params: (sources::lua_tables::Source,)| {
             Ok(sources::lua_tables::Source::picker(
@@ -119,18 +114,7 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
             ))
         }),
     )?;
-    exports.set(
-        "DiagnosticsPicker",
-        LuaFunction::wrap(|_, params: (diagnostics::Source,)| {
-            diagnostics::create_picker(params.0).into_lua_err()
-        }),
-    )?;
-    exports.set(
-        "GitStatusPicker",
-        LuaFunction::wrap(|_, params: (Option<PartialStatusConfig>,)| {
-            git::create_picker(params.0).into_lua_err()
-        }),
-    )?;
+
     exports.set(
         "Previewer",
         LuaFunction::wrap(|_, ()| Ok(previewer::Previewer::new())),

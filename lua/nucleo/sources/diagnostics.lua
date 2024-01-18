@@ -1,4 +1,6 @@
 local Picker = require("nucleo.picker")
+local presets = require("nucleo.presets")
+
 local M = {}
 
 function M.diagnostics(...)
@@ -7,11 +9,13 @@ function M.diagnostics(...)
 			name = "builtin.diagnostics",
 			config = {
 				scope = "workspace",
+				sort_direction = "ascending",
 			},
 			finder = function(bufnr)
 				return vim.diagnostic.get(bufnr, {})
 			end,
 		},
+		layout = presets.center(),
 		on_submit = function(selection)
 			local bufnr = selection.value.bufnr
 			local lnum = selection.value.lnum

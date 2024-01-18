@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::{collections::HashMap, fs::File};
 use std::{fmt::Debug, io::BufReader};
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::skip_serializing_none;
 use smol_str::SmolStr;
 use strum::{Display, EnumIs, EnumString};
+use url::Url;
 
 // FIX: Need to invalidate cache when the position changes.
 // Maybe i should just cache the whole rope instead?
@@ -53,6 +54,38 @@ pub struct PreviewOptions {
     pub uri: Option<String>,
     pub file_extension: Option<String>,
     pub file_size: Option<usize>,
+}
+
+impl From<PathBuf> for PreviewOptions {
+    fn from(value: PathBuf) -> Self {
+        let full_path = value.clone().canonicalize().expect("Invalid path");
+        let uri = Url::from_file_path(full_path).expect("Unable to create uri from full path");
+        let file_extension = value
+            .extension()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let metadata = value.metadata().ok();
+        let max_size = 1024 * 1024 * 5;
+
+        let preview_kind = match metadata.clone() {
+            Some(metadata) if metadata.is_dir() => PreviewKind::Folder,
+            Some(metadata) if metadata.is_file() && metadata.len() < max_size => PreviewKind::File,
+            _ => PreviewKind::Skip,
+        };
+
+        let file_size = metadata.map(|m| m.len() as usize);
+
+        PreviewOptions::builder()
+            .kind(preview_kind)
+            .line_start(0)
+            .col_start(0)
+            .file_extension(file_extension)
+            .path(value.display().to_string())
+            .uri(uri)
+            .and_file_size(file_size)
+            .build()
+    }
 }
 
 impl<'a> FromLua<'a> for PreviewOptions {

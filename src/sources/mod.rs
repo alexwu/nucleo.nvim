@@ -12,6 +12,8 @@ pub mod git;
 pub mod git_hunks;
 mod lua_function;
 pub mod lua_tables;
+pub mod source;
+pub mod custom;
 
 #[derive(
     Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display, EnumIs, Eq,
