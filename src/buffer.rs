@@ -4,61 +4,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Copy)]
-pub struct Window {
-    /// The buffer line number of the top of the window
-    pos: usize,
-    width: usize,
-    height: usize,
-}
-
-impl Default for Window {
-    fn default() -> Self {
-        Self {
-            pos: Default::default(),
-            width: 10,
-            height: 10,
-        }
-    }
-}
-
-impl Window {
-    pub fn new(x: usize, y: usize) -> Self {
-        Self {
-            width: x,
-            height: y,
-            ..Default::default()
-        }
-    }
-
-    fn set_pos(&mut self, pos: usize) {
-        self.pos = pos;
-    }
-
-    fn set_width(&mut self, width: usize) {
-        self.height = width;
-    }
-
-    fn set_height(&mut self, height: usize) {
-        self.height = height;
-    }
-
-    pub fn start(&self) -> usize {
-        self.pos
-    }
-
-    pub fn end(&self) -> usize {
-        self.pos + self.height
-    }
-
-    pub fn width(&self) -> usize {
-        self.width
-    }
-
-    pub fn height(&self) -> usize {
-        self.height
-    }
-}
+use crate::window::Window;
 
 pub trait Buffer<T: Clone + Debug>: Sized {
     fn len(&self) -> usize;
@@ -77,11 +23,11 @@ pub trait Buffer<T: Clone + Debug>: Sized {
     }
 
     fn set_window_width(&mut self, width: usize) {
-        self.window_mut().width = width;
+        self.window_mut().set_width(width);
     }
 
     fn set_window_height(&mut self, height: usize) {
-        self.window_mut().height = height;
+        self.window_mut().set_height(height);
     }
 
     fn set_window_pos(&mut self, pos: usize) {
@@ -111,7 +57,6 @@ pub trait Buffer<T: Clone + Debug>: Sized {
     /// Sets the position of the cursor constrained by the window
     fn set_cursor_pos_in_window(&mut self, pos: usize) {
         let max_pos = self.window().end().min(self.len()).saturating_sub(1);
-        log::info!("window max_pos: {}", max_pos);
         let new_pos = pos.saturating_add(self.window().start());
         self.cursor_mut().pos = new_pos.clamp(self.window().start(), max_pos);
     }
@@ -137,13 +82,6 @@ pub trait Buffer<T: Clone + Debug>: Sized {
         }
 
         self.clamp_cursor_pos(Relative::Buffer);
-
-        log::info!("buffer cursor pos: {}", self.cursor().pos);
-        log::info!(
-            "window cursor pos: {}",
-            self.get_cursor_pos(Relative::Window)
-        );
-        log::info!("window pos: {}", self.window().pos);
     }
 }
 
@@ -153,7 +91,7 @@ pub enum Relative {
     Window,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct Cursor {
     pos: usize,
 }

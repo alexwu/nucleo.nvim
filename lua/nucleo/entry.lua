@@ -31,18 +31,50 @@ function Entry:new(index, entry, bufnr, ns_multiselection_id, winid)
 	self:update_icon()
 end
 
+local diagnostic_icons = {
+	[vim.diagnostic.severity.ERROR] = { "✘", "DiagnosticSignError" },
+	[vim.diagnostic.severity.WARN] = { "", "DiagnosticSignWarn" },
+	[vim.diagnostic.severity.HINT] = { "", "DiagnosticSignHint" },
+	[vim.diagnostic.severity.INFO] = { "", "DiagnosticSignInfo" },
+}
+
 function Entry:update_icon()
-	if self.entry and self.entry.preview_options and self.entry.preview_options.file_type then
-		local value, color = devicons.get_icon(self.entry.value.path, self.entry.value.file_type, { default = true })
-		self.icon = {
-			value = value,
-			color = color,
-		}
-	else
+	if not self.entry or not self.entry.preview_options then
 		self.icon = {
 			value = " ",
 			color = nil,
 		}
+
+		return
+	end
+
+	local preview_options = self.entry.preview_options
+
+	if self.entry.value.severity then
+		local value, color = unpack(diagnostic_icons[self.entry.value.severity])
+		self.icon = {
+			value = value,
+			color = color,
+		}
+
+		return
+	end
+
+	if preview_options.file_extension then
+		local is_dir = preview_options.kind == "folder"
+		if is_dir then
+			self.icon = {
+				value = "",
+				color = "Normal",
+			}
+		else
+			local value, color =
+				devicons.get_icon(preview_options.path, preview_options.file_extension, { default = true })
+			self.icon = {
+				value = value,
+				color = color,
+			}
+		end
 	end
 end
 

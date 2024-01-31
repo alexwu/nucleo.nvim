@@ -1,6 +1,5 @@
 local Highlighter = require("nucleo.highlighter")
 local debounce = require("nucleo.debounce").debounce_trailing
-local Layout = require("nui.layout")
 local log = require("nucleo.log")
 local channel = require("nucleo.async").channel
 local Previewer = require("nucleo.previewer")
@@ -20,6 +19,10 @@ local api = vim.api
 
 ---@class Sender
 ---@field send fun()
+
+---@class PickerSource
+---@field name string
+---@field config? table
 
 ---@class PickerStatus
 ---@field running boolean
@@ -55,11 +58,19 @@ local api = vim.api
 ---@field update_query fun(self: PickerBackend, query: string)
 ---@field update_window fun(self: PickerBackend, width: integer, height: integer)
 ---@field window_height fun(self: PickerBackend): integer
+---@field current_matches fun(self: PickerBackend): Nucleo.Picker.Entry[]
 
 ---@class Nucleo.Picker: Object
 ---@field picker PickerBackend
 local Picker = require("plenary.class"):extend()
 
+---@class PickerOptions
+---@field on_submit function
+---@field on_close function
+---@field source PickerSource|string
+---@field layout? fun(prompt: Nucleo.Prompt, results: Nucleo.Results, previewer: Nucleo.Previewer): NuiLayout
+
+---@param opts? PickerOptions
 function Picker:new(opts)
 	opts = opts or {}
 	vim.validate({
@@ -72,15 +83,17 @@ function Picker:new(opts)
 	---@type Sender, Receiver
 	self.tx, self.rx = channel.counter()
 	---@type PickerBackend
-	if opts.source == "builtin.files" then
-		self.picker = nu.FilePicker(opts)
-	elseif opts.source == "builtin.git_status" then
-		self.picker = nu.GitStatusPicker(opts)
-	elseif type(opts.source) == "function" then
-		self.picker = nu.LuaPicker(opts.source)
-	else
-		self.picker = nu.CustomPicker(opts.source)
-	end
+	-- if opts.source == "builtin.files" then
+	-- 	self.picker = nu.FilePicker(opts)
+	-- elseif opts.source == "builtin.git_status" then
+	-- 	self.picker = nu.GitStatusPicker(opts)
+	-- elseif type(opts.source) == "table" and opts.source.name == "builtin.diagnostics" then
+	-- 	self.picker = nu.DiagnosticsPicker(opts.source)
+	-- else
+	-- 	-- self.picker = nu.CustomPicker(opts.source)
+	-- end
+
+	self.picker = nu.Picker(opts.source)
 
 	self.results = Results()
 	self.previewer = Previewer()
@@ -88,7 +101,14 @@ function Picker:new(opts)
 		picker = self.picker,
 		results = self.results,
 	})
-	self.source = opts.source
+
+	if type(opts.source) == "string" then
+		self.source = {
+			name = opts.source,
+		}
+	else
+		self.source = opts.source
+	end
 
 	self.prompt = Prompt({
 		picker = self.picker,
@@ -117,23 +137,26 @@ function Picker:new(opts)
 	self._on_close = opts.on_close
 	self._on_submit = opts.on_submit
 
-	self.layout = Layout(
-		{
-			relative = "editor",
-			position = "50%",
-			size = {
-				width = "80%",
-				height = "80%",
-			},
-		},
-		Layout.Box({
-			Layout.Box(self.prompt, { size = { width = "100%", height = "3" } }),
-			Layout.Box({
-				Layout.Box(self.results, { size = "40%" }),
-				Layout.Box(self.previewer, { size = "60%" }),
-			}, { dir = "row", size = "100%" }),
-		}, { dir = "col" })
-	)
+	local layout_builder = opts.layout or config.get("default_layout")
+
+	self.layout = layout_builder(self.prompt, self.results, self.previewer)
+	-- self.layout = Layout(
+	-- 	{
+	-- 		relative = "editor",
+	-- 		position = "50%",
+	-- 		size = {
+	-- 			width = "80%",
+	-- 			height = "80%",
+	-- 		},
+	-- 	},
+	-- 	Layout.Box({
+	-- 		Layout.Box(self.prompt, { size = { width = "100%", height = "3" } }),
+	-- 		Layout.Box({
+	-- 			Layout.Box(self.results, { size = "40%" }),
+	-- 			Layout.Box(self.previewer, { size = "60%" }),
+	-- 		}, { dir = "row", size = "100%" }),
+	-- 	}, { dir = "col" })
+	-- )
 
 	local default_mappings = config.get("mappings")
 
@@ -165,10 +188,8 @@ end
 ---@param source_name string
 ---@param opts? Nucleo.Config.Files
 ---@return Nucleo.Config.Files|Nucleo.Config.GitStatus
-local function override(source_name, opts)
-	opts = opts or {}
-
-	local configs = { config.get("defaults"), config.get("sources", source_name), opts }
+local function override(source_name, ...)
+	local configs = { config.get("defaults"), config.get("sources", source_name) or {}, ... }
 
 	return vim.tbl_deep_extend("force", unpack(configs))
 end
@@ -189,27 +210,16 @@ function Picker:apply_mapping(mode, key, mapping)
 	end, opts)
 end
 
----@param opts Nucleo.Config.Files
+---@param opts? Nucleo.Config.Files
 function Picker:find(opts)
-	local source_name = ""
-	if type(self.source) == "string" then
-		source_name = self.source
-	elseif type(self.source) == "table" and type(self.source.name) == "string" then
-		source_name = self.source.name
-	end
+	opts = opts or {}
+	local source_name = self.source.name
 
-	local options = override(source_name, opts)
+	local options = override(source_name, self.source.config, opts)
+	log.info("config: ", options)
 
-	self.picker:update_config(options)
-
-	if type(self.source) == "string" then
-		self.picker:populate(options)
-	elseif type(self.source) == "function" then
-		-- self.picker:populate(self.source)
-	else
-		-- vim.print(self.source)
-		-- self.picker:populate(self.source.results)
-	end
+	-- self.picker:update_config(options)
+	self.picker:populate(options)
 
 	self.picker:tick(10)
 
@@ -272,14 +282,13 @@ function Picker:update_preview()
 end
 
 function Picker:highlight_selection()
-	if self.picker:total_matches() > 0 then
-		self.highlighter:highlight_selection()
-	end
+	self.highlighter:highlight_selection()
 end
 
 function Picker:reset_cursor()
 	if self.original_winid then
 		api.nvim_set_current_win(self.original_winid)
+		self.original_winid = nil
 	end
 end
 

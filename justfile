@@ -2,6 +2,8 @@ bin_name := if os() == "windows" { "nucleo_nvim" } else { "libnucleo_nvim" }
 bin_ext := if os() == "macos" { "dylib" } else { if os() == "windows" { "dll" } else { "so" } }
 bin_ext_output := if os() == "windows" { "dll" } else { "so" }
 
+set dotenv-load
+
 default: release
 
 lint:
@@ -44,3 +46,6 @@ pattern := ''
 
 test PATTERN=pattern:
     RUST_LOG=trace cargo test {{ PATTERN }} --no-fail-fast
+
+bench:
+    cargo bench

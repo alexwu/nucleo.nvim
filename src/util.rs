@@ -53,7 +53,7 @@ pub fn align_str(
             current_string.unicode_truncate(max_width.saturating_sub(replacement_width) as usize);
 
         return (
-            format!("{}{}", truncated_string, replacement_text),
+            format!("{truncated_string}{replacement_text}"),
             current_indices,
         );
     }
@@ -82,7 +82,7 @@ pub fn align_str(
 
         let (truncated_string, _) = current_string.unicode_truncate(truncation_size);
 
-        current_string = format!("{}{}", truncated_string, replacement_text);
+        current_string = format!("{truncated_string}{replacement_text}");
         current_length = current_string.len() as u32;
         current_width = current_string.width() as u32;
 
@@ -100,7 +100,7 @@ pub fn align_str(
             .max(max_width.saturating_sub(replacement_width));
         let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
 
-        current_string = format!("{}{}", replacement_text, truncated_string);
+        current_string = format!("{replacement_text}{truncated_string}");
         current_indices = adjust_indices(
             &current_indices,
             // current_width,

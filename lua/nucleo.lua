@@ -4,16 +4,24 @@ local M = {}
 
 --- @private
 M._rust = {
-	Picker = true,
 	FilePicker = true,
 	GitStatusPicker = true,
+	LuaPicker = true,
 	Previewer = true,
 }
 
 function M.setup(...)
-	require("nucleo.config").setup(...)
+	local config = require("nucleo.config")
+	config.setup(...)
+
+	require("nucleo_rs").setup(config.get("defaults"))
+
 	api.nvim_create_user_command("Nucleo", function()
 		M.find()
+	end, {})
+
+	api.nvim_create_user_command("Hunks", function()
+		require("nucleo.sources.git").git_hunks()
 	end, {})
 end
 

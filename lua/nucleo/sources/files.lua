@@ -1,10 +1,17 @@
 local Picker = require("nucleo.picker")
+local presets = require("nucleo.presets")
 
 local M = {}
 
 function M.find_files(...)
 	Picker({
-		source = "builtin.files",
+		source = {
+			name = "builtin.files",
+			config = {
+				sort_direction = "descending",
+			},
+		},
+		layout = presets.horizontal(),
 		on_submit = function(selection)
 			local path = selection.value.path
 			if path then

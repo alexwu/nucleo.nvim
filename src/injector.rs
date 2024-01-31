@@ -1,47 +1,55 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 
-use crossbeam_channel::{unbounded, Sender};
+use mlua::{FromLua, Lua};
+use partially::Partial;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
 
-use crate::{entry::Entry, picker::Data};
+use crate::{
+    entry::{IntoUtf32String, Scored},
+    error::Result,
+    sources::Populator,
+};
 
-pub type FinderFn<T, U> = Arc<dyn Fn(UnboundedSender<Data<T, U>>) + Sync + Send + 'static>;
-pub type InjectorFn<T, U, V> = Arc<dyn Fn(Option<V>) -> FinderFn<T, U> + Sync + Send>;
+pub type FinderFn<T> = Arc<dyn Fn(UnboundedSender<T>) -> Result<()> + Sync + Send + 'static>;
 
-pub struct Injector<T: Entry>(nucleo::Injector<T>);
+pub struct Injector<T: IntoUtf32String + Scored + Clone>(crate::nucleo::Injector<T>);
 
-impl<T: Entry> From<nucleo::Injector<T>> for Injector<T> {
-    fn from(value: nucleo::Injector<T>) -> Self {
+impl<T: IntoUtf32String + Scored + Clone> From<crate::nucleo::Injector<T>> for Injector<T> {
+    fn from(value: crate::nucleo::Injector<T>) -> Self {
         Self(value)
     }
 }
 
-impl<T: Entry> Clone for Injector<T> {
+impl<T: IntoUtf32String + Scored + Clone> Clone for Injector<T> {
     fn clone(&self) -> Self {
-        <nucleo::Injector<T> as Clone>::clone(&self.0).into()
+        <crate::nucleo::Injector<T> as Clone>::clone(&self.0).into()
     }
 }
 
-impl<T: Entry> Injector<T> {
+impl<T: IntoUtf32String + Clone + Scored> Injector<T> {
     pub fn push(&self, value: T) -> u32 {
         self.0
-            .push(value.clone(), |dst| dst[0] = value.ordinal().into())
+            .push(value.clone(), |dst| dst[0] = value.into_utf32_string())
     }
+}
 
+impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
     pub fn populate(self, entries: Vec<T>) {
-        log::info!("Populating picker with {} entries", entries.len());
+        log::debug!("Populating picker with {} entries", entries.len());
         let rt = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
         let sender = tx.clone();
         rt.block_on(async {
-            let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
+            let _add_to_injector_thread: JoinHandle<Result<()>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
-                    self.push(val);
+                    self.push(val.clone());
                 }
-                anyhow::Ok(())
+                Ok(())
             });
 
             entries.into_par_iter().for_each(|entry| {
@@ -50,45 +58,85 @@ impl<T: Entry> Injector<T> {
         });
     }
 
-    pub fn populate_with<F>(self, func: Arc<F>)
+    pub fn populate_with_source<P, U, V>(self, source: P) -> Result<()>
     where
-        // F: Fn(Sender<T>) + Sync + Send + ?Sized + 'static,
-        F: Fn(UnboundedSender<T>) + Sync + Send + ?Sized + 'static,
+        U: Debug + Clone + Sync + Send + Default + Serialize + for<'a> Deserialize<'a> + 'static,
+        V: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+        P: Populator<V, U, T>,
     {
         let rt = Runtime::new().expect("Failed to create runtime");
 
-        // let (tx, rx) = unbounded::<T>();
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
-        log::info!("injector::populate_with");
+        let injector = source.build_injector(None);
+        log::debug!("injector::populate_with_source");
         rt.block_on(async {
-            let _add_to_injector_thread: JoinHandle<Result<(), _>> = rt.spawn(async move {
-                // for val in rx.iter() {
+            let _f: JoinHandle<Result<()>> = rt.spawn(async move {
                 while let Some(val) = rx.recv().await {
-                    self.push(val);
+                    self.push(val.clone());
                 }
-                anyhow::Ok(())
+                Ok(())
             });
 
-            func(tx);
-        });
+            injector(tx)
+        })
     }
 
-    pub fn populate_with_local<F>(self, func: F)
+    pub fn populate_with_lua_source<P, U, V>(self, lua: &Lua, source: P) -> Result<()>
     where
-        F: Fn(Sender<T>) + 'static,
+        U: Debug + Clone + Sync + Send + Serialize + Default + for<'a> Deserialize<'a> + 'static,
+        V: Debug + Clone + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+        P: Populator<V, U, T>,
     {
-        let runtime = Runtime::new().expect("Failed to create runtime");
-        let (tx, rx) = unbounded::<T>();
-        let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
-            for val in rx.iter() {
-                log::info!("Sending local: {:?}", &val);
-                self.push(val);
-            }
-            anyhow::Ok(())
-        });
+        let rt = Runtime::new().expect("Failed to create runtime");
 
-        log::info!("injector::populate_with_local");
-        func(tx);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
+
+        log::debug!("Before build_injector");
+        let injector = source.build_injector(Some(lua));
+        log::debug!("injector::populate_with_lua_source");
+
+        rt.block_on(async {
+            let _f: JoinHandle<Result<()>> = rt.spawn(async move {
+                while let Some(val) = rx.recv().await {
+                    self.push(val.clone());
+                }
+                Ok(())
+            });
+
+            injector(tx)
+        })
     }
+}
+
+pub trait Config:
+    Serialize + Debug + Clone + Default + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send
+{
+}
+
+impl<T> Config for T where
+    T: Serialize
+        + Debug
+        + Clone
+        + Default
+        + for<'a> Deserialize<'a>
+        + for<'a> FromLua<'a>
+        + Sync
+        + Send
+{
+}
+
+pub trait FromPartial: Default + Partial {
+    fn from_partial(value: Self::Item) -> Self {
+        let mut config = Self::default();
+        config.apply_some(value);
+        config
+    }
+}
+
+impl<T> FromPartial for T
+where
+    T: Partial + Default,
+    T::Item: for<'a> Deserialize<'a>,
+{
 }

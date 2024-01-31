@@ -1,13 +1,23 @@
+use std::ops::RangeInclusive;
 use std::sync::Arc;
 
+use derive_deref::Deref;
 use mlua::{UserData, UserDataFields};
-use nucleo::Nucleo;
+use nucleo_matcher::pattern::Pattern;
+use nucleo_matcher::Utf32Str;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use range_rover::range_rover;
+use rayon::prelude::*;
+use rvstruct::ValueStruct;
 
+use crate::entry::Scored;
+use crate::nucleo::{self, Nucleo};
 use crate::{entry::Entry, injector::Injector};
 
-pub struct Status(pub nucleo::Status);
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Deref)]
+pub struct Status(nucleo::Status);
+
 impl UserData for Status {
     fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
         fields.add_field_method_get("changed", |_, this| Ok(this.0.changed));
@@ -15,14 +25,14 @@ impl UserData for Status {
     }
 }
 
-pub struct Matcher<T: Entry>(pub Nucleo<T>);
+pub struct Matcher<T: Entry + Scored + PartialOrd>(Nucleo<T>);
 
-impl<T: Entry> Matcher<T> {
+impl<T: Entry + Scored + PartialOrd> Matcher<T> {
     pub fn pattern(&mut self) -> &mut nucleo::pattern::MultiPattern {
         &mut self.0.pattern
     }
 
-    pub fn injector(&mut self) -> Injector<T> {
+    pub fn injector(&self) -> Injector<T> {
         self.0.injector().into()
     }
 
@@ -33,37 +43,27 @@ impl<T: Entry> Matcher<T> {
     pub fn snapshot(&self) -> &nucleo::Snapshot<T> {
         self.0.snapshot()
     }
-}
 
-impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
-    fn from(value: Nucleo<T>) -> Self {
-        Matcher(value)
+    pub fn restart(&mut self, clear_snapshot: bool) {
+        self.0.restart(clear_snapshot)
     }
-}
 
-impl<T: Entry> Matcher<T> {
     fn update_config(&mut self, config: nucleo::Config) {
         self.0.update_config(config);
     }
 }
 
-#[derive(Default)]
-pub struct FuzzyMatcher(pub nucleo::Matcher);
+impl<T: Entry + Scored + PartialOrd> From<Nucleo<T>> for Matcher<T> {
+    fn from(value: Nucleo<T>) -> Self {
+        Matcher(value)
+    }
+}
+
+#[derive(Default, ValueStruct)]
+pub struct FuzzyMatcher(nucleo::Matcher);
 
 pub static MATCHER: Lazy<Arc<Mutex<FuzzyMatcher>>> =
     Lazy::new(|| Arc::new(Mutex::new(FuzzyMatcher::default())));
-
-impl From<nucleo::Matcher> for FuzzyMatcher {
-    fn from(value: nucleo::Matcher) -> Self {
-        FuzzyMatcher(value)
-    }
-}
-
-impl From<FuzzyMatcher> for nucleo::Matcher {
-    fn from(val: FuzzyMatcher) -> Self {
-        val.0
-    }
-}
 
 impl FuzzyMatcher {
     pub fn as_inner_mut(&mut self) -> &mut nucleo::Matcher {
@@ -72,5 +72,22 @@ impl FuzzyMatcher {
 
     pub fn update_config(&mut self, config: nucleo::Config) {
         self.0.config = config;
+    }
+
+    pub fn fuzzy_indices(
+        &mut self,
+        pattern: &Pattern,
+        haystack: Utf32Str,
+        indices: &mut Vec<u32>,
+    ) -> Vec<(u32, u32)> {
+        pattern.indices(haystack, self.as_inner_mut(), indices);
+
+        indices.par_sort_unstable();
+        indices.dedup();
+
+        range_rover(indices.drain(..))
+            .into_par_iter()
+            .map(RangeInclusive::into_inner)
+            .collect()
     }
 }

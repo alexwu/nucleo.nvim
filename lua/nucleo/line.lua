@@ -1,6 +1,6 @@
 local NuiLine = require("nui.line")
 
----@class Line: NuiLine
+---@class Nucleo.Line: NuiLine
 ---@field super NuiLine
 ---@field _texts Text[]
 ---@diagnostic disable-next-line: undefined-field
@@ -56,7 +56,7 @@ function Line:render(bufnr, ns_id, linenr_start, linenr_end)
 	local row_start = linenr_start - 1
 	local row_end = linenr_end and linenr_end - 1 or row_start + 1
 	local content = self:content()
-	if self._last_content ~= content then
+	if #content == 0 or self._last_content ~= content then
 		vim.api.nvim_buf_set_lines(bufnr, row_start, row_end, false, { content })
 	end
 	self:highlight(bufnr, ns_id, linenr_start)

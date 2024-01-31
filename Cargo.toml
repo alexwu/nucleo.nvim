@@ -10,17 +10,17 @@ crate-type = ["cdylib"]
 [dependencies]
 anyhow = "1"
 buildstructor = "0.5"
-nucleo = "0.2"
-parking_lot = "0.12"
+derive_deref = "1.1"
+nucleo-matcher = "0.3"
+parking_lot = { version = "0.12", features = ["send_guard", "arc_lock"] }
 ignore = "0.4"
 mlua = { version = "0.9", features = [
   "luajit",
   "module",
   "macros",
-  "async",
   "serialize",
-  "send",
   "parking_lot",
+  "send",
 ] }
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"
@@ -32,12 +32,23 @@ partially = { version = "0.2", features = ["derive"] }
 range_rover = "0.1"
 rayon = "1.8"
 ropey = "1.6"
+rvstruct = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
+serde_repr = "0.1"
 serde_with = "3.4"
 simplelog = "0.12.1"
 strum = { version = "0.25", features = ["derive"] }
+smol_str = { version = "0.2", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }
+libc = "0.2"
+thiserror = "1"
+oxi-types = "0.4"
+oxi-luajit = "0.4"
+oxi-api = { version = "0.4", features = ["neovim-nightly"] }
+indexset = "0.3"
+enum_dispatch = "0.3"
+
 tokio-stream = "0.1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -49,3 +60,6 @@ url = "2.5"
 
 [dev-dependencies]
 pretty_assertions = "1.4"
+
+[build-dependencies]
+bindgen = "0.69"

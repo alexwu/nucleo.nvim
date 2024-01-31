@@ -1,19 +1,70 @@
 use std::{env::current_dir, path::Path, sync::Arc};
 
-use anyhow::bail;
+use buildstructor::Builder;
 use git2::Statuses;
 use mlua::prelude::*;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
+use strum::EnumIs;
+use url::Url;
 
+use super::{Populator, Sources};
 use crate::{
+    entry::{Data, DataKind},
+    error::Result,
     injector::FinderFn,
-    picker::{self, Data, DataKind, InjectorConfig, Picker},
-    previewer::PreviewOptions,
+    lua::call_or_get,
+    picker::Picker,
+    previewer::{PreviewKind, PreviewOptions},
 };
 
+#[derive(Debug, Clone, Serialize, Deserialize, Builder)]
+pub struct Source {
+    config: StatusConfig,
+}
+
+impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
+    fn name(&self) -> Sources {
+        Sources::GitStatus
+    }
+
+    fn kind(&self) -> super::SourceKind {
+        super::SourceKind::Rust
+    }
+
+    fn update_config(&mut self, config: StatusConfig) {
+        self.config = config;
+    }
+
+    fn build_injector(&self, _: Option<&Lua>) -> FinderFn<Data<StatusEntry>> {
+        let config = self.config.clone();
+        let repo = Repository::open(config.cwd).expect("Unable to open repository");
+
+        Arc::new(move |tx| {
+            let status_options = &mut git2::StatusOptions::new();
+            status_options
+                .show(git2::StatusShow::Workdir)
+                .update_index(true)
+                .recurse_untracked_dirs(true)
+                .include_ignored(false)
+                .include_untracked(true);
+
+            repo.statuses(Some(status_options))
+                .expect("Unable to get statuses")
+                .iter()
+                .for_each(|entry| {
+                    let entry: StatusEntry = entry;
+                    let data = Data::from(entry);
+                    let _ = tx.send(data);
+                });
+
+            Ok(())
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Partial)]
-#[partially(derive(Default, Debug))]
+#[partially(derive(Default, Debug, Deserialize, Serialize))]
 pub struct StatusConfig {
     cwd: String,
 }
@@ -21,21 +72,20 @@ pub struct StatusConfig {
 pub struct Repository(git2::Repository);
 
 impl Repository {
-    pub fn statuses(
-        &self,
-        options: Option<&mut git2::StatusOptions>,
-    ) -> Result<FileStatuses<'_>, anyhow::Error> {
-        match self.0.statuses(options) {
-            Ok(statuses) => Ok(FileStatuses(statuses)),
-            Err(err) => bail!(err),
-        }
+    pub fn statuses(&self, options: Option<&mut git2::StatusOptions>) -> Result<FileStatuses<'_>> {
+        Ok(self.0.statuses(options).map(FileStatuses)?)
     }
 
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, anyhow::Error> {
-        match git2::Repository::discover(path) {
-            Ok(repo) => Ok(Self(repo)),
-            Err(err) => bail!(err),
-        }
+    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
+        Ok(git2::Repository::discover(path).map(Self)?)
+    }
+
+    pub fn diff_index_to_workdir(
+        &self,
+        index: Option<&git2::Index>,
+        opts: Option<&mut git2::DiffOptions>,
+    ) -> Result<git2::Diff<'_>> {
+        Ok(self.0.diff_index_to_workdir(index, opts)?)
     }
 }
 
@@ -70,7 +120,7 @@ impl<'a> From<git2::StatusEntry<'a>> for StatusEntry {
 }
 
 // Credit: https://github.com/extrawurst/gitui/blob/master/asyncgit/src/sync/status.rs
-#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Hash, PartialEq, Eq, Debug, Serialize, Deserialize, EnumIs)]
 pub enum Status {
     ///
     New,
@@ -105,10 +155,10 @@ impl From<git2::Status> for Status {
 }
 
 impl<'a> Iterator for StatusIter<'a> {
-    type Item = <git2::StatusIter<'a> as Iterator>::Item;
+    type Item = StatusEntry;
 
-    fn next(&mut self) -> Option<git2::StatusEntry<'a>> {
-        <git2::StatusIter as Iterator>::next(&mut self.0)
+    fn next(&mut self) -> Option<StatusEntry> {
+        <git2::StatusIter as Iterator>::next(&mut self.0).map(|iter| iter.into())
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -147,7 +197,6 @@ impl From<PartialStatusConfig> for StatusConfig {
     }
 }
 
-impl InjectorConfig for StatusConfig {}
 impl FromLua<'_> for StatusConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let config: PartialStatusConfig = FromLua::from_lua(value, lua)?;
@@ -155,27 +204,9 @@ impl FromLua<'_> for StatusConfig {
     }
 }
 
-pub fn call_or_get<T>(lua: &Lua, val: LuaValue, field: &str) -> LuaResult<T>
-where
-    T: for<'a> IntoLua<'a> + for<'a> FromLua<'a> + for<'a> Deserialize<'a>,
-{
-    let table = LuaTable::from_lua(val, lua)?;
-    match table.get(field)? {
-        LuaValue::Function(func) => {
-            log::info!("in the function section");
-            func.call::<_, T>(())
-        }
-        val => {
-            log::info!("val: {:?}", &val);
-            lua.from_value(val)
-        }
-    }
-}
-
 impl FromLua<'_> for PartialStatusConfig {
     fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
         let cwd: Option<String> = call_or_get(lua, value, "cwd")?;
-        log::info!("{:?}", &cwd);
 
         Ok(PartialStatusConfig { cwd })
     }
@@ -186,65 +217,54 @@ impl FromLua<'_> for StatusEntry {
         lua.from_value(value)
     }
 }
-impl From<StatusEntry> for Data<StatusEntry, PreviewOptions> {
+impl From<StatusEntry> for Data<StatusEntry> {
     fn from(value: StatusEntry) -> Self {
         let file_path = value.path().expect("Invalid utf8");
         let path = Path::new(&file_path);
-        let file_type = path
+        let file_extension = path
             .extension()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
 
+        let preview_kind = if value.status().is_new() {
+            PreviewKind::File
+        } else {
+            PreviewKind::Diff
+        };
+
+        let full_path = path.canonicalize().ok();
+        let uri = full_path.and_then(|fpath| Url::from_file_path(fpath).ok());
         let preview_options = PreviewOptions::builder()
+            .kind(preview_kind)
             .line_start(0)
             .col_start(0)
-            .file_type(file_type)
+            .and_uri(uri)
+            .path(path.display().to_string())
+            .file_extension(file_extension)
             .build();
 
         Data::new(
             DataKind::File,
             path.to_str().expect("Failed to convert path to string"),
-            path.to_str().expect("Failed to convert path to string"),
             value.clone(),
+            Some(0),
             Some(preview_options),
         )
     }
 }
 
-pub fn injector(config: Option<StatusConfig>) -> FinderFn<StatusEntry, PreviewOptions> {
-    let repo = Repository::open(config.unwrap_or_default().cwd).expect("Unable to open repository");
-
-    Arc::new(move |tx| {
-        let status_options = &mut git2::StatusOptions::new();
-        status_options
-            .update_index(true)
-            .include_ignored(false)
-            .include_untracked(true);
-
-        repo.statuses(Some(status_options))
-            .expect("Unable to get statuses")
-            .iter()
-            .for_each(|entry| {
-                let entry: StatusEntry = entry.into();
-                let data = Data::from(entry);
-                log::info!("{:?}", &data);
-                let _ = tx.send(data);
-            });
-    })
-}
-
 pub fn create_picker(
     file_options: Option<PartialStatusConfig>,
-) -> anyhow::Result<Picker<StatusEntry, PreviewOptions, StatusConfig>> {
-    let _config = match file_options {
+) -> Result<Picker<StatusEntry, StatusConfig, Source>> {
+    let config = match file_options {
         Some(config) => config,
         None => PartialStatusConfig::default(),
     };
-    let picker: Picker<StatusEntry, PreviewOptions, StatusConfig> =
-        Picker::new(picker::Config::default()).with_injector(Arc::new(injector));
 
-    // picker.populate(config.into());
+    let source = Source::builder().config(config).build();
+    let picker: Picker<StatusEntry, StatusConfig, Source> =
+        Picker::builder().source(source).build();
 
-    anyhow::Ok(picker)
+    Ok(picker)
 }

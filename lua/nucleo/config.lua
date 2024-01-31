@@ -1,5 +1,6 @@
 local actions = require("nucleo.actions")
 local extensions = require("nucleo.extensions")
+local presets = require("nucleo.presets")
 
 ---@class Nucleo.Config
 local M = {}
@@ -13,22 +14,37 @@ local defaults = {
 	---@class Nucleo.Config.Defaults.Generic
 	---@field sort_direction "descending"|"ascending"
 	---@field selection_strategy "reset"|"follow"
+	---@field selection_caret string
+	---@field multi_icon string
 	defaults = {
+		log_level = vim.log.levels.INFO,
 		sort_direction = "descending",
 		selection_strategy = "reset",
+		selection_caret = "> ",
+		multi_icon = "+",
 	},
+	---@type fun(prompt: Nucleo.Prompt, results: Nucleo.Results, preview: Nucleo.Previewer)
+	default_layout = presets.horizontal(),
 	sources = {
 		---@class Nucleo.Config.Files: Nucleo.Config.Defaults.Generic
 		---@field cwd fun()|string
-		---@field ignore boolean
 		["builtin.files"] = {
 			cwd = vim.uv.cwd,
 			git_ignore = true,
 			ignore = true,
+			hidden = false,
+		},
+		---@class Nucleo.Config.GitHunks: Nucleo.Config.Defaults.Generic
+		["builtin.git_hunks"] = {
+			cwd = vim.uv.cwd,
 		},
 		---@class Nucleo.Config.GitStatus: Nucleo.Config.Defaults.Generic
 		["builtin.git_status"] = {
 			cwd = vim.uv.cwd,
+		},
+		---@class Nucleo.Config.Diagnostics: Nucleo.Config.Defaults.Generic
+		["builtin.diagnostics"] = {
+			scope = "workspace",
 		},
 	},
 	---@class Nucleo.Keymaps
