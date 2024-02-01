@@ -3,7 +3,6 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use super::source::{Finder, SimpleData};
 use crate::{
-    entry::{Entry, IntoData},
     error::Result,
 };
 
@@ -13,7 +12,7 @@ pub struct Custom<T: Into<SimpleData>> {
 }
 
 impl<T: Into<SimpleData>> Finder for Custom<T> {
-    fn run(&self, lua: &Lua, tx: UnboundedSender<SimpleData>) -> Result<()> {
+    fn run(&self, _lua: &Lua, _tx: UnboundedSender<SimpleData>) -> Result<()> {
         todo!()
     }
 }

@@ -10,8 +10,7 @@ use buildstructor::{buildstructor, Builder};
 use crossbeam_channel::bounded;
 use mlua::ExternalResult;
 use mlua::{
-    prelude::{Lua, LuaResult, LuaValue},
-    FromLua, LuaSerdeExt, UserData, UserDataMethods,
+    prelude::{Lua}, LuaSerdeExt, UserData, UserDataMethods,
 };
 use nucleo_matcher::pattern::Pattern;
 use once_cell::sync::Lazy;
@@ -28,7 +27,7 @@ use crate::buffer::{Buffer, Cursor, Relative};
 use crate::config::{Config, PartialConfig, SortDirection};
 use crate::entry::Scored;
 use crate::error::Result;
-use crate::injector::FromPartial;
+
 use crate::nucleo::pattern::{CaseMatching, Normalization};
 use crate::nucleo::{Nucleo, Status, Utf32Str};
 use crate::previewer::PreviewOptions;
@@ -148,7 +147,7 @@ impl Injector<Data> {
             finder(tx)
         })
     }
-    pub fn populate_with_lua_source<C>(self, lua: &Lua, source: Source<C>) -> Result<()>
+    pub fn populate_with_lua_source<C>(self, _lua: &Lua, _source: Source<C>) -> Result<()>
     where
         C: Partial
             + Debug

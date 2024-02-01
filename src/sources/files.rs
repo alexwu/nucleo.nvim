@@ -15,7 +15,7 @@ use url::Url;
 use super::source::{self, Finder, SimpleData};
 use super::{Populator, Sources};
 use crate::config;
-use crate::entry::{Data, DataKind, Entry, IntoData};
+use crate::entry::{Data, DataKind, Entry};
 use crate::error::Result;
 use crate::injector::{FinderFn, FromPartial};
 use crate::picker::Picker;
@@ -131,7 +131,7 @@ impl Finder for FileFinder {
         walk_builder.types(excluded_types);
 
         for path in walk_builder.build() {
-            let cwd = cwd.clone();
+            let _cwd = cwd.clone();
             match path {
                 Ok(file) if file.path().is_file() => {
                     if tx
