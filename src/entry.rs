@@ -6,6 +6,10 @@ use strum::{Display, EnumString};
 
 use crate::previewer::PreviewOptions;
 
+pub trait Ordinal {
+    fn ordinal(&self) -> String;
+}
+
 pub trait Entry:
     for<'a> Deserialize<'a> + Debug + Serialize + Clone + Sync + Send + 'static
 {
@@ -15,6 +19,12 @@ pub trait Entry:
     fn is_selected(&self) -> bool;
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
     fn with_selected(self, selected: bool) -> Self;
+}
+
+impl<T: Entry> Ordinal for T {
+    fn ordinal(&self) -> String {
+        todo!()
+    }
 }
 
 pub trait IntoUtf32String {

@@ -32,6 +32,7 @@ mod sorter;
 mod sources;
 mod util;
 mod window;
+mod next;
 
 fn setup(opts: Option<config::PartialConfig>) -> Result<()> {
     let config = config::Config::from_partial(opts.unwrap_or_default());
