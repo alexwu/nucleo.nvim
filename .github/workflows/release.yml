@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - '*'
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        target:
+        - aarch64-apple-darwin
+        - x86_64-apple-darwin
+        - x86_64-pc-windows-msvc
+        - x86_64-unknown-linux-musl
+        include:
+        - target: aarch64-apple-darwin
+          os: macos-latest
+          target_rustflags: ''
+        - target: x86_64-apple-darwin
+          os: macos-latest
+          target_rustflags: ''
+        - target: x86_64-pc-windows-msvc
+          os: windows-latest
+          target_rustflags: ''
+        - target: x86_64-unknown-linux-musl
+          os: ubuntu-latest
+          target_rustflags: ''
+
+    runs-on: ${{matrix.os}}
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Install Rust Toolchain Components
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        target: ${{ matrix.target }}
+        toolchain: stable
+    - name: Setup just
+      uses: extractions/setup-just@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build
+      run: just release 
