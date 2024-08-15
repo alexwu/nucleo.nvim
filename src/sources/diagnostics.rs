@@ -61,7 +61,7 @@ impl FromLua for PartialConfig {
 
 impl FromLua for Config {
     fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
-        todo!("You didn't do the FromLua config stuff!")
+        lua.from_value(value)
     }
 }
 
@@ -113,7 +113,7 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
         self.config = config;
     }
 
-    fn build_injector(&self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Diagnostic>> {
+    fn build_injector(&mut self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Diagnostic>> {
         let key = self.finder.clone().expect("No registry key stored!");
         let finder = lua
             .expect("No Lua object given!")

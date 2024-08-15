@@ -73,13 +73,13 @@ impl IntoLua for Sources {
 
 pub trait Populator<T, U, V>
 where
-    T: Debug + Clone + Serialize + for<'a> Deserialize<'a> + 'static,
-    U: Debug + Clone + Default + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: IntoUtf32String + Clone,
+    T: Debug + Serialize + for<'a> Deserialize<'a>,
+    U: Debug + Default + Serialize + for<'a> Deserialize<'a>,
+    V: IntoUtf32String,
 {
     fn name(&self) -> Sources;
     fn kind(&self) -> SourceKind;
     fn update_config(&mut self, config: U);
 
-    fn build_injector(&self, lua: Option<&Lua>) -> FinderFn<V>;
+    fn build_injector(&mut self, lua: Option<&Lua>) -> FinderFn<V>;
 }

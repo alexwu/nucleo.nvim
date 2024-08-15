@@ -36,7 +36,7 @@ impl Populator<StatusEntry, StatusConfig, Data<StatusEntry>> for Source {
         self.config = config;
     }
 
-    fn build_injector(&self, _: Option<&Lua>) -> FinderFn<Data<StatusEntry>> {
+    fn build_injector(&mut self, _: Option<&Lua>) -> FinderFn<Data<StatusEntry>> {
         let config = self.config.clone();
         let repo = Repository::open(config.cwd).expect("Unable to open repository");
 

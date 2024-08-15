@@ -39,7 +39,7 @@ impl Populator<Value, FileConfig, Data<Value>> for Source {
         self.config = config;
     }
 
-    fn build_injector(&self, _: Option<&Lua>) -> FinderFn<Data<Value>> {
+    fn build_injector(&mut self, _: Option<&Lua>) -> FinderFn<Data<Value>> {
         let FileConfig {
             cwd,
             hidden,
@@ -223,7 +223,7 @@ impl Value {
             kind: DataKind::File,
             selected: false,
             indices: Vec::new(),
-            value,
+            value: Arc::new(value),
             score: 0,
             preview_options: Some(preview_options),
             ordinal: match_value,

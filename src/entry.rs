@@ -1,4 +1,4 @@
-use std::{fmt::Debug, str::FromStr};
+use std::{fmt::Debug, str::FromStr, sync::Arc};
 
 use mlua::{prelude::*, FromLua, IntoLua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -10,15 +10,15 @@ pub trait Ordinal {
     fn ordinal(&self) -> String;
 }
 
-pub trait Entry:
-    for<'a> Deserialize<'a> + Debug + Serialize + Clone + Sync + Send + 'static
-{
-    fn display(&self) -> String;
-    fn ordinal(&self) -> String;
+pub trait Entry: for<'a> Deserialize<'a> + Debug + Serialize + Sync + Send + 'static {
+    fn display(&self) -> &str;
+    fn ordinal(&self) -> &str;
     fn indices(&self) -> Vec<(u32, u32)>;
     fn is_selected(&self) -> bool;
     fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
+    fn set_indices(&mut self, indices: Vec<(u32, u32)>);
     fn with_selected(self, selected: bool) -> Self;
+    fn set_selected(&mut self, selected: bool);
 }
 
 impl<T: Entry> Ordinal for T {
@@ -28,18 +28,18 @@ impl<T: Entry> Ordinal for T {
 }
 
 pub trait IntoUtf32String {
-    fn into_utf32_string(self) -> crate::nucleo::Utf32String;
+    fn into_utf32_string(&self) -> crate::nucleo::Utf32String;
 }
 
 impl<T: Entry> IntoUtf32String for T {
-    fn into_utf32_string(self) -> crate::nucleo::Utf32String {
+    fn into_utf32_string(&self) -> crate::nucleo::Utf32String {
         self.ordinal().clone().into()
     }
 }
 
 pub trait IntoData<T>
 where
-    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     fn into_data(self) -> Data<T>;
 }
@@ -96,29 +96,47 @@ impl IntoLua for DataKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Data<T>
 where
-    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Serialize + for<'a> Deserialize<'a>,
 {
     pub ordinal: String,
     pub score: u32,
     pub kind: DataKind,
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
-    #[serde(
-        bound = "T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static"
-    )]
-    pub value: T,
+    #[serde(bound = "T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static")]
+    pub value: Arc<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_options: Option<PreviewOptions>,
 }
 
-impl<T: Eq> Eq for Data<T> where T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static {}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PickerData {}
+
+impl<T> Clone for Data<T>
+where
+    T: Debug + Serialize + for<'a> Deserialize<'a>,
+{
+    fn clone(&self) -> Self {
+        Self {
+            ordinal: self.ordinal.clone(),
+            score: self.score.clone(),
+            kind: self.kind.clone(),
+            selected: self.selected.clone(),
+            indices: self.indices.clone(),
+            value: self.value.clone(),
+            preview_options: self.preview_options.clone(),
+        }
+    }
+}
+
+impl<T: Eq> Eq for Data<T> where T: Debug + Serialize + for<'a> Deserialize<'a> + 'static {}
 
 impl<T: Ord> Ord for Data<T>
 where
-    T: Clone + Debug + Serialize + Ord + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Serialize + Ord + for<'a> Deserialize<'a> + 'static,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.score.cmp(&other.score)
@@ -128,7 +146,7 @@ where
 #[buildstructor::buildstructor]
 impl<T> Data<T>
 where
-    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     #[builder]
     pub fn new<V: Into<String>>(
@@ -140,7 +158,7 @@ where
     ) -> Self {
         Self {
             kind,
-            value,
+            value: Arc::new(value),
             preview_options,
             score: score.unwrap_or(0),
             ordinal: ordinal.into(),
@@ -152,7 +170,7 @@ where
 
 impl<T> Scored for Data<T>
 where
-    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     fn score(&self) -> u32 {
         self.score
@@ -161,7 +179,7 @@ where
 
 impl<T> PartialEq for Data<T>
 where
-    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     fn eq(&self, other: &Self) -> bool {
         self.score() == other.score()
@@ -170,7 +188,7 @@ where
 
 impl<T> PartialOrd for Data<T>
 where
-    T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.score().cmp(&other.score()))
@@ -185,7 +203,7 @@ impl From<String> for Data<String> {
 
 impl<T> FromLua for Data<T>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + FromLua + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + FromLua + 'static,
 {
     fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         lua.from_value(value)
@@ -194,7 +212,7 @@ where
 
 impl<T> IntoLua for Data<T>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + FromLua + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + FromLua + 'static,
 {
     fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue> {
         lua.to_value(&self)
@@ -203,14 +221,14 @@ where
 
 impl<T> Entry for Data<T>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
 {
-    fn display(&self) -> String {
-        self.ordinal.clone()
+    fn display(&self) -> &str {
+        &self.ordinal
     }
 
-    fn ordinal(&self) -> String {
-        self.ordinal.clone()
+    fn ordinal(&self) -> &str {
+        &self.ordinal
     }
 
     fn indices(&self) -> Vec<(u32, u32)> {
@@ -225,7 +243,15 @@ where
         Self { indices, ..self }
     }
 
+    fn set_indices(&mut self, indices: Vec<(u32, u32)>) {
+        self.indices = indices
+    }
+
     fn with_selected(self, selected: bool) -> Self {
         Self { selected, ..self }
+    }
+
+    fn set_selected(&mut self, selected: bool) {
+        self.selected = selected
     }
 }

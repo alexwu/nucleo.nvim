@@ -35,7 +35,7 @@ impl Source {
         Ok(picker)
     }
 
-    pub fn lua_picker<'a>(lua: &'a Lua, options: Option<LuaValue>) -> mlua::Result<LuaValue> {
+    pub fn lua_picker(lua: &Lua, options: Option<LuaValue>) -> mlua::Result<LuaValue> {
         let opts: Option<PartialHunkConfig> = options.and_then(|c| lua.from_value(c).ok()?);
         Source::picker(opts).into_lua_err()?.into_lua(lua)
     }
@@ -68,7 +68,7 @@ impl Populator<Hunk, HunkConfig, Data<Hunk>> for Source {
         self.config = config;
     }
 
-    fn build_injector(&self, _: Option<&Lua>) -> FinderFn<Data<Hunk>> {
+    fn build_injector(&mut self, _: Option<&Lua>) -> FinderFn<Data<Hunk>> {
         let config = self.config.clone();
         let repo = Repository::open(config.cwd).expect("Unable to open repository");
 

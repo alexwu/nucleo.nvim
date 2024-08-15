@@ -36,7 +36,7 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
         self.config = config;
     }
 
-    fn build_injector(&self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Blob>> {
+    fn build_injector(&mut self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Blob>> {
         let key = self.function_key.clone().expect("No registry key stored!");
         let finder = lua
             .expect("No Lua object given!")
@@ -55,10 +55,11 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
         };
 
         Arc::new(move |tx| {
-            entries.clone().into_iter().for_each(|entry| {
-                let _ = tx.send(entry);
-            });
-            Ok(())
+            todo!("luafunctions!")
+            // entries.into_iter().for_each(|entry| {
+            //     let _ = tx.send(entry);
+            // });
+            // Ok(())
         })
     }
 }

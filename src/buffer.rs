@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::window::Window;
 
-pub trait Buffer<T: Clone + Debug>: Sized {
+pub trait Buffer<T: Debug>: Sized {
     fn len(&self) -> usize;
     fn is_empty(&self) -> bool {
         self.len() == 0

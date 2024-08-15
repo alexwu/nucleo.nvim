@@ -71,12 +71,12 @@ pub struct CachedItem {
 ///
 /// It's internally reference counted and can be cheaply cloned
 /// and sent across threads.
-pub struct Injector<T: Scored + Clone> {
+pub struct Injector<T: Scored> {
     items: Arc<boxcar::Vec<T>>,
     notify: Arc<(dyn Fn() + Sync + Send)>,
 }
 
-impl<T: Scored + Clone> Clone for Injector<T> {
+impl<T: Scored> Clone for Injector<T> {
     fn clone(&self) -> Self {
         Injector {
             items: self.items.clone(),
@@ -85,7 +85,7 @@ impl<T: Scored + Clone> Clone for Injector<T> {
     }
 }
 
-impl<T: Scored + Clone> Injector<T> {
+impl<T: Scored> Injector<T> {
     /// Appends an element to the list of matched items.
     /// This function is lock-free and wait-free.
     pub fn push(&self, value: T, fill_columns: impl FnOnce(&mut [Utf32String])) -> u32 {
@@ -154,14 +154,14 @@ pub struct Status {
 
 /// A snapshot represent the results of a [`Nucleo`] worker after
 /// finishing a [`tick`](Nucleo::tick).
-pub struct Snapshot<T: Sync + Send + 'static + Scored + Clone> {
+pub struct Snapshot<T: Sync + Send + 'static + Scored> {
     item_count: u32,
     matches: Vec<Match>,
     pattern: MultiPattern,
     items: Arc<boxcar::Vec<T>>,
 }
 
-impl<T: Sync + Send + Scored + Clone + 'static> Snapshot<T> {
+impl<T: Sync + Send + Scored + 'static> Snapshot<T> {
     fn clear(&mut self, new_items: Arc<boxcar::Vec<T>>) {
         self.item_count = 0;
         self.matches.clear();
@@ -291,7 +291,7 @@ impl<T: Sync + Send + Scored + Clone + 'static> Snapshot<T> {
 
 /// A high level matcher worker that quickly computes matches in a background
 /// threadpool.
-pub struct Nucleo<T: Sync + Send + Scored + 'static + std::clone::Clone> {
+pub struct Nucleo<T: Sync + Send + Scored + 'static> {
     // the way the API is build we totally don't actually need these to be Arcs
     // but this lets us avoid some unsafe
     canceled: Arc<AtomicBool>,
@@ -309,7 +309,7 @@ pub struct Nucleo<T: Sync + Send + Scored + 'static + std::clone::Clone> {
     pub pattern: MultiPattern,
 }
 
-impl<T: Sync + Send + Scored + Clone + 'static> Nucleo<T> {
+impl<T: Sync + Send + Scored> Nucleo<T> {
     /// Constructs a new `nucleo` worker threadpool with the provided `config`.
     ///
     /// `notify` is called everytime new information is available and
@@ -447,7 +447,7 @@ impl<T: Sync + Send + Scored + Clone + 'static> Nucleo<T> {
     }
 }
 
-impl<T: Sync + Send + Scored + Clone> Drop for Nucleo<T> {
+impl<T: Sync + Send + Scored> Drop for Nucleo<T> {
     fn drop(&mut self) {
         // we ensure the worker quits before dropping items to ensure that
         // the worker can always assume the items outlive it

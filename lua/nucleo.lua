@@ -25,7 +25,11 @@ function M.setup(...)
 		require("nucleo.sources.git").git_hunks()
 	end, {})
 	api.nvim_create_user_command("Select", function()
-		M.select({ "foo", "bar", "baz" }, {}, function(item, idx) end)
+		M.select({
+			{ ordinal = "foo", score = 0, kind = "lua", selected = false, indices = {}, value = { val = "foo" } },
+			{ ordinal = "bar", score = 0, kind = "lua", selected = false, indices = {}, value = { val = "bar" } },
+			{ ordinal = "baz", score = 0, kind = "lua", selected = false, indices = {}, value = { val = "baz" } },
+		}, {}, function(item, idx) end)
 	end, {})
 end
 

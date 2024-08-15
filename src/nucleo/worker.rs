@@ -26,7 +26,7 @@ impl Matchers {
 unsafe impl Sync for Matchers {}
 unsafe impl Send for Matchers {}
 
-pub(crate) struct Worker<T: Sync + Send + Scored + Clone + 'static> {
+pub(crate) struct Worker<T: Sync + Send + Scored + 'static> {
     pub(crate) running: bool,
     matchers: Matchers,
     pub(crate) matches: Vec<Match>,
@@ -42,7 +42,7 @@ pub(crate) struct Worker<T: Sync + Send + Scored + Clone + 'static> {
     pub(crate) multi_sort: bool,
 }
 
-impl<T: Sync + Send + Scored + Clone + 'static> Worker<T> {
+impl<T: Sync + Send + Scored + 'static> Worker<T> {
     pub(crate) fn item_count(&self) -> u32 {
         self.last_snapshot - self.in_flight.len() as u32
     }

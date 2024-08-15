@@ -36,14 +36,15 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
         self.config = config;
     }
 
-    fn build_injector(&self, _lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Blob>> {
-        let entries = self.results.clone();
-        Arc::new(move |tx| {
-            entries.par_iter().for_each(|entry| {
-                let _ = tx.send(entry.clone());
-            });
-            Ok(())
-        })
+    fn build_injector(&mut self, _lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Blob>> {
+        todo!("build_injector for lua_tables")
+        // let entries = std::mem::take(&mut self.results);
+        // Arc::new(move |tx| {
+        //     entries.into_iter().for_each(|entry| {
+        //         let _ = tx.send(entry);
+        //     });
+        //     Ok(())
+        // })
     }
 }
 

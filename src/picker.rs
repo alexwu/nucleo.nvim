@@ -35,6 +35,7 @@ pub enum Movement {
 #[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display, Default, Partial)]
 #[partially(derive(Default, Debug, Clone, Serialize, Deserialize))]
 pub struct Blob {
+    #[serde(flatten)]
     pub inner: serde_json::Value,
 }
 
@@ -70,9 +71,9 @@ impl FromLua for PartialBlob {
 
 pub struct Picker<T, V, P>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig + 'static,
-    P: Populator<T, V, Data<T>>,
+    P: Populator<T, V, Data<T>> + Clone,
 {
     pub matcher: Matcher<Data<T>>,
     previous_query: String,
@@ -89,7 +90,7 @@ where
 #[buildstructor]
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig + 'static,
     P: Populator<T, V, Data<T>> + Clone,
 {
@@ -131,9 +132,9 @@ where
 }
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
+    P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
@@ -298,10 +299,11 @@ where
                     &mut match_indices,
                 );
 
-                let selected = self.selections.contains_key(&item.data.ordinal());
+                let selected = self.selections.contains_key(item.data.ordinal());
                 if selected {
                     log::debug!("{:?} is selected", &item.data);
                 }
+
                 item.data
                     .clone()
                     .with_indices(indices)
@@ -329,7 +331,7 @@ where
             Some(entry) => {
                 // WARN: This worries me...can these become out of sync?
                 self.selections
-                    .insert(entry.data.ordinal(), entry.data.clone());
+                    .insert(entry.data.ordinal().to_string(), entry.data.clone());
                 log::debug!("multi-selections: {:?}", &self.selections);
             }
             None => {
@@ -348,11 +350,11 @@ where
             Some(entry) => {
                 // WARN: This worries me...can these become out of sync?
                 if let std::collections::hash_map::Entry::Vacant(e) =
-                    self.selections.entry(entry.data.ordinal())
+                    self.selections.entry(entry.data.ordinal().to_owned())
                 {
                     e.insert(entry.data.clone());
                 } else {
-                    self.deselect(entry.data.ordinal());
+                    self.deselect(entry.data.ordinal().to_owned());
                 }
                 log::debug!("multi-selections: {:?}", &self.selections);
             }
@@ -379,9 +381,9 @@ where
 
 impl<T, V, P> Buffer<T> for Picker<T, V, P>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig,
-    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
+    P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
     fn len(&self) -> usize {
         self.total_matches().try_into().unwrap_or(usize::MAX)
@@ -405,10 +407,10 @@ where
 }
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig + FromPartial,
     V::Item: Debug,
-    P: Populator<T, V, Data<T>> + Send + Clone + 'static,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
 {
     pub fn populate(&self, lua: &Lua, config: Option<V::Item>) -> Result<()> {
         let injector = self.matcher.injector();
@@ -438,7 +440,7 @@ where
 
 impl<T, V, P> UserData for Picker<T, V, P>
 where
-    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
     V: InjectorConfig + FromPartial,
     V::Item: Debug,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
