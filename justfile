@@ -9,10 +9,13 @@ default: release
 lint:
     selene .
 
-fmt:
+fmt-lua:
     stylua .
-    cargo clippy --fix --allow-staged
+
+fmt-rust:
     cargo +nightly fmt --all
+
+fmt: fmt-lua fmt-rust
 
 clean-lua:
     rm -f ./lua/nucleo_nvim.{{ bin_ext_output }}
@@ -29,17 +32,20 @@ build:
 
 rebuild: clean-lua build
 
-release: clean-lua
+release:
     cargo build --release
     cp ./target/release/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_rs.{{ bin_ext_output }}
 
 clippy:
     cargo clippy --all --all-targets --all-features
 
+clippy-fix:
+    cargo clippy --fix --allow-staged
+
 fix:
     cargo fix --allow-dirty
 
-pedantic:
+clippy-pedantic:
     cargo clippy -- -W clippy::pedantic
 
 check: clippy

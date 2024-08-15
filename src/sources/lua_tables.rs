@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use mlua::{FromLua, Lua, LuaSerdeExt};
 use serde::{Deserialize, Serialize};
@@ -36,14 +36,14 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
     }
 
     fn build_injector(&mut self, _lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Blob>> {
-        todo!("build_injector for lua_tables")
-        // let entries = std::mem::take(&mut self.results);
-        // Arc::new(move |tx| {
-        //     entries.into_iter().for_each(|entry| {
-        //         let _ = tx.send(entry);
-        //     });
-        //     Ok(())
-        // })
+        // TODO: How do i avoid this double clone?
+        let entries = self.results.clone();
+        Arc::new(move |tx| {
+            entries.clone().into_iter().for_each(|entry| {
+                let _ = tx.send(entry);
+            });
+            Ok(())
+        })
     }
 }
 

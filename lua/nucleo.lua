@@ -12,14 +12,23 @@ M._rust = {
 }
 
 function M.setup(...)
+	local ok, nucleo_rs = pcall(require, "nucleo_rs")
+	if not ok then
+		vim.notify("nucleo_rs executable missing, please build and try again", vim.log.levels.WARN)
+		return
+	end
+
 	local config = require("nucleo.config")
 	config.setup(...)
 
-	require("nucleo_rs").setup(config.get("defaults"))
+	nucleo_rs.setup(config.get("defaults"))
 
-	api.nvim_create_user_command("Nucleo", function()
+	-- TODO: Should I move this lower?
+	vim.g.nucleo_loaded = 1
+
+	api.nvim_create_user_command("Find", function()
 		M.find()
-	end, {})
+	end, { desc = "Find files" })
 
 	api.nvim_create_user_command("Hunks", function()
 		require("nucleo.sources.git").git_hunks()
