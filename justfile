@@ -2,7 +2,7 @@ bin_name := if os() == "windows" { "nucleo_nvim" } else { "libnucleo_nvim" }
 bin_ext := if os() == "macos" { "dylib" } else { if os() == "windows" { "dll" } else { "so" } }
 bin_ext_output := if os() == "windows" { "dll" } else { "so" }
 
-set dotenv-load
+set dotenv-load := true
 
 default: release
 
@@ -23,9 +23,11 @@ clean-cargo:
 
 clean: clean-lua clean-cargo
 
-build: clean-lua
+build:
     cargo build
     cp ./target/debug/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_rs.{{ bin_ext_output }}
+
+rebuild: clean-lua build
 
 release: clean-lua
     cargo build --release
