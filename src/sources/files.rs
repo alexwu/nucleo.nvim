@@ -231,8 +231,8 @@ impl Value {
     }
 }
 
-impl FromLua<'_> for Value {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for Value {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
         Ok(Self {
             path: table.get("path")?,
@@ -253,8 +253,8 @@ pub struct FileConfig {
     picker_config: config::PartialConfig,
 }
 
-impl<'a> FromLua<'a> for FileConfig {
-    fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
+impl FromLua for FileConfig {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
         let val: PartialFileConfig = FromLua::from_lua(value, lua)?;
         Ok(val.into())
     }
@@ -277,8 +277,8 @@ impl Default for FileConfig {
     }
 }
 
-impl FromLua<'_> for PartialFileConfig {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for PartialFileConfig {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value.clone(), lua)?;
         let cwd = match table.get::<&str, LuaValue>("cwd") {
             Ok(val) => match val {

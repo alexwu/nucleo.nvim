@@ -55,7 +55,7 @@ fn setup(opts: Option<config::PartialConfig>) -> Result<()> {
 }
 
 #[mlua::lua_module]
-fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
+fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
 
     exports.set(
@@ -122,7 +122,7 @@ fn nucleo_rs(lua: &'static Lua) -> LuaResult<LuaTable> {
     )?;
     exports.set(
         "align_str",
-        LuaFunction::wrap(|lua, params: (String, LuaValue<'_>, u32, String, u32)| {
+        LuaFunction::wrap(|lua, params: (String, LuaValue, u32, String, u32)| {
             let indices: Vec<(u32, u32)> = lua.from_value(params.1)?;
 
             let (display, adjusted_indices) =

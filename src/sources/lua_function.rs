@@ -9,7 +9,7 @@ use crate::{
     picker::{Blob, Picker},
 };
 
-#[derive(FromLua, Debug, Clone, Serialize, Deserialize, buildstructor::Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, buildstructor::Builder)]
 pub struct Source {
     name: String,
     config: Blob,

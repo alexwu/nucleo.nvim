@@ -197,23 +197,23 @@ impl From<PartialStatusConfig> for StatusConfig {
     }
 }
 
-impl FromLua<'_> for StatusConfig {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for StatusConfig {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let config: PartialStatusConfig = FromLua::from_lua(value, lua)?;
         Ok(config.into())
     }
 }
 
-impl FromLua<'_> for PartialStatusConfig {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for PartialStatusConfig {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let cwd: Option<String> = call_or_get(lua, value, "cwd")?;
 
         Ok(PartialStatusConfig { cwd })
     }
 }
 
-impl FromLua<'_> for StatusEntry {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for StatusEntry {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         lua.from_value(value)
     }
 }

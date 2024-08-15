@@ -3,7 +3,7 @@ use serde::Deserialize;
 
 pub fn call_or_get<T>(lua: &Lua, val: LuaValue, field: &str) -> LuaResult<T>
 where
-    T: for<'a> IntoLua<'a> + for<'a> FromLua<'a> + for<'a> Deserialize<'a>,
+    T: IntoLua + FromLua + for<'a> Deserialize<'a>,
 {
     let table = LuaTable::from_lua(val, lua)?;
     match table.get(field)? {

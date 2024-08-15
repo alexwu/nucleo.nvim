@@ -10,7 +10,7 @@ use crate::{
     picker::{Blob, Picker},
 };
 
-#[derive(FromLua, Debug, Clone, Serialize, Deserialize, buildstructor::Builder)]
+#[derive(Debug, Clone, Serialize, Deserialize, buildstructor::Builder)]
 pub struct Source {
     name: String,
     config: Blob,
@@ -44,5 +44,11 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
             });
             Ok(())
         })
+    }
+}
+
+impl FromLua for Source {
+    fn from_lua(value: mlua::Value, lua: &Lua) -> mlua::Result<Self> {
+        todo!("FromLua!!!")
     }
 }

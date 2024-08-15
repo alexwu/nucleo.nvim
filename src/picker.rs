@@ -33,12 +33,13 @@ pub enum Movement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display, Default, Partial)]
-#[partially(derive(Default, Debug, Clone, Serialize, Deserialize, FromLua))]
+#[partially(derive(Default, Debug, Clone, Serialize, Deserialize))]
 pub struct Blob {
     pub inner: serde_json::Value,
 }
-impl<'a> FromLua<'a> for Blob {
-    fn from_lua(value: LuaValue<'a>, _lua: &'a Lua) -> LuaResult<Self> {
+
+impl FromLua for Blob {
+    fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
         let ty = value.type_name();
         Ok(Blob {
             inner: serde_json::to_value(value).map_err(|e| {
@@ -48,6 +49,21 @@ impl<'a> FromLua<'a> for Blob {
                     message: Some(format!("{}", e)),
                 }
             })?,
+        })
+    }
+}
+
+impl FromLua for PartialBlob {
+    fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
+        let ty = value.type_name();
+        Ok(PartialBlob {
+            inner: Some(serde_json::to_value(value).map_err(|e| {
+                mlua::Error::FromLuaConversionError {
+                    from: ty,
+                    to: "Blob",
+                    message: Some(format!("{}", e)),
+                }
+            })?),
         })
     }
 }
@@ -426,7 +442,7 @@ where
     V: InjectorConfig + FromPartial,
     V::Item: Debug,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
-    (std::option::Option<<V as partially::Partial>::Item>,): for<'lua> mlua::FromLuaMulti<'lua>,
+    (std::option::Option<<V as partially::Partial>::Item>,): mlua::FromLuaMulti,
 {
     fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
@@ -558,7 +574,7 @@ where
             this.populate(lua, params.0).into_lua_err()
         });
 
-        methods.add_method_mut("populate_with", |lua, this, params: (LuaValue<'_>,)| {
+        methods.add_method_mut("populate_with", |lua, this, params: (LuaValue,)| {
             this.populate_with(lua.from_value(params.0)?).into_lua_err()
         });
 

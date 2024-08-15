@@ -110,19 +110,12 @@ impl<T: IntoUtf32String + Clone + Send + Scored + 'static> Injector<T> {
 }
 
 pub trait Config:
-    Serialize + Debug + Clone + Default + for<'a> Deserialize<'a> + for<'a> FromLua<'a> + Sync + Send
+    Serialize + Debug + Clone + Default + for<'a> Deserialize<'a> + FromLua + Sync + Send
 {
 }
 
 impl<T> Config for T where
-    T: Serialize
-        + Debug
-        + Clone
-        + Default
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + Sync
-        + Send
+    T: Serialize + Debug + Clone + Default + for<'a> Deserialize<'a> + FromLua + Sync + Send
 {
 }
 

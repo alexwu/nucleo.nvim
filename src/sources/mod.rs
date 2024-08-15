@@ -6,6 +6,7 @@ use strum::{Display, EnumIs, EnumString};
 
 use crate::{entry::IntoUtf32String, injector::FinderFn};
 
+pub mod custom;
 pub mod diagnostics;
 pub mod files;
 pub mod git;
@@ -13,7 +14,6 @@ pub mod git_hunks;
 mod lua_function;
 pub mod lua_tables;
 pub mod source;
-pub mod custom;
 
 #[derive(
     Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display, EnumIs, Eq,
@@ -59,14 +59,14 @@ impl<'de> Deserialize<'de> for Sources {
     }
 }
 
-impl FromLua<'_> for Sources {
-    fn from_lua(value: mlua::Value<'_>, lua: &'_ Lua) -> mlua::Result<Self> {
+impl FromLua for Sources {
+    fn from_lua(value: mlua::Value, lua: &'_ Lua) -> mlua::Result<Self> {
         lua.from_value(value)
     }
 }
 
-impl IntoLua<'_> for Sources {
-    fn into_lua(self, lua: &'_ Lua) -> mlua::Result<mlua::Value<'_>> {
+impl IntoLua for Sources {
+    fn into_lua(self, lua: &'_ Lua) -> mlua::Result<mlua::Value> {
         self.to_string().into_lua(lua)
     }
 }

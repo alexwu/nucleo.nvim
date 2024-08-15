@@ -88,14 +88,14 @@ impl From<PathBuf> for PreviewOptions {
     }
 }
 
-impl<'a> FromLua<'a> for PreviewOptions {
-    fn from_lua(value: LuaValue<'a>, lua: &'a Lua) -> LuaResult<Self> {
+impl FromLua for PreviewOptions {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
         lua.from_value(value)
     }
 }
 
-impl<'a> IntoLua<'a> for PreviewOptions {
-    fn into_lua(self, lua: &'a Lua) -> LuaResult<LuaValue<'a>> {
+impl IntoLua for PreviewOptions {
+    fn into_lua(self, lua: & Lua) -> LuaResult<LuaValue> {
         lua.to_value_with(
             &self,
             LuaSerializeOptions::default().serialize_none_to_null(false),

@@ -35,7 +35,7 @@ impl Source {
         Ok(picker)
     }
 
-    pub fn lua_picker<'a>(lua: &'a Lua, options: Option<LuaValue>) -> mlua::Result<LuaValue<'a>> {
+    pub fn lua_picker<'a>(lua: &'a Lua, options: Option<LuaValue>) -> mlua::Result<LuaValue> {
         let opts: Option<PartialHunkConfig> = options.and_then(|c| lua.from_value(c).ok()?);
         Source::picker(opts).into_lua_err()?.into_lua(lua)
     }
@@ -145,10 +145,16 @@ impl From<Hunk> for Data<Hunk> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Builder, Partial, FromLua)]
+#[derive(Debug, Clone, Serialize, Deserialize, Builder, Partial)]
 #[partially(derive(Default, Debug, Deserialize, Serialize))]
 pub struct HunkConfig {
     cwd: String,
+}
+
+impl FromLua for HunkConfig {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
+        todo!()
+    }
 }
 
 impl From<PartialHunkConfig> for HunkConfig {
@@ -157,8 +163,8 @@ impl From<PartialHunkConfig> for HunkConfig {
     }
 }
 
-impl FromLua<'_> for PartialHunkConfig {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for PartialHunkConfig {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let cwd: Option<String> = call_or_get(lua, value, "cwd")?;
 
         Ok(Self { cwd })

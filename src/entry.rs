@@ -84,14 +84,14 @@ impl<'de> Deserialize<'de> for DataKind {
     }
 }
 
-impl FromLua<'_> for DataKind {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for DataKind {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
         lua.from_value(value)
     }
 }
 
-impl IntoLua<'_> for DataKind {
-    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+impl IntoLua for DataKind {
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue> {
         self.to_string().into_lua(lua)
     }
 }
@@ -183,34 +183,20 @@ impl From<String> for Data<String> {
     }
 }
 
-impl<T> FromLua<'_> for Data<T>
+impl<T> FromLua for Data<T>
 where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + 'static,
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + FromLua + 'static,
 {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         lua.from_value(value)
     }
 }
 
-impl<T> IntoLua<'_> for Data<T>
+impl<T> IntoLua for Data<T>
 where
-    T: Clone
-        + Debug
-        + Sync
-        + Send
-        + Serialize
-        + for<'a> Deserialize<'a>
-        + for<'a> FromLua<'a>
-        + 'static,
+    T: Clone + Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + FromLua + 'static,
 {
-    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue> {
         lua.to_value(&self)
     }
 }

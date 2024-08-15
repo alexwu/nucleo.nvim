@@ -9,7 +9,7 @@ use strum::{Display, EnumIs, EnumString};
 
 use crate::injector::FromPartial;
 
-#[derive(Clone, Debug, Partial, Default, Serialize, Deserialize, FromLua)]
+#[derive(Clone, Debug, Partial, Default, Serialize, Deserialize)]
 #[partially(derive(Default, Debug, Clone, Serialize, Deserialize))]
 pub struct Config {
     log_level: LogLevel,
@@ -31,8 +31,8 @@ impl Config {
     }
 }
 
-impl FromLua<'_> for PartialConfig {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for PartialConfig {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
 
         Ok(PartialConfig {
@@ -62,8 +62,8 @@ pub enum LogLevel {
     Off = 5,
 }
 
-impl FromLua<'_> for LogLevel {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for LogLevel {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
         lua.from_value(value)
     }
 }
@@ -101,11 +101,11 @@ pub enum SelectionStrategy {
     Follow,
 }
 
-impl FromLua<'_> for SelectionStrategy {
-    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for SelectionStrategy {
+    fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
         match value {
             mlua::Value::String(str) => {
-                let direction = match SelectionStrategy::from_str(str.to_str()?) {
+                let direction = match SelectionStrategy::from_str(&str.to_str()?) {
                     Ok(direction) => direction,
                     Err(_) => SelectionStrategy::default(),
                 };
@@ -115,14 +115,14 @@ impl FromLua<'_> for SelectionStrategy {
         }
     }
 }
-impl FromLua<'_> for SortDirection {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for SortDirection {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
         lua.from_value(value)
     }
 }
 
-impl IntoLua<'_> for SortDirection {
-    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
+impl IntoLua for SortDirection {
+    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue> {
         lua.to_value(&self)
     }
 }

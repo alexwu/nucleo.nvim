@@ -21,7 +21,7 @@ use crate::{
     previewer::{PreviewKind, PreviewOptions},
 };
 
-#[derive(Debug, EnumString, Display, Clone, Copy, Serialize, Deserialize, FromLua, Default)]
+#[derive(Debug, EnumString, Display, Clone, Copy, Serialize, Deserialize, Default)]
 #[strum(serialize_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum Scope {
@@ -30,7 +30,7 @@ pub enum Scope {
     Workspace,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromLua, Default, Partial)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Partial)]
 #[partially(derive(Clone, Debug, Serialize, Deserialize, Default))]
 pub struct Config {
     scope: Scope,
@@ -38,8 +38,8 @@ pub struct Config {
     picker_config: config::PartialConfig,
 }
 
-impl FromLua<'_> for PartialConfig {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for PartialConfig {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value.clone(), lua)?;
         let scope = match table.get::<&str, LuaValue>("scope") {
             Ok(val) => {
@@ -59,6 +59,12 @@ impl FromLua<'_> for PartialConfig {
     }
 }
 
+impl FromLua for Config {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
+        todo!("You didn't do the FromLua config stuff!")
+    }
+}
+
 impl From<PartialConfig> for Config {
     fn from(value: PartialConfig) -> Self {
         Config::from_partial(value)
@@ -71,8 +77,8 @@ pub struct Source {
     finder: Option<Arc<RegistryKey>>,
 }
 
-impl FromLua<'_> for Source {
-    fn from_lua(value: Value<'_>, lua: &Lua) -> LuaResult<Self> {
+impl FromLua for Source {
+    fn from_lua(value: Value, lua: &Lua) -> LuaResult<Self> {
         let table = value
             .as_table()
             .ok_or_else(|| anyhow::anyhow!("Source wasn't given a table!"))
@@ -153,14 +159,14 @@ pub struct Diagnostic {
     user_data: serde_json::Value,
 }
 
-impl FromLua<'_> for Diagnostic {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
+impl FromLua for Diagnostic {
+    fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         lua.from_value(value)
     }
 }
 
-impl<'lua> IntoLua<'lua> for Diagnostic {
-    fn into_lua(self, lua: &'lua Lua) -> LuaResult<LuaValue<'lua>> {
+impl IntoLua for Diagnostic {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
         lua.to_value(&self)
     }
 }
