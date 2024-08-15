@@ -5,9 +5,10 @@ local M = {}
 --- @private
 M._rust = {
 	FilePicker = true,
-	GitStatusPicker = true,
+	GitStatusPicker = false,
 	LuaPicker = true,
 	Previewer = true,
+	CustomPicker = true,
 }
 
 function M.setup(...)
@@ -22,6 +23,9 @@ function M.setup(...)
 
 	api.nvim_create_user_command("Hunks", function()
 		require("nucleo.sources.git").git_hunks()
+	end, {})
+	api.nvim_create_user_command("Select", function()
+		M.select({ "foo", "bar", "baz" }, {}, function(item, idx) end)
 	end, {})
 end
 
@@ -39,6 +43,22 @@ function M.find(...)
 			end
 		end,
 	}):find(...)
+end
+
+---@param items any[]
+---@param opts table
+---@param on_choice fun(item: any?, idx: integer?)
+function M.select(items, opts, on_choice)
+	local Picker = require("nucleo.picker")
+
+	Picker({
+		source = {
+			name = "custom",
+			config = {},
+			results = items,
+		},
+		on_submit = on_choice,
+	}):find()
 end
 
 return setmetatable(M, {

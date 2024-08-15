@@ -93,7 +93,11 @@ function Picker:new(opts)
 	-- 	-- self.picker = nu.CustomPicker(opts.source)
 	-- end
 
-	self.picker = nu.Picker(opts.source)
+	if type(opts.source) == "table" and opts.source.name == "custom" then
+		self.picker = nu.CustomPicker(opts.source)
+	else
+		self.picker = nu.Picker(opts.source)
+	end
 
 	self.results = Results()
 	self.previewer = Previewer()
