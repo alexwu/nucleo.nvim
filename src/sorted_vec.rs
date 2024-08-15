@@ -90,18 +90,21 @@ impl<T: Ord + Send> SortedVec<T> {
     pub fn new() -> Self {
         SortedVec { vec: Vec::new() }
     }
+
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         SortedVec {
             vec: Vec::with_capacity(capacity),
         }
     }
+
     /// Uses `sort_unstable()` to sort in place.
     #[inline]
     pub fn from_unsorted(mut vec: Vec<T>) -> Self {
         vec.sort_unstable();
         SortedVec { vec }
     }
+
     /// Insert an element into sorted position, returning the order index at which
     /// it was placed.
     pub fn insert(&mut self, element: T) -> usize {
@@ -111,6 +114,7 @@ impl<T: Ord + Send> SortedVec<T> {
         self.vec.insert(insert_at, element);
         insert_at
     }
+
     /// Find the element and return the index with `Ok`, otherwise insert the
     /// element and return the new element index with `Err`.
     pub fn find_or_insert(&mut self, element: T) -> FindOrInsert {
@@ -121,6 +125,7 @@ impl<T: Ord + Send> SortedVec<T> {
             })
             .into()
     }
+
     /// Same as insert, except performance is O(1) when the element belongs at the
     /// back of the container. This avoids an O(log(N)) search for inserting
     /// elements at the back.
@@ -145,12 +150,14 @@ impl<T: Ord + Send> SortedVec<T> {
             0
         }
     }
+
     /// Reserves additional capacity in the underlying vector.
     /// See std::vec::Vec::reserve.
     #[inline]
     pub fn reserve(&mut self, additional: usize) {
         self.vec.reserve(additional);
     }
+
     /// Same as find_or_insert, except performance is O(1) when the element
     /// belongs at the back of the container.
     pub fn find_or_push(&mut self, element: T) -> FindOrInsert {
@@ -173,6 +180,7 @@ impl<T: Ord + Send> SortedVec<T> {
             FindOrInsert::Inserted(0)
         }
     }
+
     #[inline]
     pub fn remove_item(&mut self, item: &T) -> Option<T> {
         match self.vec.binary_search(item) {
@@ -180,23 +188,28 @@ impl<T: Ord + Send> SortedVec<T> {
             Err(_) => None,
         }
     }
+
     /// Panics if index is out of bounds
     #[inline]
     pub fn remove_index(&mut self, index: usize) -> T {
         self.vec.remove(index)
     }
+
     #[inline]
     pub fn pop(&mut self) -> Option<T> {
         self.vec.pop()
     }
+
     #[inline]
     pub fn clear(&mut self) {
         self.vec.clear()
     }
+
     #[inline]
     pub fn dedup(&mut self) {
         self.vec.dedup();
     }
+
     #[inline]
     pub fn dedup_by_key<F, K>(&mut self, key: F)
     where
@@ -205,6 +218,7 @@ impl<T: Ord + Send> SortedVec<T> {
     {
         self.vec.dedup_by_key(key);
     }
+
     #[inline]
     pub fn drain<R>(&mut self, range: R) -> std::vec::Drain<T>
     where
@@ -212,6 +226,7 @@ impl<T: Ord + Send> SortedVec<T> {
     {
         self.vec.drain(range)
     }
+
     #[inline]
     pub fn retain<F>(&mut self, f: F)
     where
@@ -219,12 +234,14 @@ impl<T: Ord + Send> SortedVec<T> {
     {
         self.vec.retain(f)
     }
+
     /// NOTE: to_vec() is a slice method that is accessible through deref, use
     /// this instead to avoid cloning
     #[inline]
     pub fn into_vec(self) -> Vec<T> {
         self.vec
     }
+
     /// Apply a closure mutating the sorted vector and use `sort_unstable()`
     /// to re-sort the mutated vector
     pub fn mutate_vec<F, O>(&mut self, f: F) -> O
@@ -235,11 +252,13 @@ impl<T: Ord + Send> SortedVec<T> {
         self.vec.sort_unstable();
         res
     }
+
     /// The caller must ensure that the provided vector is already sorted.
     #[inline]
     pub unsafe fn from_sorted(vec: Vec<T>) -> Self {
         SortedVec { vec }
     }
+
     /// Unsafe access to the underlying vector. The caller must ensure that any
     /// changes to the values in the vector do not impact the ordering of the
     /// elements inside, or else this container will misbehave.
@@ -297,6 +316,7 @@ impl<T: Ord + Send> From<Vec<T>> for SortedVec<T> {
 
 impl<T: Ord + Send> std::ops::Deref for SortedVec<T> {
     type Target = Vec<T>;
+
     fn deref(&self) -> &Vec<T> {
         &self.vec
     }
@@ -344,8 +364,9 @@ pub type ReverseSortedVec<T> = SortedVec<std::cmp::Reverse<T>>;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::cmp::Reverse;
+
+    use super::*;
 
     #[test]
     fn test_sorted_vec() {

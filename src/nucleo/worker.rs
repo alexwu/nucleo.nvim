@@ -3,7 +3,6 @@ use std::mem::take;
 use std::sync::atomic::{self, AtomicBool, AtomicU32};
 use std::sync::Arc;
 
-use crate::sorted_vec::SortedVec;
 use nucleo_matcher::Config;
 use parking_lot::Mutex;
 use rayon::{prelude::*, ThreadPool};
@@ -12,6 +11,7 @@ use crate::entry::Scored;
 use crate::nucleo::par_sort::par_quicksort;
 use crate::nucleo::pattern::{self, MultiPattern};
 use crate::nucleo::{boxcar, Match};
+use crate::sorted_vec::SortedVec;
 
 struct Matchers(Box<[UnsafeCell<nucleo_matcher::Matcher>]>);
 

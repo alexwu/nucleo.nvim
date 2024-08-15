@@ -35,7 +35,7 @@ use std::sync::atomic::{self, AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-pub use nucleo_matcher::{chars, Config, Matcher, Utf32Str, Utf32String};
+pub use nucleo_matcher::{Config, Matcher, Utf32Str, Utf32String};
 use parking_lot::Mutex;
 use rayon::ThreadPool;
 use serde::{Deserialize, Serialize};
@@ -201,7 +201,7 @@ impl<T: Sync + Send + Scored + 'static> Snapshot<T> {
     pub fn matched_items(
         &self,
         range: impl RangeBounds<u32>,
-    ) -> impl Iterator<Item = Item<'_, T>> + ExactSizeIterator + DoubleEndedIterator + '_ {
+    ) -> impl ExactSizeIterator<Item = Item<'_, T>> + DoubleEndedIterator + '_ {
         // TODO: use TAIT
         let start = match range.start_bound() {
             Bound::Included(&start) => start as usize,
@@ -227,8 +227,7 @@ impl<T: Sync + Send + Scored + 'static> Snapshot<T> {
     pub fn matched_items_with_scores(
         &self,
         range: impl RangeBounds<u32>,
-    ) -> impl Iterator<Item = (u32, Item<'_, T>)> + ExactSizeIterator + DoubleEndedIterator + '_
-    {
+    ) -> impl ExactSizeIterator<Item = (u32, Item<'_, T>)> + DoubleEndedIterator + '_ {
         // TODO: use TAIT
         let start = match range.start_bound() {
             Bound::Included(&start) => start as usize,

@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
 
-use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
+use mlua::{Function, Lua, LuaSerdeExt, RegistryKey, Value};
 use serde::{Deserialize, Serialize};
 
 use super::{Populator, Sources};

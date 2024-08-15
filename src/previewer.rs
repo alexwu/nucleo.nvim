@@ -95,7 +95,7 @@ impl FromLua for PreviewOptions {
 }
 
 impl IntoLua for PreviewOptions {
-    fn into_lua(self, lua: & Lua) -> LuaResult<LuaValue> {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
         lua.to_value_with(
             &self,
             LuaSerializeOptions::default().serialize_none_to_null(false),

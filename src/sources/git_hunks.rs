@@ -24,10 +24,7 @@ pub struct Source {
 
 impl Source {
     pub fn picker(options: Option<PartialHunkConfig>) -> Result<Picker<Hunk, HunkConfig, Source>> {
-        let config = match options {
-            Some(config) => config,
-            None => PartialHunkConfig::default(),
-        };
+        let config = options.unwrap_or_default();
         let source = Source::builder().config(config).build();
         let picker: Picker<Hunk, HunkConfig, Source> =
             Picker::builder().multi_sort(false).source(source).build();

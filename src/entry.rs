@@ -33,7 +33,7 @@ pub trait IntoUtf32String {
 
 impl<T: Entry> IntoUtf32String for T {
     fn into_utf32_string(&self) -> crate::nucleo::Utf32String {
-        self.ordinal().clone().into()
+        self.ordinal().into()
     }
 }
 
@@ -122,9 +122,9 @@ where
     fn clone(&self) -> Self {
         Self {
             ordinal: self.ordinal.clone(),
-            score: self.score.clone(),
+            score: self.score,
             kind: self.kind.clone(),
-            selected: self.selected.clone(),
+            selected: self.selected,
             indices: self.indices.clone(),
             value: self.value.clone(),
             preview_options: self.preview_options.clone(),

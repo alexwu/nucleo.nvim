@@ -1,15 +1,14 @@
-use std::{path::PathBuf};
+use std::path::PathBuf;
 
 use buildstructor::Builder;
 use enum_dispatch::enum_dispatch;
 use mlua::Lua;
-
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::custom::Custom;
 use super::Sources;
-use crate::entry::{Entry};
+use crate::entry::Entry;
 use crate::error::Result;
 use crate::files::FileFinder;
 use crate::previewer::PreviewOptions;

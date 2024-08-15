@@ -257,10 +257,7 @@ impl From<StatusEntry> for Data<StatusEntry> {
 pub fn create_picker(
     file_options: Option<PartialStatusConfig>,
 ) -> Result<Picker<StatusEntry, StatusConfig, Source>> {
-    let config = match file_options {
-        Some(config) => config,
-        None => PartialStatusConfig::default(),
-    };
+    let config = file_options.unwrap_or_default();
 
     let source = Source::builder().config(config).build();
     let picker: Picker<StatusEntry, StatusConfig, Source> =

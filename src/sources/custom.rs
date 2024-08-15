@@ -2,9 +2,7 @@ use mlua::Lua;
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::source::{Finder, SimpleData};
-use crate::{
-    error::Result,
-};
+use crate::error::Result;
 
 #[derive(Clone, Debug)]
 pub struct Custom<T: Into<SimpleData>> {

@@ -179,7 +179,7 @@ impl Value {
         let full_path = path.to_str().expect("Failed to convert path to string");
         let uri = Url::from_file_path(full_path).expect("Unable to create uri from full path");
         let match_value = path
-            .strip_prefix(&cwd.unwrap_or_default())
+            .strip_prefix(cwd.unwrap_or_default())
             .expect("Failed to strip prefix")
             .to_str()
             .expect("Failed to convert path to string")

@@ -1,7 +1,6 @@
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
 use mlua::{FromLua, Lua, LuaSerdeExt};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use super::{Populator, Sources};

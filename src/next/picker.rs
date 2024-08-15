@@ -9,9 +9,7 @@ use std::sync::Arc;
 use buildstructor::{buildstructor, Builder};
 use crossbeam_channel::bounded;
 use mlua::ExternalResult;
-use mlua::{
-    prelude::{Lua}, LuaSerdeExt, UserData, UserDataMethods,
-};
+use mlua::{prelude::Lua, LuaSerdeExt, UserData, UserDataMethods};
 use nucleo_matcher::pattern::Pattern;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -27,7 +25,6 @@ use crate::buffer::{Buffer, Cursor, Relative};
 use crate::config::{Config, PartialConfig, SortDirection};
 use crate::entry::Scored;
 use crate::error::Result;
-
 use crate::nucleo::pattern::{CaseMatching, Normalization};
 use crate::nucleo::{Nucleo, Status, Utf32Str};
 use crate::previewer::PreviewOptions;
@@ -147,6 +144,7 @@ impl Injector<Data> {
             finder(tx)
         })
     }
+
     pub fn populate_with_lua_source<C>(self, _lua: &Lua, _source: Source<C>) -> Result<()>
     where
         C: Partial
@@ -313,10 +311,7 @@ impl<
     > Picker<C>
 {
     #[builder]
-    pub fn new(
-        source: Source<C>,
-        config: Option<crate::config::Config>,
-    ) -> Self {
+    pub fn new(source: Source<C>, config: Option<crate::config::Config>) -> Self {
         let config = config.unwrap_or_default();
         log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
