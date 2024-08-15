@@ -1,6 +1,6 @@
 use std::{fmt::Debug, sync::Arc};
 
-use mlua::{FromLua, Lua};
+use mlua::{FromLua, Lua, LuaSerdeExt};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
@@ -49,6 +49,6 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
 
 impl FromLua for Source {
     fn from_lua(value: mlua::Value, lua: &Lua) -> mlua::Result<Self> {
-        todo!("FromLua!!!")
+        lua.from_value(value)
     }
 }

@@ -153,7 +153,7 @@ pub struct HunkConfig {
 
 impl FromLua for HunkConfig {
     fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
-        todo!()
+        lua.from_value(value)
     }
 }
 
