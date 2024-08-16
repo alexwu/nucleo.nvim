@@ -17,24 +17,26 @@ fmt-rust:
 
 fmt: fmt-lua fmt-rust
 
+clean-cargo:
+    cargo clean
+
 clean-lua:
     rm -f ./lua/nucleo_nvim.{{ bin_ext_output }}
     rm -f ./lua/nucleo_rs.{{ bin_ext_output }}
 
-clean-cargo:
-    cargo clean
-
 clean: clean-lua clean-cargo
 
-build:
-    cargo build
+copy-debug-build-artifacts:
     cp ./target/debug/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_rs.{{ bin_ext_output }}
 
-rebuild: clean-lua build
+build: && clean-lua copy-debug-build-artifacts
+    cargo build
 
-release:
-    cargo build --release
+copy-release-build-artifacts:
     cp ./target/release/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_rs.{{ bin_ext_output }}
+
+release: && clean-lua copy-release-build-artifacts
+    cargo build --release
 
 clippy:
     cargo clippy --all --all-targets --all-features
