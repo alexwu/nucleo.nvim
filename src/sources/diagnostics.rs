@@ -3,7 +3,7 @@ use std::{env::current_dir, path::Path, sync::Arc};
 
 use buildstructor::Builder;
 use mlua::prelude::*;
-use mlua::{FromLua, Function, Lua, LuaSerdeExt, RegistryKey, Value};
+use mlua::{FromLua, Function, Lua, LuaSerdeExt, Value};
 use oxi_api::Buffer;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
@@ -74,7 +74,7 @@ impl From<PartialConfig> for Config {
 pub struct Source {
     config: Config,
     #[serde(skip)]
-    finder: Option<Arc<RegistryKey>>,
+    finder: Option<Arc<Function>>,
 }
 
 impl FromLua for Source {
@@ -84,8 +84,12 @@ impl FromLua for Source {
             .ok_or_else(|| anyhow::anyhow!("Source wasn't given a table!"))
             .into_lua_err()?;
 
-        let registry_key = match table.get::<&str, LuaValue>("finder")? {
-            LuaValue::Function(thunk) => lua.create_registry_value(thunk)?,
+        // let registry_key = match table.get::<&str, LuaValue>("finder")? {
+        //     LuaValue::Function(thunk) => lua.create_registry_value(thunk)?,
+        //     _ => todo!("Failed to implement finder"),
+        // };
+        let finder = match table.get::<&str, LuaValue>("finder")? {
+            LuaValue::Function(thunk) => thunk,
             _ => todo!("Failed to implement finder"),
         };
 
@@ -95,7 +99,7 @@ impl FromLua for Source {
 
         Ok(Source::builder()
             .config(config)
-            .finder(Arc::new(registry_key))
+            .finder(Arc::new(finder))
             .build())
     }
 }
@@ -114,11 +118,12 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
     }
 
     fn build_injector(&mut self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Diagnostic>> {
-        let key = self.finder.clone().expect("No registry key stored!");
-        let finder = lua
-            .expect("No Lua object given!")
-            .registry_value::<Function>(&key)
-            .expect("Remember to make it so these return results!");
+        // let key = self.finder.clone().expect("No registry key stored!");
+        // let finder = lua
+        //     .expect("No Lua object given!")
+        //     .registry_value::<Function>(&key)
+        //     .expect("Remember to make it so these return results!");
+        let finder = self.finder.clone().expect("No finder stored?");
         let bufnr = match self.config.scope {
             Scope::Document => Some(0),
             Scope::Workspace => None,
@@ -144,6 +149,31 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Display)]
+#[serde(untagged)]
+enum Code {
+    String(String),
+    Integer(i64),
+}
+
+impl IntoLua for Code {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        match self {
+            Code::Integer(val) => Ok(LuaValue::Integer(val)),
+            Code::String(val) => val.into_lua(lua),
+        }
+    }
+}
+
+impl FromLua for Code {
+    fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
+        match value {
+            LuaValue::Integer(integer) => Ok(Code::Integer(integer)),
+            val => Ok(Code::String(val.to_string()?)),
+        }
+    }
+}
+
 #[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Diagnostic {
@@ -153,7 +183,7 @@ pub struct Diagnostic {
     end_col: Option<usize>,
     end_lnum: Option<usize>,
     source: Option<String>,
-    code: Option<String>,
+    code: Option<Code>,
     bufnr: Option<usize>,
     pub severity: Option<usize>,
     user_data: serde_json::Value,
@@ -205,7 +235,11 @@ impl From<Diagnostic> for Data<Diagnostic> {
         let message = value.message.clone().replace('\n', " ");
         let ordinal = format!(
             "{} {} {}",
-            value.code.clone().unwrap_or_default(),
+            value
+                .code
+                .clone()
+                .unwrap_or_else(|| Code::String(String::new())),
+            // value.code.clone().unwrap_or_default(),
             message.clone(),
             relative,
         );
