@@ -149,11 +149,24 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Display)]
+#[derive(Debug, Clone, Deserialize, Display)]
 #[serde(untagged)]
 enum Code {
-    String(String),
     Integer(i64),
+    #[strum(default)]
+    String(String),
+}
+
+impl Serialize for Code {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Code::String(inner) => serializer.serialize_str(inner),
+            Code::Integer(inner) => serializer.serialize_i64(*inner),
+        }
+    }
 }
 
 impl IntoLua for Code {
