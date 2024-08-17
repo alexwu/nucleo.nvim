@@ -3,11 +3,11 @@ pub enum Error {
     #[error("{0}")]
     Lua(#[from] mlua::Error),
     #[error("{0}")]
-    TryRecvError(#[from] crossbeam_channel::TryRecvError),
+    TryRecv(#[from] crossbeam_channel::TryRecvError),
     #[error("{0}")]
     Git(#[from] git2::Error),
     #[error("{0}")]
-    IoError(#[from] std::io::Error),
+    Io(#[from] std::io::Error),
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
