@@ -9,12 +9,13 @@ use mlua::prelude::*;
 use simplelog::{Config, WriteLogger};
 
 use crate::error::Result;
-use crate::sources::{
-    diagnostics, files,
-    git::{self, PartialStatusConfig},
-    git_hunks, Sources,
-};
+use crate::sources::{diagnostics, files, Sources};
 use crate::util::align_str;
+
+#[cfg(feature = "git")]
+use crate::sources::git::{self, PartialStatusConfig};
+#[cfg(feature = "git")]
+use crate::sources::git_hunks;
 
 mod buffer;
 mod config;
@@ -80,12 +81,14 @@ fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
 
                     files::create_picker(opts).into_lua_err()?.into_lua(lua)
                 }
+                #[cfg(feature = "git")]
                 Sources::GitStatus => {
                     let opts: Option<PartialStatusConfig> =
                         config.and_then(|c| lua.from_value(c).ok()?);
 
                     git::create_picker(opts).into_lua_err()?.into_lua(lua)
                 }
+                #[cfg(feature = "git")]
                 Sources::GitHunks => {
                     let opts: Option<git_hunks::PartialHunkConfig> =
                         config.and_then(|c| lua.from_value(c).ok()?);

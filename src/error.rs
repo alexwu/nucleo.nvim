@@ -4,6 +4,7 @@ pub enum Error {
     Lua(#[from] mlua::Error),
     #[error("{0}")]
     TryRecv(#[from] crossbeam_channel::TryRecvError),
+    #[cfg(feature = "git")]
     #[error("{0}")]
     Git(#[from] git2::Error),
     #[error("{0}")]

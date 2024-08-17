@@ -9,7 +9,9 @@ use crate::{entry::IntoUtf32String, injector::FinderFn};
 pub mod custom;
 pub mod diagnostics;
 pub mod files;
+#[cfg(feature = "git")]
 pub mod git;
+#[cfg(feature = "git")]
 pub mod git_hunks;
 mod lua_function;
 pub mod lua_tables;
@@ -30,8 +32,10 @@ pub enum SourceKind {
 pub enum Sources {
     #[strum(serialize = "builtin.files")]
     Files,
+    #[cfg(feature = "git")]
     #[strum(serialize = "builtin.git_status")]
     GitStatus,
+    #[cfg(feature = "git")]
     #[strum(serialize = "builtin.git_hunks")]
     GitHunks,
     #[strum(serialize = "builtin.diagnostics")]
