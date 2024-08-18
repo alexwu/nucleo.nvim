@@ -17,10 +17,8 @@ function M.horizontal()
 				Layout.Box({
 					Layout.Box(prompt, { size = 3 }),
 					Layout.Box(results, { grow = 1 }),
-				}, { dir = "col", grow = 1 }),
-				Layout.Box({
-					Layout.Box(previewer, { grow = 1 }),
-				}, { dir = "col", grow = 1 }),
+				}, { dir = "col", size = "50%" }),
+				Layout.Box(previewer, { grow = 1 }),
 			}, { dir = "row" })
 		)
 	end
@@ -40,7 +38,7 @@ function M.center()
 			Layout.Box({
 				Layout.Box(results, { grow = 1 }),
 				Layout.Box(prompt, { size = 3 }),
-				Layout.Box(previewer, { grow = 1 }),
+				Layout.Box(previewer, { size = "50%" }),
 			}, { dir = "col", size = "100%" })
 		)
 	end
