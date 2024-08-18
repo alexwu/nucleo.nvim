@@ -17,7 +17,7 @@ local Results = NuiPopup:extend("Results")
 ---@param opts? ResultsOptions
 function Results:init(opts)
 	self._entries = {}
-	opts = vim.F.if_nil(opts, { popup_options = {} })
+	opts = opts or { popup_options = {} }
 	local popup_options = vim.tbl_deep_extend("force", opts.popup_options or {}, {
 		border = "rounded",
 		focusable = true,

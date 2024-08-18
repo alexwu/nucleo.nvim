@@ -9,6 +9,7 @@ local api = vim.api
 local ns_selection = vim.api.nvim_create_namespace("nucleo_selection")
 ---@class Nucleo.Highlighter.Options
 ---@field picker PickerBackend
+---@field results Nucleo.Results
 
 ---@param opts Nucleo.Highlighter.Options
 function Highlighter:new(opts)
