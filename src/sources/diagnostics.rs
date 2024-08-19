@@ -90,10 +90,6 @@ impl FromLua for Source {
             .ok_or_else(|| anyhow::anyhow!("Source wasn't given a table!"))
             .into_lua_err()?;
 
-        // let registry_key = match table.get::<&str, LuaValue>("finder")? {
-        //     LuaValue::Function(thunk) => lua.create_registry_value(thunk)?,
-        //     _ => todo!("Failed to implement finder"),
-        // };
         let finder = match table.get::<&str, LuaValue>("finder")? {
             LuaValue::Function(thunk) => thunk,
             _ => todo!("Failed to implement finder"),
@@ -124,11 +120,6 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
     }
 
     fn build_injector(&mut self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Diagnostic>> {
-        // let key = self.finder.clone().expect("No registry key stored!");
-        // let finder = lua
-        //     .expect("No Lua object given!")
-        //     .registry_value::<Function>(&key)
-        //     .expect("Remember to make it so these return results!");
         let finder = self.finder.clone().expect("No finder stored?");
         let bufnr = match self.config.scope {
             Scope::Document => Some(0),
@@ -224,13 +215,10 @@ impl From<Diagnostic> for Data<Diagnostic> {
     fn from(value: Diagnostic) -> Self {
         let bufnr = value.bufnr.unwrap_or_default();
         let file_path: String = {
-            // let mut error = crate::nvim::Error::new();
             let buffer = Buffer::from(bufnr as i32);
             buffer
                 .get_name()
                 .expect("Failed getting buffer name")
-                // buffer.get_name(bufnr as i32, core::ptr::null_mut(), &mut error)
-                // crate::nvim::nvim_buf_get_name(bufnr as i32, core::ptr::null_mut(), &mut error)
                 .to_string_lossy()
                 .clone()
                 .to_string()

@@ -11,11 +11,13 @@ local M = {}
 
 ---@class Nucleo.Config.Values
 local defaults = {
+	override_vim_select = true,
 	---@class Nucleo.Config.Defaults.Generic
 	---@field sort_direction "descending"|"ascending"
 	---@field selection_strategy "reset"|"follow"
 	---@field selection_caret string
 	---@field multi_icon string
+	---@field log_level integer
 	defaults = {
 		log_level = vim.log.levels.INFO,
 		sort_direction = "descending",

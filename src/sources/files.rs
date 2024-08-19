@@ -213,7 +213,7 @@ impl Value {
             kind: DataKind::File,
             selected: false,
             indices: Vec::new(),
-            value: Arc::new(value),
+            value: Some(value),
             score: 0,
             preview_options: Some(preview_options),
             ordinal: match_value,

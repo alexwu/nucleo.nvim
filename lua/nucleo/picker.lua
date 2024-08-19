@@ -43,7 +43,6 @@ local api = vim.api
 ---@field move_to_bottom fun(self: PickerBackend)
 ---@field move_to_top fun(self: PickerBackend)
 ---@field populate fun(self: PickerBackend, options?: Nucleo.Config.Files)
----@field populate_with fun(self: PickerBackend, entries: CustomEntry[])
 ---@field restart fun(self: PickerBackend)
 ---@field multiselect fun(self: PickerBackend, pos: integer)
 ---@field toggle_selection fun(self: PickerBackend, pos: integer)
@@ -68,6 +67,7 @@ local Picker = require("plenary.class"):extend()
 ---@field on_submit function
 ---@field on_close function
 ---@field source PickerSource|string
+---@field title? string
 ---@field layout? fun(prompt: Nucleo.Prompt, results: Nucleo.Results, previewer: Nucleo.Previewer): NuiLayout
 
 ---@param opts? PickerOptions
@@ -77,6 +77,7 @@ function Picker:new(opts)
 		on_submit = { opts.on_submit, "function" },
 	})
 
+	self.title = opts.title or ""
 	self.original_winid = api.nvim_get_current_win()
 	self.original_cursor = api.nvim_win_get_cursor(self.original_winid)
 	self.timer = vim.uv.new_timer()
@@ -101,6 +102,7 @@ function Picker:new(opts)
 	end
 
 	self.prompt = Prompt({
+		title = self.title,
 		picker = self.picker,
 		input_options = {
 			on_close = function()
@@ -130,23 +132,6 @@ function Picker:new(opts)
 	local layout_builder = opts.layout or config.get("default_layout")
 
 	self.layout = layout_builder(self.prompt, self.results, self.previewer)
-	-- self.layout = Layout(
-	-- 	{
-	-- 		relative = "editor",
-	-- 		position = "50%",
-	-- 		size = {
-	-- 			width = "80%",
-	-- 			height = "80%",
-	-- 		},
-	-- 	},
-	-- 	Layout.Box({
-	-- 		Layout.Box(self.prompt, { size = { width = "100%", height = "3" } }),
-	-- 		Layout.Box({
-	-- 			Layout.Box(self.results, { size = "40%" }),
-	-- 			Layout.Box(self.previewer, { size = "60%" }),
-	-- 		}, { dir = "row", size = "100%" }),
-	-- 	}, { dir = "col" })
-	-- )
 
 	local default_mappings = config.get("mappings")
 

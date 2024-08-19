@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::buffer::{Buffer, Cursor, Relative};
 use crate::config::{Config, PartialConfig, SortDirection};
 use crate::entry::{Data, Entry};
-use crate::error::{Result};
+use crate::error::Result;
 use crate::injector::{Config as InjectorConfig, FromPartial};
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::nucleo::pattern::{CaseMatching, Normalization};
@@ -77,7 +77,7 @@ impl FromLua for PartialBlob {
 
 pub struct Picker<T, V, P>
 where
-    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
     V: InjectorConfig + FromPartial,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
 {
@@ -96,7 +96,7 @@ where
 #[buildstructor]
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Debug + Sync + Send + FromLua + IntoLua + Serialize + 'static,
+    T: Debug + Sync + Send + FromLua + IntoLua + Serialize + Clone + 'static,
     V: InjectorConfig + FromPartial + 'static,
     V::Item: Debug,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
@@ -139,7 +139,7 @@ where
 }
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
     V: InjectorConfig + FromPartial + 'static,
     P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
@@ -388,7 +388,7 @@ where
 
 impl<T, V, P> Buffer<T> for Picker<T, V, P>
 where
-    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
     V: InjectorConfig + FromPartial + 'static,
     P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
@@ -414,7 +414,7 @@ where
 }
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Debug + Sync + Send + FromLua + IntoLua + Serialize + 'static,
+    T: Debug + Sync + Send + FromLua + IntoLua + Serialize + Clone + 'static,
     V: InjectorConfig + FromPartial + 'static,
     V::Item: Debug,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
@@ -447,7 +447,7 @@ where
 
 impl<T, V, P> UserData for Picker<T, V, P>
 where
-    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
     V: InjectorConfig + FromPartial + 'static,
     V::Item: Debug,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
@@ -537,10 +537,9 @@ where
             Ok(lua.to_value(&indices))
         });
 
-        methods.add_method(
-            "current_matches",
-            |_lua, this, ()| Ok(this.current_matches()),
-        );
+        methods.add_method("current_matches", |_lua, this, ()| {
+            Ok(this.current_matches())
+        });
 
         methods.add_method("total_items", |_lua, this, ()| Ok(this.total_items()));
         methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));

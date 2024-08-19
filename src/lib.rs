@@ -116,16 +116,6 @@ fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
     )?;
 
     exports.set(
-        "CustomPicker",
-        LuaFunction::wrap(|_, params: (sources::lua_tables::Source,)| {
-            Ok(sources::lua_tables::Source::picker(
-                params.0,
-                Default::default(),
-            ))
-        }),
-    )?;
-
-    exports.set(
         "Previewer",
         LuaFunction::wrap(|_, ()| Ok(previewer::Previewer::new())),
     )?;

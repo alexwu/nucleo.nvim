@@ -132,41 +132,51 @@ impl Populator<Value, Config, Data<Value>> for Source {
         self.config = config;
     }
 
-    fn build_injector(&mut self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Value>> {
+    fn build_injector(&mut self, _lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Value>> {
         let finder = self.finder.clone();
-        let results: mlua::Result<LuaTable> = match finder.as_ref() {
+        let results: mlua::Result<Vec<Data<Value>>> = match finder.as_ref() {
             Finder::Function(thunk) => thunk.call(()),
-            Finder::Table(table) => Ok(table.clone()),
+            // Finder::Table(table) => Ok(table.clone()),
+            Finder::Table(table) => todo!("UGH"),
         };
 
-        let entries = match results {
+        let entries: Vec<Data<Value>> = match results {
             Ok(entries) => entries,
             Err(error) => {
                 log::error!("Errored calling finder fn: {}", error);
-                lua.expect("No lua")
-                    .create_table()
-                    .expect("Couldn't create an empty table")
+                vec![]
             }
         };
 
         Arc::new(move |tx| {
-            entries.clone().for_each(|_k: String, entry| {
-                let ordinal = match &entry {
-                    LuaValue::Table(val) => val
-                        .get::<&str, String>("ordinal")
-                        .expect("Failed getting ordinal"),
-                    val => val.to_string().expect("Failed ordinalizing"),
-                };
+            entries.clone().into_iter().for_each(|entry| {
+                // let ordinal = match &entry {
+                //     LuaValue::Table(val) => val
+                //         .get::<&str, String>("ordinal")
+                //         .expect("Failed getting ordinal"),
+                //     val => val.to_string().expect("Failed ordinalizing"),
+                // };
+                // let table = match &entry {
+                //     LuaValue::Table(val) => val,
+                //     val => val.to_string().expect("Failed ordinalizing"),
+                // };
 
-                let data: Data<Value> = Data::builder()
-                    .kind(DataKind::Custom("TODO".into()))
-                    .ordinal(ordinal)
-                    .value(entry.into())
-                    .build();
+                // let v = match Data::from_lua(entry, lua.expect("Lua not here")) {
+                //     Ok(val) => val,
+                //     Err(_) => todo!("ER"),
+                // };
 
-                let _ = tx.send(data);
-                Ok(())
-            })?;
+                // let value = table.get::<&str, LuaValue>("value")?;
+
+                // let data: Data<Value> = Data::builder()
+                //     .kind(DataKind::Custom("TODO".into()))
+                //     .ordinal(ordinal)
+                //     .value(entry.value)
+                //     .build();
+
+                let _ = tx.send(entry);
+                // Ok(())
+            });
             Ok(())
         })
     }

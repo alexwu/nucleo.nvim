@@ -18,6 +18,7 @@ local Prompt = Input:extend("Prompt")
 ---@field popup_options nui_popup_options
 ---@field input_options nui_input_options
 ---@field picker PickerBackend
+---@field title? string
 
 ---@param opts PromptConfig
 function Prompt:init(opts)
@@ -30,7 +31,7 @@ function Prompt:init(opts)
 		border = {
 			style = "rounded",
 			text = {
-				top = "",
+				top = opts.title or "",
 				top_align = "center",
 			},
 		},

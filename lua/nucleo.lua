@@ -4,11 +4,8 @@ local M = {}
 
 --- @private
 M._rust = {
-	FilePicker = true,
-	GitStatusPicker = false,
-	LuaPicker = true,
+	Picker = true,
 	Previewer = true,
-	CustomPicker = true,
 }
 
 function M.setup(...)
@@ -22,6 +19,10 @@ function M.setup(...)
 	config.setup(...)
 
 	nucleo_rs.setup(config.get("defaults"))
+
+	if config.get("override_vim_select") then
+		vim.ui.select = require("nucleo.vim").select
+	end
 
 	-- TODO: Should I move this lower?
 	vim.g.nucleo_loaded = 1
@@ -43,35 +44,7 @@ function M.setup(...)
 end
 
 function M.find(...)
-	local Picker = require("nucleo.picker")
-
-	Picker({
-		source = "builtin.files",
-		on_submit = function(selection)
-			local path = selection.value.path
-			if path then
-				vim.cmd.drop(string.format("%s", vim.fn.fnameescape(path)))
-			else
-				vim.print(selection.value)
-			end
-		end,
-	}):find(...)
-end
-
----@param items any[]
----@param opts table
----@param on_choice fun(item: any?, idx: integer?)
-function M.select(items, opts, on_choice)
-	local Picker = require("nucleo.picker")
-
-	Picker({
-		source = {
-			name = "custom",
-			config = {},
-			results = items,
-		},
-		on_submit = on_choice,
-	}):find()
+	require("nucleo.sources").find_files(...)
 end
 
 return setmetatable(M, {

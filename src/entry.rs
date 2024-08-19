@@ -1,4 +1,4 @@
-use std::{fmt::Debug, str::FromStr, sync::Arc};
+use std::{fmt::Debug, str::FromStr};
 
 use mlua::{prelude::*, FromLua, IntoLua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -37,21 +37,6 @@ impl<T: Entry> IntoUtf32String for T {
     }
 }
 
-pub trait IntoData<T>
-where
-    T: Debug + IntoLua + FromLua + 'static,
-{
-    fn into_data(self) -> Data<T>;
-}
-
-// impl<T:> IntoData<T> for T
-// where
-//     T: Clone + Debug + Serialize + for<'a> Deserialize<'a> + 'static,
-// {
-//     fn into_data(self) -> Data<T> {
-//         todo!()
-//     }
-// }
 pub trait Scored {
     fn score(&self) -> u32;
 }
@@ -63,6 +48,12 @@ pub enum DataKind {
     String,
     #[strum(default)]
     Custom(String),
+}
+
+impl Default for DataKind {
+    fn default() -> Self {
+        Self::Custom("Custom".into())
+    }
 }
 
 impl Serialize for DataKind {
@@ -96,10 +87,10 @@ impl IntoLua for DataKind {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Data<T>
 where
-    T: Debug + IntoLua + FromLua,
+    T: Debug + IntoLua + FromLua + Clone,
 {
     pub ordinal: String,
     pub score: u32,
@@ -107,18 +98,14 @@ where
     pub selected: bool,
     pub indices: Vec<(u32, u32)>,
     #[serde(bound = "T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static")]
-    pub value: Arc<T>,
+    pub value: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_options: Option<PreviewOptions>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PickerData {}
-
 impl<T> Clone for Data<T>
 where
-    T: Debug + IntoLua + FromLua,
-    // T: Debug + Serialize + for<'a> Deserialize<'a>,
+    T: Debug + IntoLua + FromLua + Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -133,11 +120,11 @@ where
     }
 }
 
-impl<T: Eq> Eq for Data<T> where T: Debug + IntoLua + FromLua + 'static {}
+impl<T: Eq> Eq for Data<T> where T: Debug + IntoLua + FromLua + Clone + 'static {}
 
 impl<T: Ord> Ord for Data<T>
 where
-    T: Debug + Ord + FromLua + IntoLua + 'static,
+    T: Debug + Ord + FromLua + IntoLua + Clone + 'static,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.score.cmp(&other.score)
@@ -147,7 +134,7 @@ where
 #[buildstructor::buildstructor]
 impl<T> Data<T>
 where
-    T: Debug + FromLua + IntoLua + 'static,
+    T: Debug + FromLua + IntoLua + Clone + 'static,
 {
     #[builder]
     pub fn new<V: Into<String>>(
@@ -159,7 +146,7 @@ where
     ) -> Self {
         Self {
             kind,
-            value: Arc::new(value),
+            value: Some(value),
             preview_options,
             score: score.unwrap_or(0),
             ordinal: ordinal.into(),
@@ -171,7 +158,7 @@ where
 
 impl<T> Scored for Data<T>
 where
-    T: Debug + IntoLua + FromLua + 'static,
+    T: Debug + IntoLua + FromLua + Clone + 'static,
 {
     fn score(&self) -> u32 {
         self.score
@@ -180,7 +167,7 @@ where
 
 impl<T> PartialEq for Data<T>
 where
-    T: Debug + IntoLua + FromLua + 'static,
+    T: Debug + IntoLua + FromLua + Clone + 'static,
 {
     fn eq(&self, other: &Self) -> bool {
         self.score() == other.score()
@@ -189,7 +176,7 @@ where
 
 impl<T> PartialOrd for Data<T>
 where
-    T: Debug + IntoLua + FromLua + 'static,
+    T: Debug + IntoLua + FromLua + Clone + 'static,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.score().cmp(&other.score()))
@@ -204,7 +191,7 @@ impl From<String> for Data<String> {
 
 impl<T> FromLua for Data<T>
 where
-    T: Debug + Sync + Send + IntoLua + FromLua + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Clone + 'static,
 {
     fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
@@ -215,26 +202,35 @@ where
             kind: table.get("kind")?,
             selected: table.get("selected")?,
             preview_options: table.get("preview_options")?,
-            value: table.get::<&str, T>("value")?.into(),
+            value: Some(table.get::<&str, T>("value")?),
         })
     }
 }
 
 impl<T> IntoLua for Data<T>
 where
-    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
 {
     fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        let Data {
+            ordinal,
+            indices,
+            score,
+            kind,
+            selected,
+            preview_options,
+            mut value,
+        } = self;
         let table = lua.create_table()?;
-        table.set("ordinal", self.ordinal)?;
-        table.set("indices", lua.to_value(&self.indices)?)?;
-        table.set("score", self.score)?;
-        table.set("kind", self.kind)?;
-        table.set("selected", self.selected)?;
-        table.set("preview_options", self.preview_options)?;
+        table.set("ordinal", ordinal)?;
+        table.set("indices", lua.to_value(&indices)?)?;
+        table.set("score", score)?;
+        table.set("kind", kind)?;
+        table.set("selected", selected)?;
+        table.set("preview_options", preview_options)?;
 
-        let value = lua.to_value(&self.value)?;
-        table.set("value", value)?;
+        let new_val = Option::take(&mut value);
+        table.set("value", new_val)?;
 
         table.into_lua(lua)
     }
@@ -242,7 +238,7 @@ where
 
 impl<T> Entry for Data<T>
 where
-    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
 {
     fn display(&self) -> &str {
         &self.ordinal
