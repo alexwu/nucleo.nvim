@@ -11,7 +11,7 @@ local M = {}
 
 ---@class Nucleo.Config.Values
 local defaults = {
-	override_vim_select = true,
+	override_vim_select = false,
 	---@class Nucleo.Config.Defaults.Generic
 	---@field sort_direction "descending"|"ascending"
 	---@field selection_strategy "reset"|"follow"
