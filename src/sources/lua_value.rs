@@ -135,21 +135,23 @@ impl Populator<Value, Config, Data<Value>> for Source {
 
     fn build_injector(&mut self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Value>> {
         let finder = self.finder.clone();
-        let results: mlua::Result<Vec<LuaValue>> = match finder.as_ref() {
+        let results: mlua::Result<LuaTable> = match finder.as_ref() {
             Finder::Function(thunk) => thunk.call(()),
-            Finder::Table(table) => todo!(),
+            Finder::Table(table) => Ok(table.clone()),
         };
 
         let entries = match results {
             Ok(entries) => entries,
             Err(error) => {
                 log::error!("Errored calling finder fn: {}", error);
-                Vec::new()
+                lua.expect("No lua")
+                    .create_table()
+                    .expect("Couldn't create an empty table")
             }
         };
 
         Arc::new(move |tx| {
-            entries.clone().into_iter().for_each(|entry| {
+            entries.clone().for_each(|k: String, entry| {
                 let ordinal = match &entry {
                     LuaValue::Table(val) => val
                         .get::<&str, String>("ordinal")
@@ -164,7 +166,8 @@ impl Populator<Value, Config, Data<Value>> for Source {
                     .build();
 
                 let _ = tx.send(data);
-            });
+                Ok(())
+            })?;
             Ok(())
         })
     }
