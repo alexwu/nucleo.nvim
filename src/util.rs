@@ -118,7 +118,7 @@ pub fn align_str(
     let truncation_size = max_width.saturating_sub(replacement_width);
     let (truncated_string, _) = current_string.unicode_truncate_start(truncation_size as usize);
 
-    current_string = format!("{}{}", replacement_text, truncated_string);
+    current_string = format!("{replacement_text}{truncated_string}");
     current_indices = adjust_indices(
         &current_indices,
         current_length,
