@@ -10,13 +10,12 @@ use simplelog::{Config, WriteLogger};
 use sources::lua_value;
 
 use crate::error::Result;
-use crate::sources::{diagnostics, files, Sources};
-use crate::util::align_str;
-
 #[cfg(feature = "git")]
 use crate::sources::git::{self, PartialStatusConfig};
 #[cfg(feature = "git")]
 use crate::sources::git_hunks;
+use crate::sources::{diagnostics, files, Sources};
+use crate::util::align_str;
 
 mod buffer;
 mod config;

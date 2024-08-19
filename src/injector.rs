@@ -117,7 +117,15 @@ pub trait Config:
 }
 
 impl<T> Config for T where
-    T: Serialize + Debug + Default + for<'a> Deserialize<'a> + FromLua + IntoLua + Sync + Send + Clone
+    T: Serialize
+        + Debug
+        + Default
+        + for<'a> Deserialize<'a>
+        + FromLua
+        + IntoLua
+        + Sync
+        + Send
+        + Clone
 {
 }
 

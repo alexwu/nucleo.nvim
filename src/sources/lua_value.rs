@@ -1,9 +1,5 @@
 use std::sync::Arc;
 
-use crate::entry::{Data, DataKind};
-use crate::picker::Picker;
-use crate::{config, error::Result, injector::FromPartial};
-
 use buildstructor::Builder;
 use mlua::prelude::*;
 use mlua::{FromLua, Function, Lua, LuaSerdeExt};
@@ -11,6 +7,9 @@ use partially::Partial;
 use serde::{Deserialize, Serialize};
 
 use super::{Populator, SourceKind, Sources};
+use crate::entry::{Data, DataKind};
+use crate::picker::Picker;
+use crate::{config, injector::FromPartial};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Partial)]
 #[partially(derive(Clone, Debug, Serialize, Deserialize, Default))]
@@ -50,7 +49,7 @@ impl IntoLua for Value {
 }
 
 impl FromLua for Value {
-    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
+    fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
         Ok(Value { inner: value })
     }
 }
@@ -115,7 +114,7 @@ impl FromLua for Source {
 }
 
 impl IntoLua for Source {
-    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+    fn into_lua(self, _lua: &Lua) -> LuaResult<LuaValue> {
         todo!()
     }
 }
@@ -151,7 +150,7 @@ impl Populator<Value, Config, Data<Value>> for Source {
         };
 
         Arc::new(move |tx| {
-            entries.clone().for_each(|k: String, entry| {
+            entries.clone().for_each(|_k: String, entry| {
                 let ordinal = match &entry {
                     LuaValue::Table(val) => val
                         .get::<&str, String>("ordinal")

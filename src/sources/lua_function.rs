@@ -43,7 +43,7 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
             .registry_value::<Function>(&key)
             .expect("Remember to make it so these return results!");
         let results = finder.call::<_, Value>(());
-        let entries = match results {
+        let _entries = match results {
             Ok(entries) => lua
                 .expect("No lua!")
                 .from_value::<Vec<Data<Blob>>>(entries)
@@ -54,7 +54,7 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
             }
         };
 
-        Arc::new(move |tx| {
+        Arc::new(move |_tx| {
             todo!("luafunctions!")
             // entries.into_iter().for_each(|entry| {
             //     let _ = tx.send(entry);

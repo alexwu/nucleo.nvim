@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::buffer::{Buffer, Cursor, Relative};
 use crate::config::{Config, PartialConfig, SortDirection};
 use crate::entry::{Data, Entry};
-use crate::error::{Error, Result};
+use crate::error::{Result};
 use crate::injector::{Config as InjectorConfig, FromPartial};
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::nucleo::pattern::{CaseMatching, Normalization};
@@ -539,7 +539,7 @@ where
 
         methods.add_method(
             "current_matches",
-            |lua, this, ()| Ok(this.current_matches()),
+            |_lua, this, ()| Ok(this.current_matches()),
         );
 
         methods.add_method("total_items", |_lua, this, ()| Ok(this.total_items()));
@@ -547,7 +547,7 @@ where
 
         methods.add_method("get_cursor_pos", |_lua, this, ()| Ok(this.cursor_pos()));
 
-        methods.add_method("get_selection", |lua, this, ()| {
+        methods.add_method("get_selection", |_lua, this, ()| {
             match this
                 .matcher
                 .snapshot()
@@ -561,7 +561,7 @@ where
             }
         });
 
-        methods.add_method("selections", |lua, this, ()| Ok(this.selections()));
+        methods.add_method("selections", |_lua, this, ()| Ok(this.selections()));
 
         methods.add_method_mut("multiselect", |_lua, this, params: (u32,)| {
             this.multiselect(params.0);

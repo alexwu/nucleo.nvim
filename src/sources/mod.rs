@@ -9,10 +9,10 @@ use crate::{entry::IntoUtf32String, injector::FinderFn};
 pub mod custom;
 pub mod diagnostics;
 pub mod files;
-pub mod lua_tables;
-pub mod source;
-pub mod lua_value;
 mod lua_function;
+pub mod lua_tables;
+pub mod lua_value;
+pub mod source;
 
 #[cfg(feature = "git")]
 pub mod git;
