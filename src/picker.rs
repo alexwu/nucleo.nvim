@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use buildstructor::buildstructor;
 use crossbeam_channel::bounded;
-use mlua::ExternalResult;
 use mlua::{
     prelude::{Lua, LuaResult, LuaValue},
     FromLua, LuaSerdeExt, UserData, UserDataMethods,
 };
+use mlua::{ExternalResult, IntoLua};
 use nucleo_matcher::Utf32Str;
 use partially::Partial;
 use serde::{Deserialize, Serialize};
@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::buffer::{Buffer, Cursor, Relative};
 use crate::config::{Config, PartialConfig, SortDirection};
 use crate::entry::{Data, Entry};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::injector::{Config as InjectorConfig, FromPartial};
 use crate::matcher::{Matcher, Status, MATCHER};
 use crate::nucleo::pattern::{CaseMatching, Normalization};
@@ -54,6 +54,12 @@ impl FromLua for Blob {
     }
 }
 
+impl IntoLua for Blob {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        lua.to_value(&self)
+    }
+}
+
 impl FromLua for PartialBlob {
     fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
         let ty = value.type_name();
@@ -71,9 +77,9 @@ impl FromLua for PartialBlob {
 
 pub struct Picker<T, V, P>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig + 'static,
-    P: Populator<T, V, Data<T>> + Clone,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    V: InjectorConfig + FromPartial,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
 {
     pub matcher: Matcher<Data<T>>,
     previous_query: String,
@@ -90,9 +96,10 @@ where
 #[buildstructor]
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig + 'static,
-    P: Populator<T, V, Data<T>> + Clone,
+    T: Debug + Sync + Send + FromLua + IntoLua + Serialize + 'static,
+    V: InjectorConfig + FromPartial + 'static,
+    V::Item: Debug,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
 {
     #[builder]
     pub fn new(source: P, config: Option<crate::config::Config>, multi_sort: Option<bool>) -> Self {
@@ -132,8 +139,8 @@ where
 }
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    V: InjectorConfig + FromPartial + 'static,
     P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
     pub fn tick(&mut self, timeout: u64) -> Status {
@@ -381,8 +388,8 @@ where
 
 impl<T, V, P> Buffer<T> for Picker<T, V, P>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    V: InjectorConfig + FromPartial + 'static,
     P: Populator<T, V, Data<T>> + Send + Clone + 'static,
 {
     fn len(&self) -> usize {
@@ -407,8 +414,8 @@ where
 }
 impl<T, V, P> Picker<T, V, P>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig + FromPartial,
+    T: Debug + Sync + Send + FromLua + IntoLua + Serialize + 'static,
+    V: InjectorConfig + FromPartial + 'static,
     V::Item: Debug,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
 {
@@ -440,8 +447,8 @@ where
 
 impl<T, V, P> UserData for Picker<T, V, P>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
-    V: InjectorConfig + FromPartial,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
+    V: InjectorConfig + FromPartial + 'static,
     V::Item: Debug,
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
     (std::option::Option<<V as partially::Partial>::Item>,): mlua::FromLuaMulti,
@@ -530,9 +537,10 @@ where
             Ok(lua.to_value(&indices))
         });
 
-        methods.add_method("current_matches", |lua, this, ()| {
-            Ok(lua.to_value(&this.current_matches()))
-        });
+        methods.add_method(
+            "current_matches",
+            |lua, this, ()| Ok(this.current_matches()),
+        );
 
         methods.add_method("total_items", |_lua, this, ()| Ok(this.total_items()));
         methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));
@@ -545,7 +553,7 @@ where
                 .snapshot()
                 .get_matched_item(this.cursor.pos() as u32)
             {
-                Some(selection) => Ok(lua.to_value(selection.data)),
+                Some(selection) => Ok(selection.data.clone()),
                 None => {
                     log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.cursor.pos(), this.lower_bound(), this.upper_bound());
                     Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.cursor.pos() )))
@@ -553,9 +561,7 @@ where
             }
         });
 
-        methods.add_method("selections", |lua, this, ()| {
-            Ok(lua.to_value(&this.selections()))
-        });
+        methods.add_method("selections", |lua, this, ()| Ok(this.selections()));
 
         methods.add_method_mut("multiselect", |_lua, this, params: (u32,)| {
             this.multiselect(params.0);
@@ -576,9 +582,14 @@ where
             this.populate(lua, params.0).into_lua_err()
         });
 
-        methods.add_method_mut("populate_with", |lua, this, params: (LuaValue,)| {
-            this.populate_with(lua.from_value(params.0)?).into_lua_err()
-        });
+        // methods.add_method_mut(
+        //     "populate_with",
+        //     |lua, this: &mut Picker<T, V, P>, params: (LuaValue,)| -> Result<()> {
+        //         let entries = mlua::Value::from_lua(params.0, lua).into_lua_err();
+        //         this.populate_with(mlua::Value::from_lua(params.0, lua).into_lua_err())
+        //             .into()
+        //     },
+        // );
 
         methods.add_method_mut("restart", |_lua, this, _params: ()| {
             this.restart();

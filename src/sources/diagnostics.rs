@@ -59,6 +59,12 @@ impl FromLua for PartialConfig {
     }
 }
 
+impl IntoLua for Config {
+    fn into_lua(self, lua: &Lua) -> LuaResult<Value> {
+        lua.to_value(&self)
+    }
+}
+
 impl FromLua for Config {
     fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
         lua.from_value(value)

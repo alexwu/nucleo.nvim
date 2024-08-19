@@ -10,7 +10,7 @@ pub trait Ordinal {
     fn ordinal(&self) -> String;
 }
 
-pub trait Entry: for<'a> Deserialize<'a> + Debug + Serialize + Sync + Send + 'static {
+pub trait Entry: IntoLua + Debug + FromLua + Sync + Send + 'static {
     fn display(&self) -> &str;
     fn ordinal(&self) -> &str;
     fn indices(&self) -> Vec<(u32, u32)>;
@@ -39,7 +39,7 @@ impl<T: Entry> IntoUtf32String for T {
 
 pub trait IntoData<T>
 where
-    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + IntoLua + FromLua + 'static,
 {
     fn into_data(self) -> Data<T>;
 }
@@ -99,7 +99,7 @@ impl IntoLua for DataKind {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Data<T>
 where
-    T: Debug + Serialize + for<'a> Deserialize<'a>,
+    T: Debug + IntoLua + FromLua,
 {
     pub ordinal: String,
     pub score: u32,
@@ -117,7 +117,8 @@ pub struct PickerData {}
 
 impl<T> Clone for Data<T>
 where
-    T: Debug + Serialize + for<'a> Deserialize<'a>,
+    T: Debug + IntoLua + FromLua,
+    // T: Debug + Serialize + for<'a> Deserialize<'a>,
 {
     fn clone(&self) -> Self {
         Self {
@@ -132,11 +133,11 @@ where
     }
 }
 
-impl<T: Eq> Eq for Data<T> where T: Debug + Serialize + for<'a> Deserialize<'a> + 'static {}
+impl<T: Eq> Eq for Data<T> where T: Debug + IntoLua + FromLua + 'static {}
 
 impl<T: Ord> Ord for Data<T>
 where
-    T: Debug + Serialize + Ord + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Ord + FromLua + IntoLua + 'static,
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.score.cmp(&other.score)
@@ -146,7 +147,7 @@ where
 #[buildstructor::buildstructor]
 impl<T> Data<T>
 where
-    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + FromLua + IntoLua + 'static,
 {
     #[builder]
     pub fn new<V: Into<String>>(
@@ -170,7 +171,7 @@ where
 
 impl<T> Scored for Data<T>
 where
-    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + IntoLua + FromLua + 'static,
 {
     fn score(&self) -> u32 {
         self.score
@@ -179,7 +180,7 @@ where
 
 impl<T> PartialEq for Data<T>
 where
-    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + IntoLua + FromLua + 'static,
 {
     fn eq(&self, other: &Self) -> bool {
         self.score() == other.score()
@@ -188,7 +189,7 @@ where
 
 impl<T> PartialOrd for Data<T>
 where
-    T: Debug + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + IntoLua + FromLua + 'static,
 {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.score().cmp(&other.score()))
@@ -203,25 +204,45 @@ impl From<String> for Data<String> {
 
 impl<T> FromLua for Data<T>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + FromLua + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + 'static,
 {
     fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
-        lua.from_value(value)
+        let table = LuaTable::from_lua(value, lua)?;
+        Ok(Data {
+            ordinal: table.get("ordinal")?,
+            indices: lua.from_value(table.get("indices")?)?,
+            score: table.get("score")?,
+            kind: table.get("kind")?,
+            selected: table.get("selected")?,
+            preview_options: table.get("preview_options")?,
+            value: table.get::<&str, T>("value")?.into(),
+        })
     }
 }
 
 impl<T> IntoLua for Data<T>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + FromLua + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
 {
-    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue> {
-        lua.to_value(&self)
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        let table = lua.create_table()?;
+        table.set("ordinal", self.ordinal)?;
+        table.set("indices", lua.to_value(&self.indices)?)?;
+        table.set("score", self.score)?;
+        table.set("kind", self.kind)?;
+        table.set("selected", self.selected)?;
+        table.set("preview_options", self.preview_options)?;
+
+        let value = lua.to_value(&self.value)?;
+        table.set("value", value)?;
+
+        table.into_lua(lua)
     }
 }
 
 impl<T> Entry for Data<T>
 where
-    T: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + 'static,
 {
     fn display(&self) -> &str {
         &self.ordinal

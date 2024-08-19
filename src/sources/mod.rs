@@ -9,13 +9,15 @@ use crate::{entry::IntoUtf32String, injector::FinderFn};
 pub mod custom;
 pub mod diagnostics;
 pub mod files;
+pub mod lua_tables;
+pub mod source;
+pub mod lua_value;
+mod lua_function;
+
 #[cfg(feature = "git")]
 pub mod git;
 #[cfg(feature = "git")]
 pub mod git_hunks;
-mod lua_function;
-pub mod lua_tables;
-pub mod source;
 
 #[derive(
     Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display, EnumIs, Eq,
@@ -77,8 +79,10 @@ impl IntoLua for Sources {
 
 pub trait Populator<T, U, V>
 where
-    T: Debug + Serialize + for<'a> Deserialize<'a>,
-    U: Debug + Default + Serialize + for<'a> Deserialize<'a>,
+    // T: Debug + Serialize + for<'a> Deserialize<'a>,
+    T: Debug + IntoLua + FromLua,
+    // U: Debug + Default + Serialize + for<'a> Deserialize<'a>,
+    U: Debug + Default + IntoLua + FromLua,
     V: IntoUtf32String,
 {
     fn name(&self) -> Sources;

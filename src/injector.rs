@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use mlua::{FromLua, Lua};
+use mlua::{FromLua, IntoLua, Lua};
 use partially::Partial;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -60,8 +60,8 @@ impl<T: IntoUtf32String + Send + Scored + 'static> Injector<T> {
 
     pub fn populate_with_source<P, U, V>(self, mut source: P) -> Result<()>
     where
-        U: Debug + Sync + Send + Default + Serialize + for<'a> Deserialize<'a> + 'static,
-        V: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a> + 'static,
+        U: Debug + Sync + Send + Default + FromLua + IntoLua + 'static,
+        V: Debug + Sync + Send + IntoLua + FromLua + 'static,
         P: Populator<V, U, T>,
     {
         let rt = Runtime::new().expect("Failed to create runtime");
@@ -84,8 +84,10 @@ impl<T: IntoUtf32String + Send + Scored + 'static> Injector<T> {
 
     pub fn populate_with_lua_source<P, U, V>(self, lua: &Lua, mut source: P) -> Result<()>
     where
-        U: Debug + Sync + Send + Serialize + Default + for<'a> Deserialize<'a>,
-        V: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a>,
+        // U: Debug + Sync + Send + Serialize + Default + for<'a> Deserialize<'a>,
+        U: Debug + Sync + Send + Default + FromLua + IntoLua + 'static,
+        V: Debug + Sync + Send + IntoLua + FromLua + 'static,
+        // V: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a>,
         P: Populator<V, U, T>,
     {
         let rt = Runtime::new().expect("Failed to create runtime");
@@ -110,12 +112,12 @@ impl<T: IntoUtf32String + Send + Scored + 'static> Injector<T> {
 }
 
 pub trait Config:
-    Serialize + Debug + Default + for<'a> Deserialize<'a> + FromLua + Sync + Send
+    Serialize + Debug + Default + for<'a> Deserialize<'a> + FromLua + IntoLua + Sync + Send
 {
 }
 
 impl<T> Config for T where
-    T: Serialize + Debug + Default + for<'a> Deserialize<'a> + FromLua + Sync + Send + Clone
+    T: Serialize + Debug + Default + for<'a> Deserialize<'a> + FromLua + IntoLua + Sync + Send + Clone
 {
 }
 

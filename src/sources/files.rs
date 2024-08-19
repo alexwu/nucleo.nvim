@@ -15,7 +15,7 @@ use url::Url;
 use super::source::{self, Finder, SimpleData};
 use super::{Populator, Sources};
 use crate::config;
-use crate::entry::{Data, DataKind, Entry};
+use crate::entry::{Data, DataKind};
 use crate::error::Result;
 use crate::injector::{FinderFn, FromPartial};
 use crate::picker::Picker;
@@ -134,11 +134,7 @@ impl Finder for FileFinder {
             let _cwd = cwd.clone();
             match path {
                 Ok(file) if file.path().is_file() => {
-                    if tx
-                        // .send(Value::from_path(file.path(), Some(cwd.clone())))
-                        .send(file.path().to_path_buf().into())
-                        .is_ok()
-                    {
+                    if tx.send(file.path().to_path_buf().into()).is_ok() {
                         // log::info!("Sending {:?}", file.path());
                     }
                 }
@@ -161,12 +157,6 @@ impl From<PathBuf> for SimpleData {
             .build()
     }
 }
-
-// impl From<SimpleData> for PathBuf {
-//     fn from(value: SimpleData) -> Self {
-//         Self::default()
-//     }
-// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Value {
@@ -231,6 +221,12 @@ impl Value {
     }
 }
 
+impl IntoLua for Value {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        lua.to_value(&self)
+    }
+}
+
 impl FromLua for Value {
     fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value, lua)?;
@@ -257,6 +253,12 @@ impl FromLua for FileConfig {
     fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
         let val: PartialFileConfig = FromLua::from_lua(value, lua)?;
         Ok(val.into())
+    }
+}
+
+impl IntoLua for FileConfig {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        lua.to_value(&self)
     }
 }
 

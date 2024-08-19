@@ -7,6 +7,7 @@ use directories::ProjectDirs;
 use injector::FromPartial;
 use mlua::prelude::*;
 use simplelog::{Config, WriteLogger};
+use sources::lua_value;
 
 use crate::error::Result;
 use crate::sources::{diagnostics, files, Sources};
@@ -104,7 +105,13 @@ fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
                         .into_lua_err()?
                         .into_lua(lua)
                 }
-                Sources::Custom(_) => todo!(),
+                Sources::Custom(_) => {
+                    let source: lua_value::Source = lua_value::Source::from_lua(params.0, lua)?;
+
+                    let picker = lua_value::create_picker(source);
+
+                    picker.into_lua(lua)
+                }
             }
         }),
     )?;
