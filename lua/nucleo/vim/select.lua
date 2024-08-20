@@ -1,3 +1,6 @@
+local Picker = require("nucleo.picker")
+local presets = require("nucleo.presets")
+
 ---@param item any
 ---@param format_item fun(item: any): string
 ---@return table
@@ -16,8 +19,6 @@ end
 ---@param opts table
 ---@param on_choice fun(item: any?, idx: integer?)
 return function(items, opts, on_choice)
-	local Picker = require("nucleo.picker")
-
 	local format_item = opts.format_item or function(item)
 		return item
 	end
@@ -36,6 +37,7 @@ return function(items, opts, on_choice)
 					:totable()
 			end,
 		},
+		layout = presets.center(),
 		on_submit = function(item, idx)
 			on_choice(item.value, idx)
 		end,
