@@ -150,7 +150,7 @@ local options
 function M.setup(opts)
 	opts = opts or {}
 
-	local all = { {}, defaults, options or {} }
+	local all = { {}, defaults, opts or {} }
 
 	---@cast options Nucleo.Config.Values
 	options = vim.tbl_deep_extend("force", unpack(all))
