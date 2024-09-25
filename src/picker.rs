@@ -1,86 +1,30 @@
 use std::cmp::{max, min};
-use std::collections::BTreeSet;
-use std::path::Path;
-use std::str::FromStr;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::string::ToString;
 use std::sync::Arc;
 
+use buildstructor::buildstructor;
 use crossbeam_channel::bounded;
 use mlua::{
-    prelude::{Lua, LuaResult, LuaTable, LuaValue},
-    FromLua, IntoLua, LuaSerdeExt, UserData, UserDataFields, UserDataMethods,
+    prelude::{Lua, LuaResult, LuaValue},
+    FromLua, LuaSerdeExt, UserData, UserDataMethods,
 };
-use nucleo::pattern::CaseMatching;
-use nucleo::{Nucleo, Utf32String};
-use once_cell::sync::Lazy;
-use parking_lot::Mutex;
-use range_rover::range_rover;
-use rayon::prelude::*;
+use mlua::{ExternalResult, IntoLua};
+use nucleo_matcher::Utf32Str;
+use partially::Partial;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumString};
 
-use crate::buffer::{BufferContents, Contents, Cursor, Relative, Window};
-use crate::injector::Injector;
-
-pub trait Entry: Serialize + Clone + Sync + Send + 'static {
-    fn into_utf32(self) -> Utf32String;
-    fn from_path(path: &Path, cwd: Option<String>) -> Self;
-    fn set_selected(&mut self, selected: bool);
-    fn with_indices(self, indices: Vec<(u32, u32)>) -> Self;
-    fn with_selected(self, selected: bool) -> Self;
-}
-
-pub struct Matcher<T: Entry>(pub Nucleo<T>);
-
-#[derive(Default)]
-pub struct StringMatcher(pub nucleo::Matcher);
-
-pub static STRING_MATCHER: Lazy<Arc<Mutex<StringMatcher>>> =
-    Lazy::new(|| Arc::new(Mutex::new(StringMatcher::default())));
-
-pub struct Status(pub nucleo::Status);
-
-impl<T: Entry> Matcher<T> {
-    pub fn pattern(&mut self) -> &mut nucleo::pattern::MultiPattern {
-        &mut self.0.pattern
-    }
-
-    pub fn injector(&mut self) -> Injector<T> {
-        self.0.injector().into()
-    }
-
-    pub fn tick(&mut self, timeout: u64) -> Status {
-        Status(self.0.tick(timeout))
-    }
-
-    pub fn snapshot(&self) -> &nucleo::Snapshot<T> {
-        self.0.snapshot()
-    }
-}
-
-impl UserData for Status {
-    fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
-        fields.add_field_method_get("changed", |_, this| Ok(this.0.changed));
-        fields.add_field_method_get("running", |_, this| Ok(this.0.running));
-    }
-}
-
-impl<T: Entry> From<Nucleo<T>> for Matcher<T> {
-    fn from(value: Nucleo<T>) -> Self {
-        Matcher(value)
-    }
-}
-
-impl From<nucleo::Matcher> for StringMatcher {
-    fn from(value: nucleo::Matcher) -> Self {
-        StringMatcher(value)
-    }
-}
-
-impl From<StringMatcher> for nucleo::Matcher {
-    fn from(val: StringMatcher) -> Self {
-        val.0
-    }
-}
+use crate::buffer::{Buffer, Cursor, Relative};
+use crate::config::{Config, PartialConfig, SortDirection};
+use crate::entry::{Data, Entry};
+use crate::error::Result;
+use crate::injector::{Config as InjectorConfig, FromPartial};
+use crate::matcher::{Matcher, Status, MATCHER};
+use crate::nucleo::pattern::{CaseMatching, Normalization};
+use crate::nucleo::Nucleo;
+use crate::sources::{Populator, SourceKind};
+use crate::window::Window;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Movement {
@@ -88,142 +32,138 @@ pub enum Movement {
     Down,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileEntry {
-    pub path: String,
-    pub match_value: String,
-    pub file_type: String,
-    pub selected: bool,
-    pub indices: Vec<(u32, u32)>,
+#[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display, Default, Partial)]
+#[partially(derive(Default, Debug, Clone, Serialize, Deserialize))]
+pub struct Blob {
+    #[serde(flatten)]
+    pub inner: serde_json::Value,
 }
 
-impl Entry for FileEntry {
-    fn into_utf32(self) -> Utf32String {
-        self.match_value.into()
-    }
-
-    fn with_indices(self, indices: Vec<(u32, u32)>) -> Self {
-        Self { indices, ..self }
-    }
-
-    fn from_path(path: &Path, cwd: Option<String>) -> FileEntry {
-        let full_path = path.to_str().expect("Failed to convert path to string");
-        let match_value = path
-            .strip_prefix(&cwd.unwrap_or_default())
-            .expect("Failed to strip prefix")
-            .to_str()
-            .expect("Failed to convert path to string")
-            .to_string();
-
-        Self {
-            selected: false,
-            match_value,
-            path: full_path.to_string(),
-            indices: Vec::new(),
-            file_type: path
-                .extension()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string(),
-        }
-    }
-
-    fn set_selected(&mut self, selected: bool) {
-        self.selected = selected;
-    }
-
-    fn with_selected(self, selected: bool) -> Self {
-        Self { selected, ..self }
+impl FromLua for Blob {
+    fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
+        let ty = value.type_name();
+        Ok(Blob {
+            inner: serde_json::to_value(value).map_err(|e| {
+                mlua::Error::FromLuaConversionError {
+                    from: ty,
+                    to: "Blob",
+                    message: Some(format!("{}", e)),
+                }
+            })?,
+        })
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, Default, PartialEq, EnumString, Display)]
-#[strum(serialize_all = "snake_case")]
-pub enum SortDirection {
-    Ascending,
-    #[default]
-    Descending,
-}
-
-impl FromLua<'_> for SortDirection {
-    fn from_lua(value: LuaValue<'_>, _lua: &'_ Lua) -> LuaResult<Self> {
-        match value {
-            mlua::Value::String(str) => {
-                let direction = match SortDirection::from_str(str.to_str()?) {
-                    Ok(direction) => direction,
-                    Err(_) => SortDirection::Descending,
-                };
-                Ok(direction)
-            }
-            _ => Ok(SortDirection::Descending),
-        }
+impl IntoLua for Blob {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        lua.to_value(&self)
     }
 }
 
-impl IntoLua<'_> for SortDirection {
-    fn into_lua(self, lua: &'_ Lua) -> LuaResult<LuaValue<'_>> {
-        self.to_string().into_lua(lua)
+impl FromLua for PartialBlob {
+    fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
+        let ty = value.type_name();
+        Ok(PartialBlob {
+            inner: Some(serde_json::to_value(value).map_err(|e| {
+                mlua::Error::FromLuaConversionError {
+                    from: ty,
+                    to: "Blob",
+                    message: Some(format!("{}", e)),
+                }
+            })?),
+        })
     }
 }
 
-impl<T: Entry> Contents for Matcher<T> {
-    fn len(&self) -> usize {
-        self.0.snapshot().matched_item_count() as usize
-    }
-}
-
-pub struct Picker<T: Entry> {
-    pub matcher: Matcher<T>,
+pub struct Picker<T, V, P>
+where
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
+    V: InjectorConfig + FromPartial,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
+{
+    pub matcher: Matcher<Data<T>>,
     previous_query: String,
-    cwd: String,
     cursor: Cursor,
     window: Window,
-    selections: BTreeSet<u32>,
+    selections: HashMap<String, Data<T>>,
     sender: crossbeam_channel::Sender<()>,
     receiver: crossbeam_channel::Receiver<()>,
-    git_ignore: bool,
-    sort_direction: SortDirection,
+    config: Config,
+    source: P,
+    _marker: std::marker::PhantomData<V>,
 }
 
-impl<T: Entry> Picker<T> {
-    pub fn new(cwd: String, sort_direction: SortDirection) -> Self {
+#[buildstructor]
+impl<T, V, P> Picker<T, V, P>
+where
+    T: Debug + Sync + Send + FromLua + IntoLua + Serialize + Clone + 'static,
+    V: InjectorConfig + FromPartial + 'static,
+    V::Item: Debug,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
+{
+    #[builder]
+    pub fn new(source: P, config: Option<crate::config::Config>, multi_sort: Option<bool>) -> Self {
+        let config = config.unwrap_or_default();
+        log::info!("Creating picker with config: {:?}", &config);
         let (sender, receiver) = bounded::<()>(1);
-        let notifier = sender.clone();
+        // let notifier = sender.clone();
+        // TODO: This hammers re-renders when loading lots of files. Is this even necessary?
         let notify = Arc::new(move || {
-            if notifier.try_send(()).is_ok() {
-                log::info!("Message sent!")
-            };
+            // if let Err(err) = sender.try_send(()) {
+            //     log::error!("Error sending notification: {:?}", err)
+            // };
         });
-        let matcher: Matcher<T> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1).into();
+
+        let matcher: Matcher<Data<T>> = Nucleo::new(
+            crate::nucleo::Config::DEFAULT.match_paths(),
+            notify,
+            None,
+            1,
+            multi_sort.unwrap_or_default(),
+        )
+        .into();
 
         Self {
             matcher,
-            cwd,
             receiver,
             sender,
-            sort_direction,
-            git_ignore: true,
+            config,
+            source,
             cursor: Cursor::default(),
             previous_query: String::new(),
-            selections: BTreeSet::new(),
-            window: Window::new(50),
+            selections: HashMap::new(),
+            window: Window::new(50, 50),
+            _marker: Default::default(),
         }
     }
-
+}
+impl<T, V, P> Picker<T, V, P>
+where
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
+    V: InjectorConfig + FromPartial + 'static,
+    P: Populator<T, V, Data<T>> + Send + Clone + 'static,
+{
     pub fn tick(&mut self, timeout: u64) -> Status {
         let status = self.matcher.tick(timeout);
+        if status.changed {
+            self.force_rerender();
+        }
 
         self.update_cursor();
 
         status
     }
 
-    fn try_recv(&self) -> Result<(), crossbeam_channel::TryRecvError> {
-        self.receiver.try_recv()
+    fn try_recv(&self) -> Result<()> {
+        Ok(self.receiver.try_recv()?)
     }
 
     pub fn should_rerender(&self) -> bool {
         !self.receiver.is_empty()
+    }
+
+    pub fn force_rerender(&mut self) {
+        let _ = self.sender.try_send(());
     }
 
     pub fn total_matches(&self) -> u32 {
@@ -246,48 +186,49 @@ impl<T: Entry> Picker<T> {
         self.set_cursor_pos(self.cursor.pos());
     }
 
+    pub fn window_width(&self) -> usize {
+        self.window.width()
+    }
+
     pub fn window_height(&self) -> usize {
         self.window.height()
     }
-    pub fn update_window(&mut self, height: u32) {
-        log::info!("Setting upper bound to {}", &height);
-        self.set_window_height(height.try_into().unwrap_or(usize::MAX));
+
+    pub fn update_window(&mut self, x: usize, y: usize) {
+        self.set_window_width(x);
+        self.set_window_height(y);
     }
 
-    pub fn update_query(&mut self, query: String) {
-        log::info!("Updating query: {}", &query);
+    pub fn update_query(&mut self, query: &str) {
         let previous_query = self.previous_query.clone();
         if query != previous_query {
+            log::debug!("Updating query: {}", &query);
             self.matcher.pattern().reparse(
                 0,
-                &query,
+                query,
                 CaseMatching::Smart,
+                Normalization::Smart,
                 query.starts_with(&previous_query),
             );
             self.previous_query = query.to_string();
+            // TODO: Debounce this tick? This whole function?
+            // TODO: I feel like this can make this hitch scenarios where there's lots of matches...
+            if self.config.selection_strategy().is_reset() {
+                self.move_cursor_to(0);
+            } else {
+                self.tick(10);
+            }
+            self.force_rerender();
         }
     }
 
-    pub fn update_cwd(&mut self, cwd: &str) {
-        self.cwd = cwd.to_string();
-    }
-
-    pub fn update_config(&mut self, config: Config) {
-        // let cwd = match config.cwd {
-        //     Some(cwd) => cwd,
-        //     None => ;
-
-        if let Some(cwd) = config.cwd {
-            self.cwd = cwd;
-        }
-
-        if let Some(sort_direction) = config.sort_direction {
-            self.sort_direction = sort_direction;
-        }
+    pub fn update_config(&mut self, config: PartialConfig) {
+        log::debug!("Updating config to: {:?}", config);
+        self.config.apply_some(config);
     }
 
     pub fn move_cursor(&mut self, direction: Movement, change: u32) {
-        log::info!("Moving cursor {:?} by {}", direction, change);
+        log::debug!("Moving cursor {:?} by {}", direction, change);
         self.tick(10);
 
         if self.total_matches() == 0 {
@@ -313,12 +254,10 @@ impl<T: Entry> Picker<T> {
         if last_window_pos != self.window().start() {
             let _ = self.sender.try_send(());
         }
-
-        log::info!("Selection index: {}", self.cursor.pos());
     }
 
     pub fn move_cursor_to(&mut self, pos: usize) {
-        log::info!("Moving cursor to {}", pos);
+        log::debug!("Moving cursor to {}", pos);
         self.tick(10);
 
         if self.total_matches() == 0 {
@@ -330,16 +269,29 @@ impl<T: Entry> Picker<T> {
         if last_window_pos != self.window().start() {
             let _ = self.sender.try_send(());
         }
-
-        log::info!("Selection index: {}", self.cursor.pos());
     }
 
-    pub fn current_matches(&self) -> Vec<T> {
-        let mut indices = Vec::new();
+    pub fn current_match_indices(&self, haystack: &str) -> Vec<(u32, u32)> {
+        let mut match_indices = Vec::new();
         let snapshot = self.matcher.snapshot();
-        log::info!("Item count: {:?}", snapshot.item_count());
-        log::info!("Match count: {:?}", snapshot.matched_item_count());
-        let string_matcher = &mut STRING_MATCHER.lock().0;
+        let pattern = snapshot.pattern().column_pattern(0);
+        let matcher = &mut MATCHER.lock();
+        let mut buf = Vec::new();
+        let indices = matcher.fuzzy_indices(
+            pattern,
+            Utf32Str::new(haystack, &mut buf),
+            &mut match_indices,
+        );
+
+        indices
+    }
+
+    pub fn current_matches(&self) -> Vec<Data<T>> {
+        let mut match_indices = Vec::new();
+        let snapshot = self.matcher.snapshot();
+        log::debug!("Item count: {:?}", snapshot.item_count());
+        log::debug!("Match count: {:?}", snapshot.matched_item_count());
+        let matcher = &mut MATCHER.lock();
 
         let lower_bound = self.lower_bound();
         let upper_bound = self.upper_bound();
@@ -347,55 +299,80 @@ impl<T: Entry> Picker<T> {
         snapshot
             .matched_items(lower_bound..upper_bound)
             .map(|item| {
-                snapshot.pattern().column_pattern(0).indices(
+                let pattern = snapshot.pattern().column_pattern(0);
+                let indices = matcher.fuzzy_indices(
+                    pattern,
                     item.matcher_columns[0].slice(..),
-                    string_matcher,
-                    &mut indices,
+                    &mut match_indices,
                 );
-                // indices.sort_unstable();
-                indices.par_sort_unstable();
-                indices.dedup();
 
-                let ranges = range_rover(indices.drain(..))
-                    .into_par_iter()
-                    .map(|range| range.into_inner());
-                // TODO: Probably a better way to do this
-                item.data.clone().with_indices(ranges.collect())
+                let selected = self.selections.contains_key(item.data.ordinal());
+                if selected {
+                    log::debug!("{:?} is selected", &item.data);
+                }
+
+                item.data
+                    .clone()
+                    .with_indices(indices)
+                    .with_selected(selected)
             })
             .collect::<Vec<_>>()
     }
 
     pub fn restart(&mut self) {
-        self.matcher.0.restart(true);
+        self.matcher.restart(true);
     }
 
-    pub fn populate_files(&mut self) {
-        let dir = self.cwd.clone();
-        let git_ignore = self.git_ignore;
+    pub fn populate_with(&mut self, entries: Vec<Data<T>>) -> Result<()> {
         let injector = self.matcher.injector();
-        std::thread::spawn(move || {
-            injector.populate_files_sorted(dir, git_ignore);
+        rayon::spawn(move || {
+            injector.populate(entries);
         });
+
+        Ok(())
     }
 
-    pub fn select(&mut self, index: u32) {
-        self.selections.insert(index);
+    pub fn multiselect(&mut self, index: u32) {
+        let snapshot = self.matcher.snapshot();
+        match snapshot.get_matched_item(index) {
+            Some(entry) => {
+                // WARN: This worries me...can these become out of sync?
+                self.selections
+                    .insert(entry.data.ordinal().to_string(), entry.data.clone());
+                log::debug!("multi-selections: {:?}", &self.selections);
+            }
+            None => {
+                log::error!("Error multi-selecting index: {}", index);
+            }
+        };
     }
 
-    pub fn deselect(&mut self, index: u32) {
-        self.selections.remove(&index);
+    pub fn deselect(&mut self, key: String) {
+        self.selections.remove(&key);
     }
 
-    pub fn selections(&self) -> Vec<T> {
-        self.selections
-            .par_iter()
-            .filter_map(|selection| {
-                self.matcher
-                    .snapshot()
-                    .get_matched_item(*selection)
-                    .map(|item| item.data.clone())
-            })
-            .collect()
+    pub fn toggle_selection(&mut self, index: u32) {
+        let snapshot = self.matcher.snapshot();
+        match snapshot.get_matched_item(index) {
+            Some(entry) => {
+                // WARN: This worries me...can these become out of sync?
+                if let std::collections::hash_map::Entry::Vacant(e) =
+                    self.selections.entry(entry.data.ordinal().to_owned())
+                {
+                    e.insert(entry.data.clone());
+                } else {
+                    self.deselect(entry.data.ordinal().to_owned());
+                }
+                log::debug!("multi-selections: {:?}", &self.selections);
+            }
+            None => {
+                log::error!("Error multi-selecting index: {}", index);
+            }
+        };
+    }
+
+    pub fn selections(&self) -> Vec<Data<T>> {
+        self.selections.clone().into_values().collect()
     }
 
     pub fn cursor_pos(&self) -> Option<u32> {
@@ -405,30 +382,25 @@ impl<T: Entry> Picker<T> {
             self.get_cursor_pos(Relative::Window).try_into().ok()
         }
     }
+
+    pub fn shutdown(&mut self) {}
 }
 
-impl<T: Entry> Default for Picker<T> {
-    fn default() -> Self {
-        Self::new(String::new(), SortDirection::Descending)
-    }
-}
-
-impl<T: Entry> Contents for Picker<T> {
+impl<T, V, P> Buffer<T> for Picker<T, V, P>
+where
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
+    V: InjectorConfig + FromPartial + 'static,
+    P: Populator<T, V, Data<T>> + Send + Clone + 'static,
+{
     fn len(&self) -> usize {
         self.total_matches().try_into().unwrap_or(usize::MAX)
     }
-}
 
-impl<T: Entry> BufferContents<T> for Picker<T> {
-    fn lines(&self) -> Vec<T> {
-        self.current_matches()
-    }
-
-    fn window(&self) -> &crate::buffer::Window {
+    fn window(&self) -> &Window {
         &self.window
     }
 
-    fn window_mut(&mut self) -> &mut crate::buffer::Window {
+    fn window_mut(&mut self) -> &mut Window {
         &mut self.window
     }
 
@@ -440,45 +412,66 @@ impl<T: Entry> BufferContents<T> for Picker<T> {
         &mut self.cursor
     }
 }
+impl<T, V, P> Picker<T, V, P>
+where
+    T: Debug + Sync + Send + FromLua + IntoLua + Serialize + Clone + 'static,
+    V: InjectorConfig + FromPartial + 'static,
+    V::Item: Debug,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
+{
+    pub fn populate(&self, lua: &Lua, config: Option<V::Item>) -> Result<()> {
+        let injector = self.matcher.injector();
+        let mut source = self.source.clone();
+        if let Some(config) = config {
+            source.update_config(V::from_partial(config));
+        };
 
-#[derive(Clone, Debug, Deserialize, Serialize, Default)]
-pub struct Config {
-    pub cwd: Option<String>,
-    pub sort_direction: Option<SortDirection>,
-}
+        match source.kind() {
+            SourceKind::Rust => {
+                rayon::spawn(move || {
+                    injector
+                        .populate_with_source(source)
+                        .expect("Failed populating!");
+                });
+            }
+            SourceKind::Lua => {
+                injector
+                    .populate_with_lua_source(lua, source)
+                    .expect("Failed populating!");
+            }
+        }
 
-impl FromLua<'_> for Config {
-    fn from_lua(value: LuaValue<'_>, lua: &'_ Lua) -> LuaResult<Self> {
-        let table = LuaTable::from_lua(value, lua)?;
-        Ok(Config {
-            cwd: table.get("cwd")?,
-            sort_direction: table.get("sort_direction")?,
-        })
+        Ok(())
     }
 }
 
-impl<T: Entry> UserData for Picker<T> {
-    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
+impl<T, V, P> UserData for Picker<T, V, P>
+where
+    T: Debug + Sync + Send + IntoLua + FromLua + Serialize + Clone + 'static,
+    V: InjectorConfig + FromPartial + 'static,
+    V::Item: Debug,
+    P: Populator<T, V, Data<T>> + Clone + Send + 'static,
+    (std::option::Option<<V as partially::Partial>::Item>,): mlua::FromLuaMulti,
+{
+    fn add_methods<'lua, M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
-            this.update_query(params.0);
+            this.update_query(&params.0);
             Ok(())
         });
 
-        methods.add_method_mut("update_cwd", |_lua, this, params: (String,)| {
-            this.update_cwd(&params.0);
-            Ok(())
-        });
-
-        methods.add_method_mut("update_config", |_lua, this, params: (Config,)| {
+        methods.add_method_mut("update_config", |_lua, this, params: (PartialConfig,)| {
             this.update_config(params.0);
             Ok(())
         });
 
-        methods.add_method("sort_direction", |_lua, this, ()| Ok(this.sort_direction));
+        methods.add_method("sort_direction", |_lua, this, ()| {
+            log::debug!("{:?}", this.config.sort_direction());
+            Ok(this.config.sort_direction())
+        });
 
         methods.add_method_mut("move_cursor_up", |_lua, this, params: (Option<u32>,)| {
             let delta = params.0.unwrap_or(1);
-            match this.sort_direction {
+            match this.config.sort_direction() {
                 SortDirection::Descending => {
                     this.move_cursor(Movement::Up, delta);
                 }
@@ -491,7 +484,7 @@ impl<T: Entry> UserData for Picker<T> {
 
         methods.add_method_mut("move_cursor_down", |_lua, this, params: (Option<u32>,)| {
             let delta = params.0.unwrap_or(1);
-            match this.sort_direction {
+            match this.config.sort_direction() {
                 SortDirection::Descending => {
                     this.move_cursor(Movement::Down, delta);
                 }
@@ -503,7 +496,7 @@ impl<T: Entry> UserData for Picker<T> {
         });
 
         methods.add_method_mut("move_to_top", |_lua, this, ()| {
-            match this.sort_direction {
+            match this.config.sort_direction() {
                 SortDirection::Descending => {
                     this.move_cursor_to(0);
                 }
@@ -515,7 +508,7 @@ impl<T: Entry> UserData for Picker<T> {
         });
 
         methods.add_method_mut("move_to_bottom", |_lua, this, ()| {
-            match this.sort_direction {
+            match this.config.sort_direction() {
                 SortDirection::Descending => {
                     this.move_cursor_to(this.total_matches().saturating_sub(1) as usize);
                 }
@@ -531,33 +524,35 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(())
         });
 
-        methods.add_method_mut("update_window", |_lua, this, params: (usize,)| {
-            this.update_window(params.0 as u32);
+        methods.add_method_mut("update_window", |_lua, this, params: (usize, usize)| {
+            this.update_window(params.0, params.1);
             Ok(())
         });
 
         methods.add_method_mut("window_height", |_lua, this, ()| Ok(this.window_height()));
 
-        methods.add_method("current_matches", |lua, this, ()| {
-            Ok(lua.to_value(&this.current_matches()))
+        methods.add_method("fuzzy_indices", |lua, this, params: (String,)| {
+            let indices = this.current_match_indices(&params.0);
+
+            Ok(lua.to_value(&indices))
+        });
+
+        methods.add_method("current_matches", |_lua, this, ()| {
+            Ok(this.current_matches())
         });
 
         methods.add_method("total_items", |_lua, this, ()| Ok(this.total_items()));
         methods.add_method("total_matches", |_lua, this, ()| Ok(this.total_matches()));
 
-        methods.add_method("get_selection_index", |_lua, this, ()| {
-            Ok(this.get_cursor_pos(Relative::Window))
-        });
-
         methods.add_method("get_cursor_pos", |_lua, this, ()| Ok(this.cursor_pos()));
 
-        methods.add_method("get_selection", |lua, this, ()| {
+        methods.add_method("get_selection", |_lua, this, ()| {
             match this
                 .matcher
                 .snapshot()
                 .get_matched_item(this.cursor.pos() as u32)
             {
-                Some(selection) => Ok(lua.to_value(selection.data)),
+                Some(selection) => Ok(selection.data.clone()),
                 None => {
                     log::error!("Failed getting the selection at selection_index: {}, lower_bound: {}, upper_bound: {}", this.cursor.pos(), this.lower_bound(), this.upper_bound());
                     Err(mlua::Error::runtime(std::format!( "Failed getting the selection at selection_index: {}", this.cursor.pos() )))
@@ -565,8 +560,15 @@ impl<T: Entry> UserData for Picker<T> {
             }
         });
 
-        methods.add_method_mut("select", |_lua, this, params: (usize,)| {
-            this.select(params.0.try_into().expect("Selection index out of bounds"));
+        methods.add_method("selections", |_lua, this, ()| Ok(this.selections()));
+
+        methods.add_method_mut("multiselect", |_lua, this, params: (u32,)| {
+            this.multiselect(params.0);
+            Ok(())
+        });
+
+        methods.add_method_mut("toggle_selection", |_lua, this, params: (u32,)| {
+            this.toggle_selection(params.0);
             Ok(())
         });
 
@@ -575,10 +577,18 @@ impl<T: Entry> UserData for Picker<T> {
             Ok(status)
         });
 
-        methods.add_method_mut("populate_files", |_lua, this, _params: ()| {
-            this.populate_files();
-            Ok(())
+        methods.add_method_mut("populate", |lua, this, params: (Option<V::Item>,)| {
+            this.populate(lua, params.0).into_lua_err()
         });
+
+        // methods.add_method_mut(
+        //     "populate_with",
+        //     |lua, this: &mut Picker<T, V, P>, params: (LuaValue,)| -> Result<()> {
+        //         let entries = mlua::Value::from_lua(params.0, lua).into_lua_err();
+        //         this.populate_with(mlua::Value::from_lua(params.0, lua).into_lua_err())
+        //             .into()
+        //     },
+        // );
 
         methods.add_method_mut("restart", |_lua, this, _params: ()| {
             this.restart();

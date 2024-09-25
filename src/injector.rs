@@ -1,83 +1,145 @@
-use std::path::Path;
+use std::fmt::Debug;
+use std::sync::Arc;
 
-use crossbeam_channel::unbounded;
-use ignore::{types::TypesBuilder, WalkBuilder};
-use nucleo::Utf32String;
-use tokio::{runtime::Runtime, task::JoinHandle};
+use mlua::{FromLua, IntoLua, Lua};
+use partially::Partial;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+use tokio::{runtime::Runtime, sync::mpsc::UnboundedSender, task::JoinHandle};
 
-use crate::picker::Entry;
+use crate::{
+    entry::{IntoUtf32String, Scored},
+    error::Result,
+    sources::Populator,
+};
 
-pub struct Injector<T: Entry>(nucleo::Injector<T>);
+pub type FinderFn<T> = Arc<dyn Fn(UnboundedSender<T>) -> Result<()> + Sync + Send + 'static>;
 
-impl<T: Entry> From<nucleo::Injector<T>> for Injector<T> {
-    fn from(value: nucleo::Injector<T>) -> Self {
+pub struct Injector<T: IntoUtf32String + Scored>(crate::nucleo::Injector<T>);
+
+impl<T: IntoUtf32String + Scored> From<crate::nucleo::Injector<T>> for Injector<T> {
+    fn from(value: crate::nucleo::Injector<T>) -> Self {
         Self(value)
     }
 }
 
-impl<T: Entry> Clone for Injector<T> {
+impl<T: IntoUtf32String + Scored> Clone for Injector<T> {
     fn clone(&self) -> Self {
-        <nucleo::Injector<T> as Clone>::clone(&self.0).into()
+        <crate::nucleo::Injector<T> as Clone>::clone(&self.0).into()
     }
 }
 
-impl<T: Entry> Injector<T> {
-    pub fn push(&self, value: T, fill_columns: impl FnOnce(&mut [Utf32String])) -> u32 {
-        self.0.push(value, fill_columns)
+impl<T: IntoUtf32String + Scored> Injector<T> {
+    pub fn push(&self, value: T) -> u32 {
+        let val = value.into_utf32_string();
+        self.0.push(value, |dst| dst[0] = val)
     }
+}
 
-    pub fn populate_files_sorted(self, cwd: String, git_ignore: bool) {
-        log::info!("Populating picker with {}", &cwd);
-        let runtime = Runtime::new().expect("Failed to create runtime");
+impl<T: IntoUtf32String + Send + Scored + 'static> Injector<T> {
+    pub fn populate(self, entries: Vec<T>) {
+        log::debug!("Populating picker with {} entries", entries.len());
+        let rt = Runtime::new().expect("Failed to create runtime");
 
-        let (tx, rx) = unbounded::<T>();
-        let _add_to_injector_thread: JoinHandle<Result<(), _>> = runtime.spawn(async move {
-            for val in rx.iter() {
-                self.push(val.clone(), |dst| dst[0] = val.into_utf32());
-            }
-            anyhow::Ok(())
-        });
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
 
-        runtime.spawn(async move {
-            let dir = Path::new(&cwd);
-            log::info!("Spawning sorted file searcher...");
-            let mut walk_builder = WalkBuilder::new(dir);
-            walk_builder
-                .hidden(false)
-                .follow_links(true)
-                .git_ignore(git_ignore)
-                .ignore(true)
-                .sort_by_file_name(std::cmp::Ord::cmp);
-
-            let mut type_builder = TypesBuilder::new();
-            type_builder
-                .add(
-                    "compressed",
-                    "*.{zip,gz,bz2,zst,lzo,sz,tgz,tbz2,lz,lz4,lzma,lzo,z,Z,xz,7z,rar,cab}",
-                )
-                .expect("Invalid type definition");
-            type_builder.negate("all");
-            let excluded_types = type_builder
-                .build()
-                .expect("failed to build excluded_types");
-            walk_builder.types(excluded_types);
-            let tx = tx.clone();
-            for path in walk_builder.build() {
-                let cwd = cwd.clone();
-                match path {
-                    Ok(file) if file.path().is_file() => {
-                        if tx
-                            .send(Entry::from_path(file.path(), Some(cwd.clone())))
-                            .is_ok()
-                        {
-                            // log::info!("Sending {:?}", file.path());
-                        }
-                    }
-                    _ => (),
+        let sender = tx.clone();
+        rt.block_on(async {
+            let _add_to_injector_thread: JoinHandle<Result<()>> = rt.spawn(async move {
+                while let Some(val) = rx.recv().await {
+                    self.push(val);
                 }
-            }
-        });
+                Ok(())
+            });
 
-        log::info!("After spawning file searcher...");
+            entries.into_par_iter().for_each(|entry| {
+                let _ = sender.send(entry);
+            });
+        });
     }
+
+    pub fn populate_with_source<P, U, V>(self, mut source: P) -> Result<()>
+    where
+        U: Debug + Sync + Send + Default + FromLua + IntoLua + 'static,
+        V: Debug + Sync + Send + IntoLua + FromLua + 'static,
+        P: Populator<V, U, T>,
+    {
+        let rt = Runtime::new().expect("Failed to create runtime");
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
+
+        let injector = source.build_injector(None);
+        log::debug!("injector::populate_with_source");
+        rt.block_on(async {
+            let _f: JoinHandle<Result<()>> = rt.spawn(async move {
+                while let Some(val) = rx.recv().await {
+                    self.push(val);
+                }
+                Ok(())
+            });
+
+            injector(tx)
+        })
+    }
+
+    pub fn populate_with_lua_source<P, U, V>(self, lua: &Lua, mut source: P) -> Result<()>
+    where
+        // U: Debug + Sync + Send + Serialize + Default + for<'a> Deserialize<'a>,
+        U: Debug + Sync + Send + Default + FromLua + IntoLua + 'static,
+        V: Debug + Sync + Send + IntoLua + FromLua + 'static,
+        // V: Debug + Sync + Send + Serialize + for<'a> Deserialize<'a>,
+        P: Populator<V, U, T>,
+    {
+        let rt = Runtime::new().expect("Failed to create runtime");
+
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<T>();
+
+        log::debug!("Before build_injector");
+        let injector = source.build_injector(Some(lua));
+        log::debug!("injector::populate_with_lua_source");
+
+        rt.block_on(async {
+            let _f: JoinHandle<Result<()>> = rt.spawn(async move {
+                while let Some(val) = rx.recv().await {
+                    self.push(val);
+                }
+                Ok(())
+            });
+
+            injector(tx)
+        })
+    }
+}
+
+pub trait Config:
+    Serialize + Debug + Default + for<'a> Deserialize<'a> + FromLua + IntoLua + Sync + Send
+{
+}
+
+impl<T> Config for T where
+    T: Serialize
+        + Debug
+        + Default
+        + for<'a> Deserialize<'a>
+        + FromLua
+        + IntoLua
+        + Sync
+        + Send
+        + Clone
+{
+}
+
+pub trait FromPartial: Default + Partial {
+    fn from_partial(value: Self::Item) -> Self {
+        let mut config = Self::default();
+        config.apply_some(value);
+        config
+    }
+}
+
+impl<T> FromPartial for T
+where
+    T: Partial + Default,
+    T::Item: for<'a> Deserialize<'a>,
+{
 }

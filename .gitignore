@@ -1,7 +1,8 @@
 /target
-/Cargo.lock
 /**/*.so
 /**/*.dylib
 /**/*.dll
 
 **/*.log
+.env
+test.diff
