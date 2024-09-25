@@ -24,7 +24,6 @@ mod error;
 mod injector;
 mod lua;
 mod matcher;
-mod next;
 mod nucleo;
 mod pattern;
 mod picker;
