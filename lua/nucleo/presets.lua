@@ -38,16 +38,38 @@ function M.center()
 			Layout.Box({
 				Layout.Box(results, { grow = 1 }),
 				Layout.Box(prompt, { size = 3 }),
-				Layout.Box(previewer, { size = "50%" }),
+				-- TODO: Re-enable this and make this a setting!
+				-- Layout.Box(previewer, { size = "50%" }),
 			}, { dir = "col", size = "100%" })
 		)
 	end
 end
 
+function M.dropdown()
+	return function(prompt, results, previewer)
+		return Layout(
+			{
+				relative = "editor",
+				position = "50%",
+				size = {
+					width = "50%",
+					height = "90%",
+				},
+			},
+			Layout.Box({
+				Layout.Box(prompt, { size = 3 }),
+				Layout.Box(results, { grow = 1 }),
+				-- TODO: Re-enable this and make this a setting!
+				-- Layout.Box(previewer, { size = "50%" }),
+			}, { dir = "col", size = "100%" })
+		)
+	end
+end
 ---@class LayoutOptions
 ---@field relative "editor"|"cursor"|"mouse"
 ---@field position? (string|number|{ row: string|number, col: string|number })
 ---@field size? (string|number|{ width: string|number, height: string|number })
+---@field preview? boolean
 
 ---@param opts? LayoutOptions
 function M.make_layout(opts)

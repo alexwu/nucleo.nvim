@@ -87,6 +87,7 @@ function Picker:new(opts)
 	self.picker = nu.Picker(opts.source)
 
 	self.results = Results()
+	-- TODO: Make it so you can disable the previewer, shouldn't still try to load files and what not
 	self.previewer = Previewer()
 	self.highlighter = Highlighter({
 		picker = self.picker,

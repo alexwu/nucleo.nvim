@@ -37,7 +37,7 @@ return function(items, opts, on_choice)
 					:totable()
 			end,
 		},
-		layout = presets.center(),
+		layout = presets.dropdown(),
 		on_submit = function(item, idx)
 			on_choice(item.value, idx)
 		end,
