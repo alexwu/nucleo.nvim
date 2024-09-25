@@ -453,7 +453,7 @@ where
     P: Populator<T, V, Data<T>> + Clone + Send + 'static,
     (std::option::Option<<V as partially::Partial>::Item>,): mlua::FromLuaMulti,
 {
-    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<'lua, M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut("update_query", |_lua, this, params: (String,)| {
             this.update_query(&params.0);
             Ok(())

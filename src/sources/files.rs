@@ -282,10 +282,10 @@ impl Default for FileConfig {
 impl FromLua for PartialFileConfig {
     fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value.clone(), lua)?;
-        let cwd = match table.get::<&str, LuaValue>("cwd") {
+        let cwd = match table.get::<LuaValue>("cwd") {
             Ok(val) => match val {
                 LuaValue::String(cwd) => Some(cwd.to_string_lossy().to_string()),
-                LuaValue::Function(thunk) => Some(thunk.call::<_, String>(())?),
+                LuaValue::Function(thunk) => Some(thunk.call::<String>(())?),
                 _ => None,
             },
             _ => None,

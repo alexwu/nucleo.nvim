@@ -19,7 +19,7 @@ use crate::{entry::Entry, injector::Injector};
 pub struct Status(nucleo::Status);
 
 impl UserData for Status {
-    fn add_fields<'lua, F: UserDataFields<'lua, Self>>(fields: &mut F) {
+    fn add_fields<'lua, F: UserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("changed", |_, this| Ok(this.0.changed));
         fields.add_field_method_get("running", |_, this| Ok(this.0.running));
     }

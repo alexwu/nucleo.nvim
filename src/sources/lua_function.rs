@@ -42,7 +42,7 @@ impl Populator<Blob, Blob, Data<Blob>> for Source {
             .expect("No Lua object given!")
             .registry_value::<Function>(&key)
             .expect("Remember to make it so these return results!");
-        let results = finder.call::<_, Value>(());
+        let results = finder.call::<Value>(());
         let _entries = match results {
             Ok(entries) => lua
                 .expect("No lua!")

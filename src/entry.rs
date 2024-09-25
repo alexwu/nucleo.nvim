@@ -202,7 +202,7 @@ where
             kind: table.get("kind")?,
             selected: table.get("selected")?,
             preview_options: table.get("preview_options")?,
-            value: Some(table.get::<&str, T>("value")?),
+            value: Some(table.get::<T>("value")?),
         })
     }
 }

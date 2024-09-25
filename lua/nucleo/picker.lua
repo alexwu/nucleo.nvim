@@ -59,6 +59,20 @@ local api = vim.api
 ---@field window_height fun(self: PickerBackend): integer
 ---@field current_matches fun(self: PickerBackend): Nucleo.Picker.Entry[]
 
+---@param item any
+---@param format_item fun(item: any): string
+---@param id integer
+---@return table
+local function make_data(item, format_item, id)
+	return {
+		ordinal = format_item(item),
+		score = 0,
+		kind = "lua",
+		selected = false,
+		indices = {},
+		value = id,
+	}
+end
 ---@class Nucleo.Picker: Object
 ---@field picker PickerBackend
 local Picker = require("plenary.class"):extend()
@@ -83,16 +97,6 @@ function Picker:new(opts)
 	self.timer = vim.uv.new_timer()
 	---@type Sender, Receiver
 	self.tx, self.rx = channel.counter()
-	---@type PickerBackend
-	self.picker = nu.Picker(opts.source)
-
-	self.results = Results()
-	-- TODO: Make it so you can disable the previewer, shouldn't still try to load files and what not
-	self.previewer = Previewer()
-	self.highlighter = Highlighter({
-		picker = self.picker,
-		results = self.results,
-	})
 
 	if type(opts.source) == "string" then
 		self.source = {
@@ -101,6 +105,28 @@ function Picker:new(opts)
 	else
 		self.source = opts.source
 	end
+
+	if self.source.finder then
+		self.source.raw_results = self.source.finder()
+		self.source.results = vim.iter(self.source.raw_results)
+			:enumerate()
+			:map(function(idx, item)
+				return make_data(item, self.source.format_item, idx)
+			end)
+			:totable()
+	end
+
+	-- vim.print(self.source)
+	---@type PickerBackend
+	self.picker = nu.Picker(self.source)
+
+	self.results = Results()
+	-- TODO: Make it so you can disable the previewer, shouldn't still try to load files and what not
+	self.previewer = Previewer()
+	self.highlighter = Highlighter({
+		picker = self.picker,
+		results = self.results,
+	})
 
 	self.prompt = Prompt({
 		title = self.title,
@@ -191,11 +217,14 @@ function Picker:find(opts)
 	opts = opts or {}
 	local source_name = self.source.name
 
-	local options = override(source_name, self.source.config, opts)
-	log.info("config: ", options)
+	local source = override(source_name, self.source.config, opts)
+	log.info("config: ", source)
 
+	-- if source.finder then
+	-- 	source.results = source.finder()
+	-- end
 	-- self.picker:update_config(options)
-	self.picker:populate(options)
+	self.picker:populate(source)
 
 	self.picker:tick(10)
 
@@ -210,7 +239,11 @@ function Picker:submit()
 
 	local selection = self.picker:get_selection()
 	if self._on_submit then
-		self._on_submit(selection)
+		if self.source.results then
+			self._on_submit(self.source.raw_results[selection.value], selection.value)
+		else
+			self._on_submit(selection, -1)
+		end
 	end
 
 	self.previewer:reset()

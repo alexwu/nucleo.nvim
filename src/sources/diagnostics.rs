@@ -41,7 +41,7 @@ pub struct Config {
 impl FromLua for PartialConfig {
     fn from_lua(value: LuaValue, lua: &'_ Lua) -> LuaResult<Self> {
         let table = LuaTable::from_lua(value.clone(), lua)?;
-        let scope = match table.get::<&str, LuaValue>("scope") {
+        let scope = match table.get::<LuaValue>("scope") {
             Ok(val) => {
                 if let LuaValue::String(scope) = val {
                     Some(Scope::from_str(&scope.to_string_lossy()).into_lua_err()?)
@@ -80,7 +80,8 @@ impl From<PartialConfig> for Config {
 pub struct Source {
     config: Config,
     #[serde(skip)]
-    finder: Option<Arc<Function>>,
+    // finder: Option<Arc<Function>>,
+    finder: Vec<Diagnostic>,
 }
 
 impl FromLua for Source {
@@ -90,18 +91,26 @@ impl FromLua for Source {
             .ok_or_else(|| anyhow::anyhow!("Source wasn't given a table!"))
             .into_lua_err()?;
 
-        let finder = match table.get::<&str, LuaValue>("finder")? {
-            LuaValue::Function(thunk) => thunk,
+        // let finder: Vec<Diagnostic> = table.get::<Vec<Diagnostic>>("finder")?;
+
+        let partial_config: PartialConfig = lua.from_value(table.get::<LuaValue>("config")?)?;
+        log::debug!("diagnostics partial config: {:?}", &partial_config);
+        let config = Config::from_partial(partial_config);
+        let bufnr = match config.scope {
+            Scope::Document => Some(0),
+            Scope::Workspace => None,
+        };
+
+        let finder = match table.get::<LuaValue>("finder")? {
+            LuaValue::Function(thunk) => thunk.call::<Vec<Diagnostic>>((bufnr,))?,
+            LuaValue::Table(entries) => lua.from_value(mlua::Value::Table(entries))?,
             _ => todo!("Failed to implement finder"),
         };
 
-        let partial_config: PartialConfig = lua.from_value(table.get::<_, LuaValue>("config")?)?;
-        log::debug!("diagnostics partial config: {:?}", &partial_config);
-        let config = Config::from_partial(partial_config);
-
         Ok(Source::builder()
             .config(config)
-            .finder(Arc::new(finder))
+            // .finder(Arc::new(finder))
+            .finder(finder)
             .build())
     }
 }
@@ -120,22 +129,23 @@ impl Populator<Diagnostic, Config, Data<Diagnostic>> for Source {
     }
 
     fn build_injector(&mut self, lua: Option<&Lua>) -> crate::injector::FinderFn<Data<Diagnostic>> {
-        let finder = self.finder.clone().expect("No finder stored?");
-        let bufnr = match self.config.scope {
-            Scope::Document => Some(0),
-            Scope::Workspace => None,
-        };
-        let results = finder.call::<(Option<usize>,), Value>((bufnr,));
-        let entries = match results {
-            Ok(entries) => lua
-                .expect("No lua!")
-                .from_value::<Vec<Diagnostic>>(entries)
-                .expect("Error with diagnostics"),
-            Err(error) => {
-                log::error!("Errored calling finder fn: {}", error);
-                Vec::new()
-            }
-        };
+        // let finder = self.finder.clone().expect("No finder stored?");
+        let entries = self.finder.clone();
+        // let bufnr = match self.config.scope {
+        //     Scope::Document => Some(0),
+        //     Scope::Workspace => None,
+        // };
+        // let results = finder.call::<Value>((bufnr,));
+        // let entries = match results {
+        //     Ok(entries) => lua
+        //         .expect("No lua!")
+        //         .from_value::<Vec<Diagnostic>>(entries)
+        //         .expect("Error with diagnostics"),
+        //     Err(error) => {
+        //         log::error!("Errored calling finder fn: {}", error);
+        //         Vec::new()
+        //     }
+        // };
 
         Arc::new(move |tx| {
             entries.clone().into_iter().for_each(|entry| {

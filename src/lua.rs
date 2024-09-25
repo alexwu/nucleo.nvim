@@ -9,7 +9,7 @@ where
     match table.get(field)? {
         LuaValue::Function(func) => {
             log::debug!("in the function section");
-            func.call::<_, T>(())
+            func.call::<T>(())
         }
         val => {
             log::debug!("val: {:?}", &val);

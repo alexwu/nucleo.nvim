@@ -14,6 +14,7 @@ function M.diagnostics(...)
 			finder = function(bufnr)
 				return vim.diagnostic.get(bufnr, {})
 			end,
+			-- finder = vim.diagnostic.get(nil, {}),
 		},
 		layout = presets.center(),
 		on_submit = function(selection)

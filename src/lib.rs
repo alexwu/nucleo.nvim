@@ -7,14 +7,15 @@ use directories::ProjectDirs;
 use injector::FromPartial;
 use mlua::prelude::*;
 use simplelog::{Config, WriteLogger};
-use sources::lua_value;
 
 use crate::error::Result;
+use crate::sources::diagnostics;
 #[cfg(feature = "git")]
 use crate::sources::git::{self, PartialStatusConfig};
 #[cfg(feature = "git")]
 use crate::sources::git_hunks;
-use crate::sources::{diagnostics, files, Sources};
+use crate::sources::lua_value;
+use crate::sources::{files, Sources};
 use crate::util::align_str;
 
 mod buffer;
@@ -70,6 +71,7 @@ fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
         "Picker",
         LuaFunction::wrap(|lua, params: (LuaValue,)| {
             let table = LuaTable::from_lua(params.0.clone(), lua)?;
+            log::info!("Table: {:?}", table);
             let name: Sources = table.get("name")?;
             let config: Option<LuaValue> = table.get("config")?;
 
@@ -97,6 +99,7 @@ fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
                         .into_lua(lua)
                 }
                 Sources::Diagnostics => {
+                    // todo!("diagnostics!")
                     let source = diagnostics::Source::from_lua(params.0, lua)?;
 
                     diagnostics::create_picker(source)
@@ -104,7 +107,9 @@ fn nucleo_rs(lua: &Lua) -> LuaResult<LuaTable> {
                         .into_lua(lua)
                 }
                 Sources::Custom(_) => {
+                    log::info!("inside custom");
                     let source: lua_value::Source = lua_value::Source::from_lua(params.0, lua)?;
+                    log::info!("found source: {:?}", source);
 
                     let picker = lua_value::create_picker(source);
 

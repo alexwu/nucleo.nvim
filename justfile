@@ -30,7 +30,7 @@ copy-debug-build-artifacts:
     cp ./target/debug/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_rs.{{ bin_ext_output }}
 
 build: && clean-lua copy-debug-build-artifacts
-    cargo build
+    cargo +beta build
 
 copy-release-build-artifacts:
     cp ./target/release/{{ bin_name }}.{{ bin_ext }} ./lua/nucleo_rs.{{ bin_ext_output }}

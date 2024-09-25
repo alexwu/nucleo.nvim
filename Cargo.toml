@@ -18,12 +18,11 @@ derive_deref = "1.1"
 nucleo-matcher = "0.3"
 parking_lot = { version = "0.12", features = ["send_guard", "arc_lock"] }
 ignore = "0.4"
-mlua = { version = "0.10.0-beta.1", features = [
+mlua = { version = "0.10.0-beta.2", features = [
   "luajit",
   "module",
   "macros",
   "serialize",
-  "send",
 ] }
 crossbeam-channel = "0.5"
 crossbeam-utils = "0.8"

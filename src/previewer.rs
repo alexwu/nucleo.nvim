@@ -209,7 +209,7 @@ impl Previewer {
 }
 
 impl UserData for Previewer {
-    fn add_methods<'lua, M: UserDataMethods<'lua, Self>>(methods: &mut M) {
+    fn add_methods<'lua, M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut(
             "preview_file",
             |lua, this, params: (Option<String>, usize, usize)| match params.0 {

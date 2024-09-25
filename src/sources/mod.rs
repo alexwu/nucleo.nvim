@@ -9,8 +9,8 @@ use crate::{entry::IntoUtf32String, injector::FinderFn};
 pub mod custom;
 pub mod diagnostics;
 pub mod files;
-mod lua_function;
-pub mod lua_tables;
+// mod lua_function;
+// pub mod lua_tables;
 pub mod lua_value;
 pub mod source;
 
